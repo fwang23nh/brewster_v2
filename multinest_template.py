@@ -1,6 +1,13 @@
 #!/usr/bin/env python
 """MultiNest Retrieval Setup Template"""
 
+import os 
+import utils
+import numpy as np
+import retrieval_run
+import settings
+
+
 __author__ = "Fei Wang"
 __copyright__ = "Copyright 2024 - Fei Wang"
 __credits__ = ["Fei Wang", "Ben Burningham"]
@@ -10,12 +17,6 @@ __maintainer__ = ""
 __email__ = ""
 __status__ = "Development"
 
-
-import os 
-import utils
-import numpy as np
-import retrieval_run
-import settings
 
 fwhm=700
 wavelength_range=[1,2.8]

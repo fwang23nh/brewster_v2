@@ -1,17 +1,6 @@
 #!/usr/bin/env python
 
 """ Module of bits to define prior,lnlike,and lnprob for MCMC/Multinest """
-
-__author__ = "Fei Wang"
-__copyright__ = "Copyright 2024 - Fei Wang"
-__credits__ = ["Fei Wang", "Ben Burningham"]
-__license__ = "GPL"
-__version__ = "0.2"  
-__maintainer__ = ""
-__email__ = ""
-__status__ = "Development"
-
-
 from __future__ import print_function
 import time
 import math
@@ -40,6 +29,15 @@ import utils
 import settings
 import gas_nonuniform
 
+
+__author__ = "Fei Wang"
+__copyright__ = "Copyright 2024 - Fei Wang"
+__credits__ = ["Fei Wang", "Ben Burningham"]
+__license__ = "GPL"
+__version__ = "0.2"  
+__maintainer__ = ""
+__email__ = ""
+__status__ = "Development"
 
 def lnprob(theta,re_params):
 

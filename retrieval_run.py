@@ -1,18 +1,6 @@
 #!/usr/bin/env python
 
 """ Module of processes to set up the retrieval"""
-
-__author__ = "Fei Wang"
-__copyright__ = "Copyright 2024 - Fei Wang"
-__credits__ = ["Fei Wang", "Ben Burningham"]
-__license__ = "GPL"
-__version__ = "0.2"  
-__maintainer__ = ""
-__email__ = ""
-__status__ = "Development"
-
-
-
 from __future__ import print_function
 import time
 import numpy as np
@@ -31,6 +19,14 @@ import mpi4py
 import test_module
 import settings
 
+__author__ = "Fei Wang"
+__copyright__ = "Copyright 2024 - Fei Wang"
+__credits__ = ["Fei Wang", "Ben Burningham"]
+__license__ = "GPL"
+__version__ = "0.2"  
+__maintainer__ = ""
+__email__ = ""
+__status__ = "Development"
 
 
 

@@ -1,6 +1,13 @@
 #!/usr/bin/env python
 
 """ Module of processes to interpret cloud parameters from Brewster in test_module"""
+from __future__ import print_function
+import numpy as np
+import scipy as sp
+from scipy import interpolate
+from astropy.convolution import convolve, convolve_fft
+from astropy.convolution import Gaussian1DKernel
+
 
 __author__ = "Fei Wang"
 __copyright__ = "Copyright 2024 - Fei Wang"
@@ -12,12 +19,6 @@ __email__ = ""
 __status__ = "Development"
 
 
-from __future__ import print_function
-import numpy as np
-import scipy as sp
-from scipy import interpolate
-from astropy.convolution import convolve, convolve_fft
-from astropy.convolution import Gaussian1DKernel
 
 
     # now need to translate cloudparams in to cloud profile even

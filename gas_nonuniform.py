@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 
 """ Module of bits for non-uniform gas profile"""
+import numpy as np
+
 __author__ = "Fei Wang"
 __copyright__ = "Copyright 2024 - Fei Wang"
 __credits__ = ["Fei Wang", "Ben Burningham"]
@@ -10,7 +12,6 @@ __maintainer__ = ""
 __email__ = ""
 __status__ = "Development"
 
-import numpy as np
 
 def non_uniform_gas(press,logPt,logft,alpha):
     gas_f = np.zeros_like(press)
