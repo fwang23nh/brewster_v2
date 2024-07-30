@@ -1,7 +1,10 @@
 #!/usr/bin/env python
+
+
+""" Module of bits to define Instrument, ModelConfig, IOConfig and Retrieval_params class"""
+
 import numpy as np
 import ciamod
-import TPmod
 import settings
 import os
 import gc
@@ -12,6 +15,16 @@ from scipy.interpolate import interp1d
 from scipy.interpolate import InterpolatedUnivariateSpline
 import settings
 
+__author__ = "Fei Wang"
+__copyright__ = "Copyright 2024 - Fei Wang"
+__credits__ = ["Fei Wang", "Ben Burningham"]
+__license__ = "GPL"
+__version__ = "0.2"  
+__maintainer__ = ""
+__email__ = ""
+__status__ = "Development"
+
+
 class Instrument:
     """
     A class to represent an instrument object.
@@ -21,11 +34,11 @@ class Instrument:
     data : str
         Telescope observing modes: 'IFS', 'Imaging'
     R_file : float
-        Minimum wavelength (um)
+        Spectral resolution  file
     wavelength_range : float
         Maximum wavelength (um)
     ndata : float
-        Spectral resolution (lambda / delta-lambda)
+        number of instruments
     
     Methods
     -------
@@ -92,7 +105,7 @@ class ModelConfig:
     dist : float, optional
         Distance parameter (default: None)
     pfile : str, optional
-        Parameter file (default: "LSR1835_eqpt.dat")
+        Pt file (default: "LSR1835_eqpt.dat")
 
     Methods
     -------
@@ -294,11 +307,11 @@ class IOConfig:
     chaindump : int, optional
         Chain dump flag (default: 0)
     picdump : int, optional
-        Picture dump flag (default: 0)
+        Picdump flag (default: 0)
     statfile : str, optional
-        Statistics file (default: None)
+        status file (default: None)
     rfile : str, optional
-        Retrieval file (default: None)
+        runtimes file (default: None)
     runtest : int, optional
         Run test flag (default: 1)
     make_arg_pickle : int, optional
@@ -419,7 +432,7 @@ def tolerance_parameter_customized_distribution(x):
 
 
 
-class retrieval_params:
+class Retrieval_params:
     """
     A class to represent retrieval parameters for atmospheric retrieval.
 
@@ -431,13 +444,28 @@ class retrieval_params:
         List of gas names.
     gastype_list : list of str
         List of gas types, corresponding to the gas names in gaslist.
+    fwhm : float, optional
+        Full width at half maximum of the spectral lines. 
+    do_fudge : int, optional
+        Flag indicating whether to apply tolerance_parameter to the data. 
     ndata : int
-        Number of data points or tolerance parameters.
+        number of instruments
     ptype : int
         Type of pressure-temperature profile.
+    do_clouds : int, optional
+        Flag indicating whether to include cloud parameters in the retrieval. 
+        - 1: Include clouds.
+    npatches : int, optional
+        Number of patches for cloud distribution. 
     cloudname : list of str
         List of cloud names.
-
+    cloudpatch_index : list of int, optional
+        Indexes for `cloudname` corresponding to which cloud patches 
+    particle_dis : str, optional
+        Distribution type for particles in the cloud. Default is None.
+        E.g., 'log_normal', 'hansan', etc.
+        only used when include Mie cloud.
+    
     Methods
     -------
     gas_dic_gen(gasname, gastype):
@@ -1258,8 +1286,6 @@ def update_dictionary(dic, params_instance):
     # Update gas parameters
     
     gastype_values = [info['gastype'] for key, info in dic['gas'].items() if 'gastype' in info]
-#     for gas in dic['gas'].keys():
-#         dic['gas'][gas]['params']['log_abund']['initialization'] = getattr(params_instance, gas)
     gaslist=list(dic['gas'].keys())
     for i in range(len(gaslist)):
         dic['gas'][gaslist[i]]['params']['log_abund']['initialization'] = getattr(params_instance, gaslist[i])
@@ -1301,7 +1327,7 @@ def update_dictionary(dic, params_instance):
     
     return dic
 
-# Get the current parameters
+
 
 
 
@@ -1343,10 +1369,8 @@ def MC_P0_gen(updated_dic,model_config_instance):
             p0[:,i]= np.random.uniform(pmin, pmax, nwalkers).reshape(nwalkers)
 
         elif  all_distributions[i][0]=='customized':
-            # lambda x: 300. + 2000. * x
             f = all_distributions[i][1]
             p0[:, i] = f(nwalkers).reshape(nwalkers)
-
 
     return p0
 
@@ -1421,9 +1445,6 @@ def args_gen(re_params,model,instrument,obspec):
     coarsePress = pow(10,logcoarsePress)
     press = pow(10,logfinePress)        
     
-    
-    
-    
     dist=model.dist
     use_disort=model.use_disort
     xpath=model.xpath
@@ -1436,7 +1457,7 @@ def args_gen(re_params,model,instrument,obspec):
     gaslist_lower = [gas.lower() for gas in gaslist]
 
     chemeq=re_params.chemeq
-
+    
     if gaslist_lower[-1] == 'k_na':
         gaslist=list(gaslist[0:-1])+['k', 'na']
 

@@ -1,62 +1,35 @@
 #!/usr/bin/env python
 
-""" Module of processes to interpret cloud parameters from Brewster in testkit"""
-# from __future__ import print_function
-# import numpy as np
-# import scipy as sp
-# from scipy import interpolate
-# from astropy.convolution import convolve, convolve_fft
-# from astropy.convolution import Gaussian1DKernel
+""" Module of processes to set up the retrieval"""
+
+__author__ = "Fei Wang"
+__copyright__ = "Copyright 2024 - Fei Wang"
+__credits__ = ["Fei Wang", "Ben Burningham"]
+__license__ = "GPL"
+__version__ = "0.2"  
+__maintainer__ = ""
+__email__ = ""
+__status__ = "Development"
+
+
+
 from __future__ import print_function
-import multiprocessing
 import time
 import numpy as np
 import scipy as sp
 import emcee
-import gc
-import ciamod
-import TPmod
 import os
 import sys
-import math
-import numpy as np
-import scipy as sp
 import pickle
-import forwardmodel
 import cloud_dic
-import TPmod
 from builtins import str
 from builtins import range
-from scipy import interpolate
-from scipy.interpolate import interp1d
-from scipy.interpolate import InterpolatedUnivariateSpline
-from astropy.convolution import convolve, convolve_fft
-from astropy.convolution import Gaussian1DKernel
-from bensconv import prism_non_uniform
-from bensconv import conv_uniform_R
-from bensconv import conv_uniform_FWHM
-from collections import namedtuple
-import forwardmodel
 import utils
 from schwimmbad import MPIPool
 import pymultinest as mn
 import mpi4py
-import os 
-from collections import namedtuple
-import numpy as np
-import test_new_module
+import test_module
 import settings
-
-
-__author__ = "Ben Burningham"
-__copyright__ = "Copyright 2016 - Ben Burningham"
-__credits__ = ["Ben Burningham","The EMCEE DOCS"]
-__license__ = "GPL"
-__version__ = "0.1"
-__maintainer__ = "Ben Burningham"
-__email__ = "burninghamster@gmail.com"
-__status__ = "Development"
-
 
 
 
@@ -115,7 +88,7 @@ def brewster_reterieval_run(re_params,model_config_instance,io_config_instance):
             pool.wait()
             sys.exit()
 
-        sampler = emcee.EnsembleSampler(model_config_instance.nwalkers, model_config_instance.ndim,test_new_module.lnprob,args=(re_params,),pool=pool)
+        sampler = emcee.EnsembleSampler(model_config_instance.nwalkers, model_config_instance.ndim,test_module.lnprob,args=(re_params,),pool=pool)
         # '''
         # run the sampler
         print("running the sampler")
@@ -209,7 +182,7 @@ def brewster_reterieval_run(re_params,model_config_instance,io_config_instance):
         def log_likelihood_call(re_params):
             def log_likelihood(cube,ndim, nparams):
                 theta=cube[:ndim]
-                lnLik=test_new_module.lnlike(theta,re_params)
+                lnLik=test_module.lnlike(theta,re_params)
                 return lnLik
             return log_likelihood
         
@@ -217,7 +190,7 @@ def brewster_reterieval_run(re_params,model_config_instance,io_config_instance):
         def prior_call(re_params):
             def prior(cube, ndim, nparams):
                 theta=cube[:ndim]
-                phi=test_new_module.priormap_dic(theta,re_params)
+                phi=test_module.priormap_dic(theta,re_params)
                 return phi
             return prior
 
@@ -240,7 +213,7 @@ def brewster_reterieval_run(re_params,model_config_instance,io_config_instance):
         
         result = mn.run(**mnest_args)
         # result = mn.solve(**mnest_args)
-        # result = mn.solve(LogLikelihood=test_newmodule.lnlike, Prior=nestkit_nonuniform.priormap,n_dims=n_params,n_live_points=600, outputfiles_basename=outdir+runname, verbose=True,multimodal = False, evidence_tolerance = 0.5, log_zero = -1e90, importance_nested_sampling = False, sampling_efficiency = 'parameter', const_efficiency_mode = False)
+
 
         print()
         print('evidence: %(logZ).1f +- %(logZerr).1f' % result)

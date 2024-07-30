@@ -1,29 +1,21 @@
 #!/usr/bin/env python
+"""MCMC Retrieval Setup Template"""
 
-""" Module of processes to interpret cloud parameters from Brewster in testkit"""
-# from __future__ import print_function
-# import numpy as np
-# import scipy as sp
-# from scipy import interpolate
-# from astropy.convolution import convolve, convolve_fft
-# from astropy.convolution import Gaussian1DKernel
+__author__ = "Fei Wang"
+__copyright__ = "Copyright 2024 - Fei Wang"
+__credits__ = ["Fei Wang", "Ben Burningham"]
+__license__ = "GPL"
+__version__ = "0.2"  
+__maintainer__ = ""
+__email__ = ""
+__status__ = "Development"
+
 
 import os 
 import utils
-from collections import namedtuple
 import numpy as np
-import test_new_module
-import brewster_run
+import retrieval_run
 import settings
-
-__author__ = "Ben Burningham"
-__copyright__ = "Copyright 2016 - Ben Burningham"
-__credits__ = ["Ben Burningham","The EMCEE DOCS"]
-__license__ = "GPL"
-__version__ = "0.1"
-__maintainer__ = "Ben Burningham"
-__email__ = "burninghamster@gmail.com"
-__status__ = "Development"
 
 
 fwhm=700
@@ -48,14 +40,14 @@ cloudpacth_index=[[1],[1,2]]
 
 # particle_dis=['hansan','log_normal']
 # cloudname = ['power law cloud slab']  
-do_fudge=1
 # do_bff=1
-samplemode='mcmc'
 
+do_fudge=1
+samplemode='mcmc'
 # samplemode='multinest'
 
 instrument_instance = utils.Instrument(fwhm,wavelength_range,ndata)
-re_params = utils.retrieval_params(samplemode,chemeq,gaslist,gastype_list,fwhm,do_fudge,ptype,do_clouds,npatches,cloudname,cloudpacth_index)
+re_params = utils.Retrieval_params(samplemode,chemeq,gaslist,gastype_list,fwhm,do_fudge,ptype,do_clouds,npatches,cloudname,cloudpacth_index)
 model_config_instance = utils.ModelConfig(samplemode)
 io_config_instance = utils.IOConfig()
 
@@ -74,5 +66,5 @@ obspec = np.asfortranarray(np.loadtxt("LSR1835_data_realcalib_new_trimmed.dat",d
 settings.init()
 settings.runargs=utils.args_gen(re_params,model_config_instance,instrument_instance,obspec)
 
-brewster_run.brewster_reterieval_run(re_params,model_config_instance,io_config_instance)
+retrieval_run.brewster_reterieval_run(re_params,model_config_instance,io_config_instance)
 
