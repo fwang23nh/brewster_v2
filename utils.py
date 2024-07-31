@@ -1146,7 +1146,7 @@ class Retrieval_params:
             for i in range(npatches):
                 for j in range(len(cloudpatch_index)):
                     if i + 1 in cloudpatch_index[j]:
-                        dic = self.cloud_dic_gen(do_clouds, cloudname[j], particle_dis)
+                        dic = self.cloud_dic_gen(do_clouds, cloudname[j], particle_dis[j])
                         patch_key = f"patch {i + 1}"
 
                         if patch_key not in cloud_dic:

@@ -31,6 +31,7 @@ do_clouds=1
 npatches=2
 cloudname = ['power law cloud slab','powerlaw cloud deck']  
 cloudpacth_index=[[1],[1,2]] 
+particle_dis=['hansan','hansan']
 
 
 # cloudname = []  
@@ -46,7 +47,7 @@ samplemode='mcmc'
 # samplemode='multinest'
 
 instrument_instance = utils.Instrument(fwhm,wavelength_range,ndata)
-re_params = utils.Retrieval_params(samplemode,chemeq,gaslist,gastype_list,fwhm,do_fudge,ptype,do_clouds,npatches,cloudname,cloudpacth_index)
+re_params = utils.Retrieval_params(samplemode,chemeq,gaslist,gastype_list,fwhm,do_fudge,ptype,do_clouds,npatches,cloudname,cloudpacth_index,particle_dis)
 model_config_instance = utils.ModelConfig(samplemode)
 io_config_instance = utils.IOConfig()
 
