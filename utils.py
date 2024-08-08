@@ -43,7 +43,6 @@ class Instrument:
     Methods
     -------
     instrument_dic_gen()
-        Initialize telescope object using current LUVOIR parameters (Not decided!)
     """
     
     def __init__(self, fwhm=None, wavelength_range=None, ndata=None,wavpoints=None):
