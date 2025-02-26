@@ -8,16 +8,6 @@ subroutine marv(temp,logg,R2D2,ingasname,molmass,logVMR,pcover,&
   use main
   
 
-  !f2py integer, parameter :: nlinetemps
-  !f2py intent(in) logg,R2D2,gasname
-  !f2py intent(inout) temp,logVMR,inpress
-  !f2py intent(in) use_disort,make_cl_pspec,make_oth_pspec,make_cf,do_bff
-  !f2py intent(inout) inlinetemps
-  !f2py intent(inout) cloudrad,cloudsig,cloudprof
-  !f2py intent(inout) cia, ciatemps
-  !f2py intent(inout) inlinelist, inwavenum,bff
-  !f2py intent(inout) do_clouds,pcover,molmass,incloudnum
-  !f2py intent(out) out_spec, cl_phot_press,oth_phot_press,cfunc
 
   real,intent(inout) :: cia(:,:,:)
   real,dimension(nciatemps) :: ciatemps
