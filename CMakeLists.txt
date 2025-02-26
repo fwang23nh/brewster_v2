@@ -56,12 +56,14 @@ function(add_f2py_module name)
     "${CMAKE_CURRENT_BINARY_DIR}/${name}module.c"
     "${F2PY_INCLUDE_DIR}/fortranobject.c"
     "${name}-f2pywrappers2.f90"
-    "${src_files}"
   )
 
   target_link_libraries(${name} PRIVATE Python::NumPy marvin)
   add_dependencies(${name} ${name}_gen)
   target_include_directories(${name} PRIVATE "${F2PY_INCLUDE_DIR}")
+  set_target_properties(${name} PROPERTIES
+    INSTALL_RPATH "\$ORIGIN"
+  )
 endfunction()
 
 add_f2py_module(bbconv
@@ -84,3 +86,5 @@ add_f2py_module(forwardmodel
 
 file(GLOB MARVIN_SOURCE src/fortran/*.f*)
 add_library(marvin SHARED ${MARVIN_SOURCE})
+
+install(TARGETS marvin bbconv ciamod cloudpost forwardmodel DESTINATION brewster)
