@@ -37,6 +37,18 @@ set(BREWSTER_SRC_DIR
 
 function(add_f2py_module name)
   set(src_files ${ARGN})
+
+  # F2PY doesn't like spaces in filenames, so copy them to the build directory
+  # and use relative paths
+  foreach (src_file IN LISTS src_files)
+    get_filename_component(src_file_name ${src_file} NAME)
+    configure_file(${src_file}
+      "${CMAKE_CURRENT_BINARY_DIR}"
+      COPYONLY
+    )
+    list(APPEND src_files_relative ${src_file_name})
+  endforeach()
+
   add_custom_target(
     ${name}_gen
     DEPENDS "${CMAKE_CURRENT_BINARY_DIR}/${name}module.c"
@@ -46,9 +58,10 @@ function(add_f2py_module name)
     OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/${name}module.c"
            "${CMAKE_CURRENT_BINARY_DIR}/${name}-f2pywrappers2.f90"
     COMMAND ${Python_EXECUTABLE} -m "numpy.f2py"
-                     ${src_files}
-                     -m "${name}"
-                     --lower
+            ${src_files_relative}
+            -m "${name}"
+            --lower
+    COMMAND_EXPAND_LISTS
     DEPENDS ${src_files}
   )
 
