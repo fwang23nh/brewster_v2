@@ -39,22 +39,45 @@ class Instrument:
         Maximum wavelength (um)
     ndata : float
         number of instruments
+    R_file : str
+        path to the R vs wl file
     
     Methods
     -------
     instrument_dic_gen()
+    load_R_file(): 
+        loads the R vs wl file
     """
     
-    def __init__(self, fwhm=None, wavelength_range=None, ndata=None,R_file=None,wavpoints=None):
+    def __init__(self, fwhm=None, wavelength_range=None, ndata=None,wavpoints=None, R_file=None):
         self.fwhm  = fwhm 
         self.wavelength_range = wavelength_range
         self.ndata = ndata
         self.wavpoints = wavpoints
         self.R_file = R_file
+        self.R_data = None
+        
+        # only load R if the user provides it
+        if R_file:
+            self.load_R_file()
 
         self.dictionary = self.instrument_dic_gen()
 
-#     @classmethod
+#     @classmethod 
+
+    def load_R_file(self):
+        """
+        loads the R(first column) vs wl (second column) vs flag for tolerance param (third column) txt file (if provided)
+        """
+        try:
+            data = np.loadtxt(self.R_file)
+            self.R = data[:,0]
+            self.wl = data[:,1]
+            self.logf_flag = data[:,2]
+            self.R_data = {'R': self.R, 'wl': self.wl, 'logf_flag': self.logf_flag}
+        except Exception as e:
+            print(f'no such file: {e}')
+
     def instrument_dic_gen(self):
         """
         Initialize telescope object using current parameters.
@@ -65,7 +88,8 @@ class Instrument:
                 'wavelength_range': self.wavelength_range,
                 'ndata': self.ndata,
                 'wavpoints': self.wavpoints,
-                'R_file': self.R_file
+                'R_file': self.R_file,
+                'R_data': self.R_data
             }
         }
 
@@ -75,7 +99,8 @@ class Instrument:
             '- wavelength_range : ' + "%s" % (self.wavelength_range) + '\n' +\
             '- ndata : ' + "%s" % (self.ndata) + ' \n'  +\
             '- wavpoints : ' + "%s" % (self.wavpoints) + ' \n' +\
-            '- R_file : ' + "%s" % (self.R_file) + ' \n'
+            '- R_file : ' + "%s" % (self.R_file) + '\n' +\
+            '- R_data : ' + "%s" % (self.R_data) + ' \n'
         return string
 
 
@@ -1087,7 +1112,7 @@ class Retrieval_params:
             
         # Remove 'scale1' and 'scale2' if fwhm condition is not met
     
-        if self.fwhm >=0 or self.fwhm in [-5,-6] and self.do_fudge==1:
+        if (self.fwhm >=0 and self.fwhm <=500) or (self.fwhm in [-5,-6] and self.do_fudge==1):
 
             del dictionary['params']['scale1']
             del dictionary['params']['scale2']
@@ -1099,7 +1124,17 @@ class Retrieval_params:
 
         if self.fwhm in [-1, -3, -4] and self.do_fudge==1:
             ndata=3
-
+            
+        if self.fwhm in [555, 888] and self.do_fudge==1:
+            del dictionary['params']['scale1']
+            del dictionary['params']['scale2']
+            ndata=2
+            
+        if self.fwhm in [777] and self.do_fudgge==1:
+            del dictionary['params']['scale1']
+            del dictionary['params']['scale2']
+            ndata=0
+            
         # Add tolerance parameters after 'dlambda'
         if self.do_fudge==1:
             for i in range(ndata):
@@ -1791,7 +1826,8 @@ class ArgsGen:
         self.model = model
         self.instrument = instrument
         self.obspec = obspec
-
+        #self.fwhm = self.instrument.fwhm
+        #self.logf = self.instrument.logf
         # Generate all necessary model arguments on initialization
         self.generate()
 
@@ -1815,7 +1851,6 @@ class ArgsGen:
         self.pfile = self.model.pfile
         self.do_bff = self.model.do_bff
         self.chemeq = self.re_params.chemeq
-        
         # Process gas list
         self.gaslist = list(self.re_params.dictionary['gas'].keys())
         gaslist_lower = [gas.lower() for gas in self.gaslist]
@@ -1828,6 +1863,9 @@ class ArgsGen:
         # Retrieve instrument parameters
         self.fwhm = self.instrument.fwhm
         self.w1, self.w2 = self.instrument.wavelength_range
+        self.R = self.instrument.R
+        self.wl = self.instrument.wl
+        self.logf_flag = self.instrument.logf_flag #!!!!!!!!!!!!!!!!
         
         # Profile type and cloud parameters
         self.proftype = self.re_params.ptype
