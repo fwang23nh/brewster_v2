@@ -5,12 +5,6 @@ project(
   LANGUAGES C Fortran
 )
 
-# DISORT is trying to use a scalar as a rank-1 array
-# Technically this should be fixed in DISORT, but this is a quick fix
-set(CMAKE_Fortran_FLAGS
-  "${CMAKE_Fortran_FLAGS} -fallow-argument-mismatch"
-)
-
 # Grab Python, 3.8 or newer
 find_package(Python 3.8 REQUIRED
   COMPONENTS Interpreter Development.Module NumPy
@@ -37,7 +31,8 @@ set(BREWSTER_SRC_DIR
 
 function(add_f2py_module name compile_flags link_marvin)
   set(src_files ${ARGN})
-  set(output_name "${CMAKE_CURRENT_BINARY_DIR}/${name}.${Python_SOABI}${CMAKE_SHARED_LIBRARY_SUFFIX}")
+  # gfortran always uses .so on mac and linux
+  set(output_name "${CMAKE_CURRENT_BINARY_DIR}/${name}.${Python_SOABI}.so")
 
   # F2PY doesn't like spaces in filenames, so copy them to the build directory
   # and use relative paths
@@ -49,6 +44,15 @@ function(add_f2py_module name compile_flags link_marvin)
     )
     list(APPEND src_files_relative ${src_file_name})
   endforeach()
+
+  if (NOT ${CMAKE_SYSTEM_NAME} STREQUAL "Darwin")
+    set(ldflags LDFLAGS=-Wl,-rpath='$$ORIGIN')
+  endif()
+
+  set(marvin_str)
+  if (link_marvin)
+    set(marvin_str $<TARGET_FILE_NAME:marvin>)
+  endif()
 
   # FIXME
   # Use this contorted method to build the object rather than
@@ -63,12 +67,12 @@ function(add_f2py_module name compile_flags link_marvin)
             --overwrite-signature
              ${src_files_relative}
     COMMAND_EXPAND_LISTS
-    COMMAND env LDFLAGS=-Wl,-rpath='\$$ORIGIN' NPY_DISTUTILS_APPEND_FLAGS=1
+    COMMAND env ${ldflags} NPY_DISTUTILS_APPEND_FLAGS=1
             ${Python_EXECUTABLE} -m numpy.f2py
             --fcompiler=gfortran
             --f90flags=\""${compile_flags}"\"
             -c "${name}.pyf"
-            $<TARGET_FILE_NAME:marvin>
+            ${marvin_str}
             ${src_files_relative}
     COMMAND_EXPAND_LISTS
     DEPENDS ${src_files}
@@ -114,9 +118,9 @@ add_f2py_module(cloudpost "-frecord-marker=4 -fbounds-check" OFF
 install(TARGETS marvin DESTINATION brewster)
 # Can't install output of custom commands, have to install the output
 install(PROGRAMS
-  "${CMAKE_CURRENT_BINARY_DIR}/bbconv.${Python_SOABI}${CMAKE_SHARED_LIBRARY_SUFFIX}"
-  "${CMAKE_CURRENT_BINARY_DIR}/ciamod.${Python_SOABI}${CMAKE_SHARED_LIBRARY_SUFFIX}"
-  "${CMAKE_CURRENT_BINARY_DIR}/cloudpost.${Python_SOABI}${CMAKE_SHARED_LIBRARY_SUFFIX}"
-  "${CMAKE_CURRENT_BINARY_DIR}/forwardmodel.${Python_SOABI}${CMAKE_SHARED_LIBRARY_SUFFIX}"
+  "${CMAKE_CURRENT_BINARY_DIR}/bbconv.${Python_SOABI}.so"
+  "${CMAKE_CURRENT_BINARY_DIR}/ciamod.${Python_SOABI}.so"
+  "${CMAKE_CURRENT_BINARY_DIR}/cloudpost.${Python_SOABI}.so"
+  "${CMAKE_CURRENT_BINARY_DIR}/forwardmodel.${Python_SOABI}.so"
   DESTINATION brewster
 )
