@@ -4,7 +4,7 @@ from brewster import code_test as ct
 import numpy as np
 
 def main():
-    xpath = 'Linelists/'
+    xpath = '../Linelists/'
     xlist = 'data/gaslistR10K.dat'
     results = [ct.NoCloud_Tdwarf(xpath,xlist),ct.MieClouds_Ldwarf(xpath,xlist)]
 

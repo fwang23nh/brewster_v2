@@ -15,11 +15,12 @@ A spectral inversion code for retrieval analysis of emission spectra from brown 
 2. Git clone or fork the directory and place wherever your code lives. (If you plan to make any changes to the code you might like to incorporate into the master branch via a pull request, you should probably fork it.)
 3. To keep various package versions clean and organized, you should create a Python 3 environment, ideally Python <=3.11, as that is the version that will be needed to run the code on a cluster.
 4. `pip install /path/to/brewster`
-5. You will need to get access to the Linelist and Clouds folders that are shared via Dropbox. Place the Clouds and Linelists folders at the same level as the data directory from this repository 
+5. You will need to get access to the Linelist and Clouds folders that are shared via Dropbox. Place the Clouds and Linelists folders one directoy above the data directory from this repository 
 ```bash
-|-- Clouds/
-|-- Linelists/
-|-- data/
+├── Clouds
+├── brewster_v2
+│   └── data
+└── Linelists
  ```
 6. To test that everything is properly installed, run the check-brewster command, by typing `check-brewster` in the terminal making sure you are in the brewster working directory specified above
 
