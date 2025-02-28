@@ -4,7 +4,7 @@
 """ Module of bits to define Instrument, ModelConfig, IOConfig and Retrieval_params class"""
 
 import numpy as np
-import ciamod
+from brewster import ciamod
 import os
 import gc
 import sys

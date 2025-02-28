@@ -1,7 +1,7 @@
 import numpy as np
-from bbconv import prism
-from bbconv import convfwhm
-from bbconv import convr
+from brewster.bbconv import prism
+from brewster.bbconv import convfwhm
+from brewster.bbconv import convr
 
 #**************************************************************************
 

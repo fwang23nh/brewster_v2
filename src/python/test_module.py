@@ -7,12 +7,12 @@ import math
 import numpy as np
 import scipy as sp
 import gc
-import ciamod
+from brewster import ciamod
 import TPmod
 import os
 import sys
 import pickle
-import forwardmodel
+from brewster import forwardmodel
 import cloud_dic
 from builtins import str
 from builtins import range

@@ -9,8 +9,8 @@ import numpy as np
 import emcee
 import corner
 import pickle as pickle
-import forwardmodel
-import ciamod
+from brewster import forwardmodel
+from brewster import ciamod
 import TPmod
 import brewtools
 from astropy.convolution import convolve, convolve_fft
