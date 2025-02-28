@@ -5,14 +5,11 @@
 
 import numpy as np
 from brewster import ciamod
-import os
-import gc
 import sys
 import pickle
-from scipy import interpolate
 from scipy.interpolate import interp1d
 from scipy.interpolate import InterpolatedUnivariateSpline
-import TPmod
+from brewster import TPmod
 from collections import namedtuple
 
 __author__ = "Fei Wang"

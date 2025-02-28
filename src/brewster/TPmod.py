@@ -1,12 +1,10 @@
 #!/usr/bin/env python
 
 """ Module of bits for setting up T-P profile for Brewster"""
-import math
-import gc
 import numpy as np
 import scipy as sp
 from scipy import interpolate
-from astropy.convolution import convolve, Box1DKernel,Gaussian1DKernel
+from astropy.convolution import convolve, Gaussian1DKernel
 
 
 __author__ = "Ben Burningham"

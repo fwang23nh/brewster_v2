@@ -13,6 +13,11 @@ dependencies = [
     "scipy",
 ]
 
+[project.scripts]
+check-brewster = "brewster.check_brewster:main"
+
 [tool.scikit-build]
 ninja.version = ">=1.10"
 cmake.version = ">=3.18.0"
+cmake.build-type = "RelWithDebInfo"
+wheel.packages = ["src/brewster"]

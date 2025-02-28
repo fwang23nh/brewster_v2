@@ -8,12 +8,12 @@ import numpy as np
 import scipy as sp
 import gc
 from brewster import ciamod
-import TPmod
+from brewster import TPmod
 import os
 import sys
 import pickle
 from brewster import forwardmodel
-import cloud_dic
+from brewster import cloud_dic
 from builtins import str
 from builtins import range
 from scipy import interpolate
@@ -21,13 +21,13 @@ from scipy.interpolate import interp1d
 from scipy.interpolate import InterpolatedUnivariateSpline
 from astropy.convolution import convolve, convolve_fft
 from astropy.convolution import Gaussian1DKernel
-from bensconv import prism_non_uniform
-from bensconv import conv_uniform_R
-from bensconv import conv_uniform_FWHM
+from brewster.bensconv import prism_non_uniform
+from brewster.bensconv import conv_uniform_R
+from brewster.bensconv import conv_uniform_FWHM
 from collections import namedtuple
-import utils
-import settings
-import gas_nonuniform
+from brewster import utils
+from brewster import settings
+from brewster import gas_nonuniform
 
 
 __author__ = "Fei Wang"

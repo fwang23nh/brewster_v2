@@ -93,8 +93,9 @@ add_library(marvin SHARED
   $<TARGET_OBJECTS:marvin_f90>
 )
 
-add_f2py_module(bbconv "" OFF
-  ${BREWSTER_SRC_DIR}/bbconv.f90
+add_f2py_module(forwardmodel "" ON
+  ${BREWSTER_SRC_DIR}/sizes_mod.f90
+  ${BREWSTER_SRC_DIR}/marv.f90
 )
 
 add_f2py_module(ciamod "" OFF
@@ -102,13 +103,12 @@ add_f2py_module(ciamod "" OFF
   ${BREWSTER_SRC_DIR}/read_cia.f90
 )
 
-add_f2py_module(cloudpost "-frecord-marker=4 -fbounds-check" OFF
-  ${BREWSTER_SRC_DIR}/cloudpost.f90
+add_f2py_module(bbconv "" OFF
+  ${BREWSTER_SRC_DIR}/bbconv.f90
 )
 
-add_f2py_module(forwardmodel "" ON
-  ${BREWSTER_SRC_DIR}/sizes_mod.f90
-  ${BREWSTER_SRC_DIR}/marv.f90
+add_f2py_module(cloudpost "-frecord-marker=4 -fbounds-check" OFF
+  ${BREWSTER_SRC_DIR}/cloudpost.f90
 )
 
 install(TARGETS marvin DESTINATION brewster)

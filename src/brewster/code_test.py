@@ -1,32 +1,13 @@
 # This script tests the forward model in the context of cloudless T8 dwarf
 # parameters a drawn from a retrieval on G570D
-import matplotlib as mpl
-import matplotlib.pyplot as plt
-import matplotlib.image as mgimg
-import matplotlib.colors as colors
-import scipy as sp
 import numpy as np
-import emcee
-import corner
 import pickle as pickle
-from brewster import forwardmodel
-from brewster import ciamod
-import TPmod
-import brewtools
-from astropy.convolution import convolve, convolve_fft
-from astropy.convolution import Gaussian1DKernel
-from scipy.io.idl import readsav
-from scipy import interpolate
-from scipy.interpolate import interp1d
-from scipy.interpolate import InterpolatedUnivariateSpline
-from bensconv import prism_non_uniform
-from bensconv import conv_uniform_R
-from bensconv import conv_uniform_FWHM
+from brewster.bensconv import prism_non_uniform
+from brewster.bensconv import conv_uniform_R
 from collections import namedtuple
-import utils
-import settings
-import gas_nonuniform
-import test_module
+from brewster import utils
+from brewster import settings
+from brewster import test_module
 
 
 
