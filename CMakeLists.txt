@@ -110,6 +110,7 @@ add_f2py_module(ciamod ""
 )
 
 add_f2py_module(bbconv ""
+  ${BREWSTER_SRC_DIR}/sizes_mod.f90
   ${BREWSTER_SRC_DIR}/bbconv.f90
 )
 
