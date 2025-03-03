@@ -48,32 +48,36 @@ function(add_f2py_module name compile_flags)
     list(APPEND src_files_relative ${src_file_name})
   endforeach()
 
-  if (NOT ${CMAKE_SYSTEM_NAME} STREQUAL "Darwin")
-    set(ldflags LDFLAGS=-Wl,-rpath='$$ORIGIN')
-  endif()
-
-  # FIXME
-  # Use this contorted method to build the object rather than
-  # add_python_library because the code doesn't work when using
-  # the documented build without forcing f2py to call the compiler
-  get_target_property(MARVIN_FFLAGS marvin_f90 COMPILE_OPTIONS)
+  add_custom_target(
+    ${name}_gen
+    DEPENDS "${CMAKE_CURRENT_BINARY_DIR}/${name}module.c"
+            "${CMAKE_CURRENT_BINARY_DIR}/${name}-f2pywrappers2.f90"
+  )
   add_custom_command(
-    TARGET marvin POST_BUILD
-    BYPRODUCTS ${output_name} ${name}.pyf
+    OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/${name}module.c"
+           "${CMAKE_CURRENT_BINARY_DIR}/${name}-f2pywrappers2.f90"
     COMMAND ${Python_EXECUTABLE} -m "numpy.f2py"
+            ${src_files_relative}
             -m "${name}"
-            -h "${name}.pyf"
-            --overwrite-signature
-             ${src_files_relative}
-    COMMAND_EXPAND_LISTS
-    COMMAND env ${ldflags} NPY_DISTUTILS_APPEND_FLAGS=1
-            ${Python_EXECUTABLE} -m numpy.f2py
-            --fcompiler=gfortran
-            --f90flags=\""${compile_flags} ${BREWSTER_F90_FLAGS}"\"
-            -c "${name}.pyf"
-            $<TARGET_FILE_NAME:marvin>
+            --lower
     COMMAND_EXPAND_LISTS
     DEPENDS ${src_files}
+  )
+
+  Python_add_library(${name} MODULE WITH_SOABI
+    "${CMAKE_CURRENT_BINARY_DIR}/${name}module.c"
+    "${F2PY_INCLUDE_DIR}/fortranobject.c"
+    "${name}-f2pywrappers2.f90"
+  )
+
+  target_link_libraries(${name} PRIVATE Python::NumPy marvin)
+  set_source_files_properties("${CMAKE_CURRENT_BINARY_DIR}/${name}-f2pywrappers2.f90"
+    COMPILE_OPTIONS "${BREWSTER_F90_FLAGS} ${compile_flags}"
+  )
+  add_dependencies(${name} ${name}_gen)
+  target_include_directories(${name} PRIVATE "${F2PY_INCLUDE_DIR}")
+  set_target_properties(${name} PROPERTIES
+    INSTALL_RPATH "\$ORIGIN"
   )
 endfunction()
 
@@ -113,12 +117,4 @@ add_f2py_module(cloudpost "-frecord-marker=4 -fbounds-check"
   ${BREWSTER_SRC_DIR}/cloudpost.f90
 )
 
-install(TARGETS marvin DESTINATION brewster)
-# Can't install output of custom commands, have to install the output
-install(PROGRAMS
-  "${CMAKE_CURRENT_BINARY_DIR}/bbconv.${Python_SOABI}.so"
-  "${CMAKE_CURRENT_BINARY_DIR}/ciamod.${Python_SOABI}.so"
-  "${CMAKE_CURRENT_BINARY_DIR}/cloudpost.${Python_SOABI}.so"
-  "${CMAKE_CURRENT_BINARY_DIR}/forwardmodel.${Python_SOABI}.so"
-  DESTINATION brewster
-)
+install(TARGETS marvin forwardmodel ciamod bbconv cloudpost DESTINATION brewster)
