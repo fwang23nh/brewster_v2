@@ -14,10 +14,12 @@ from brewster import test_module
 
 
 def NoCloud_Tdwarf(xpath,xlist):
-    
+
      fwhm=0
      wavelength_range=[1,2.5]
      ndata=1
+     wavpoints=None
+     R_file=None
 
      ##gas
      chemeq=0
@@ -59,7 +61,7 @@ def NoCloud_Tdwarf(xpath,xlist):
      settings.init(args_instance)
      args_instance=settings.runargs
 
-     all_params,all_params_values =utils.get_all_parametres(re_params.dictionary) 
+     all_params,all_params_values =utils.get_all_parametres(re_params.dictionary)
      params_master = namedtuple('params',all_params)
      print(all_params)
      print(model_config_instance.do_fudge)
@@ -82,7 +84,7 @@ def NoCloud_Tdwarf(xpath,xlist):
      print('std deviation of modelspectrum / T benchmark = '+str(np.std(difference_spectrum)))
 
      percent_change = np.mean(abs(outspec - benchspec[1,:])/benchspec[1,:])
-     
+
      if (percent_change < 0.01):
           print("less than 1percent difference with T dwarf regime benchmark")
           print('-------------------------------------------------------')
@@ -139,7 +141,7 @@ def MieClouds_Ldwarf(xpath,xlist):
      settings.init(args_instance)
      args_instance=settings.runargs
 
-     all_params,all_params_values =utils.get_all_parametres(re_params.dictionary) 
+     all_params,all_params_values =utils.get_all_parametres(re_params.dictionary)
      params_master = namedtuple('params',all_params)
      theta =[-3.55278369e+00,-2.83012757e+00,-4.31062021e+00,-4.95190596e+00,-9.77059307e+00,-8.85409603e+00,-8.41539430e+00,-7.85745521e+00,-6.57250890e+00,5.46814691e+00,2.68655361e-20,1.07209671e+00,1.11922607e+00,2.83604013e-03,-3.16119701e+01,-3.32775232e+01,-3.46762823e+01,5.42024548e+00,-2.76574938e+00,4.38059949e-01,-5.73919866e-01,8.58329576e-02,8.72374998e-01,4.39392990e+00,-1.96757779e+00,6.24967679e-02,3.45025551e-01,6.78307874e-02,7.56891116e-02,1.71616709e+00,4.88646433e+03]
      theta_master=theta[0:17]+theta[26:]+theta[17:26]
@@ -153,7 +155,7 @@ def MieClouds_Ldwarf(xpath,xlist):
      or1  = np.where(obspec[0,:] < 2.5)
      spec1 = prism_non_uniform(obspec[:,or1],modspec,3.3)
 
-     # Mike Cushing supplied L band R = 425 
+     # Mike Cushing supplied L band R = 425
      # dispersion constant across order 0.0097um
      # R = 425
      R = 425
@@ -183,7 +185,7 @@ def MieClouds_Ldwarf(xpath,xlist):
      print('mean value of modelspectrum / L benchmark = '+str(np.mean(difference_spectrum)))
      print('std deviation of modelspectrum / L benchmark = '+str(np.std(difference_spectrum)))
      percent_change = np.mean(abs(outspec - obspec[1,:])/obspec[1,:])
-     
+
      if (percent_change < 0.01):
           print("less than 1percent difference with L dwarf regime benchmark")
           print('-------------------------------------------------------')
@@ -193,5 +195,3 @@ def MieClouds_Ldwarf(xpath,xlist):
           print('-------------------------------------------------------')
 
           return False
-
-     
