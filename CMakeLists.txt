@@ -32,7 +32,7 @@ set(BREWSTER_SRC_DIR
   "${CMAKE_CURRENT_SOURCE_DIR}/src/fortran"
 )
 
-function(add_f2py_module name compile_flags)
+function(add_f2py_module name)
   set(src_files ${ARGN})
   # gfortran always uses .so on mac and linux
   set(output_name "${CMAKE_CURRENT_BINARY_DIR}/${name}.${Python_SOABI}.so")
@@ -72,7 +72,7 @@ function(add_f2py_module name compile_flags)
 
   target_link_libraries(${name} PRIVATE Python::NumPy marvin)
   set_source_files_properties("${CMAKE_CURRENT_BINARY_DIR}/${name}-f2pywrappers2.f90"
-    COMPILE_OPTIONS "${BREWSTER_F90_FLAGS} ${compile_flags}"
+    COMPILE_OPTIONS "${BREWSTER_F90_FLAGS}"
   )
   add_dependencies(${name} ${name}_gen)
   target_include_directories(${name} PRIVATE "${F2PY_INCLUDE_DIR}")
@@ -99,22 +99,22 @@ add_library(marvin SHARED
   $<TARGET_OBJECTS:marvin_f90>
 )
 
-add_f2py_module(forwardmodel ""
+add_f2py_module(forwardmodel
   ${BREWSTER_SRC_DIR}/sizes_mod.f90
   ${BREWSTER_SRC_DIR}/marv.f90
 )
 
-add_f2py_module(ciamod ""
+add_f2py_module(ciamod
   ${BREWSTER_SRC_DIR}/sizes_mod.f90
   ${BREWSTER_SRC_DIR}/read_cia.f90
 )
 
-add_f2py_module(bbconv ""
+add_f2py_module(bbconv
   ${BREWSTER_SRC_DIR}/sizes_mod.f90
   ${BREWSTER_SRC_DIR}/bbconv.f90
 )
 
-add_f2py_module(cloudpost "-frecord-marker=4 -fbounds-check"
+add_f2py_module(cloudpost
   ${BREWSTER_SRC_DIR}/cloudpost.f90
 )
 
