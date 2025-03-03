@@ -14,7 +14,7 @@ A spectral inversion code for retrieval analysis of emission spectra from brown 
 1. If you do not have a fortran compiler on your machine, get the proper version of the gfortran compiler from https://gcc.gnu.org/wiki/GFortranBinaries or https://hpc.sourceforge.net.
 2. Git clone or fork the directory and place wherever your code lives. (If you plan to make any changes to the code you might like to incorporate into the master branch via a pull request, you should probably fork it.)
 3. To keep various package versions clean and organized, you should create a Python 3 environment, ideally Python <=3.11, as that is the version that will be needed to run the code on a cluster.
-4. `pip install /path/to/brewster`
+4. `pip install --upgrade pip && pip install /path/to/brewster`
 5. You will need to get access to the Linelist and Clouds folders that are shared via Dropbox. Place the Clouds and Linelists folders one directoy above the data directory from this repository 
 ```bash
 ├── Clouds
@@ -25,3 +25,18 @@ A spectral inversion code for retrieval analysis of emission spectra from brown 
 6. To test that everything is properly installed, run the check-brewster command, by typing `check-brewster` in the terminal making sure you are in the brewster working directory specified above
 
 Please post any problems to the issue tracker.
+
+
+## Developer notes
+Since this is a hybrid python-fortran code, getting editable pip installs is somewhat nuanced. See the discussion at
+https://scikit-build-core.readthedocs.io/en/latest/configuration/index.html#editable-installs
+
+I have had good luck with the experimental editable-rebuild option. On a fresh python instance, it will rebuild
+the fortran objects automatically on import of any of the modules.
+
+```
+pip install --upgrade pip
+pip install scikit-build-core
+cd /path/to/brewster
+pip install --no-build-isolation --config-settings=editable.rebuild=true -Cbuild-dir=build -ve .
+```
