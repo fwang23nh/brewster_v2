@@ -4,20 +4,17 @@
 from __future__ import print_function
 import time
 import numpy as np
-import scipy as sp
 import emcee
 import os
 import sys
 import pickle
-import cloud_dic
 from builtins import str
 from builtins import range
 import utils
 from schwimmbad import MPIPool
 # import pymultinest as mn
-import mpi4py
-import test_module
-import settings
+from brewster import test_module
+from brewster import settings
 
 __author__ = "Fei Wang"
 __copyright__ = "Copyright 2024 - Fei Wang"
