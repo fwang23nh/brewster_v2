@@ -81,22 +81,17 @@ function(add_f2py_module name)
   )
 endfunction()
 
-file(GLOB MARVIN_SOURCE_F90 src/fortran/*.f90)
 file(GLOB MARVIN_SOURCE_F77 src/fortran/*.f)
-add_library(marvin_f77 OBJECT ${MARVIN_SOURCE_F77})
-set_target_properties(marvin_f77 PROPERTIES
+file(GLOB MARVIN_SOURCE_F90 src/fortran/*.f90)
+set_source_files_properties(${MARVIN_SOURCE_F77} PROPERTIES
   COMPILE_FLAGS "${BREWSTER_F77_FLAGS}"
-  POSITION_INDEPENDENT_CODE ON
 )
-add_library(marvin_f90 OBJECT ${MARVIN_SOURCE_F90})
-set_target_properties(marvin_f90 PROPERTIES
+set_source_files_properties(${MARVIN_SOURCE_F90} PROPERTIES
   COMPILE_FLAGS "${BREWSTER_F90_FLAGS}"
-  POSITION_INDEPENDENT_CODE ON
 )
-
 add_library(marvin SHARED
-  $<TARGET_OBJECTS:marvin_f77>
-  $<TARGET_OBJECTS:marvin_f90>
+  ${MARVIN_SOURCE_F77}
+  ${MARVIN_SOURCE_F90}
 )
 
 add_f2py_module(forwardmodel
