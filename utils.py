@@ -1885,7 +1885,7 @@ class ArgsGen:
         self.inlinetemps, self.inwavenum, self.linelist,self.gasnames,self.gasmass, self.nwave = get_opacities(
             self.gaslist, self.w1, self.w2, self.press, self.xpath, self.xlist, self.malk)
 
-        self.tmpcia, self.ciatemps = ciamod.read_cia("CIA_DS_aug_2015.dat", self.inwavenum)
+        self.tmpcia, self.ciatemps = ciamod.read_cia("data/CIA_DS_aug_2015.dat", self.inwavenum)
         self.cia = np.asfortranarray(np.empty((4, self.ciatemps.size, self.nwave)), dtype='float32')
         self.cia[:, :, :] = self.tmpcia[:, :, :self.nwave]
         self.ciatemps = np.asfortranarray(self.ciatemps, dtype='float32')
