@@ -1,4 +1,4 @@
-# Brewster
+# Brewster Development Branch
 A spectral inversion code for retrieval analysis of emission spectra from brown dwarfs and giant planets.
 
 ## What's needed to run the code:
@@ -27,7 +27,7 @@ A spectral inversion code for retrieval analysis of emission spectra from brown 
 Please post any problems to the issue tracker.
 
 
-## Developer notes
+## Developer notes from @blackwer
 Since this is a hybrid python-fortran code, getting editable pip installs is somewhat nuanced. See the discussion at
 https://scikit-build-core.readthedocs.io/en/latest/configuration/index.html#editable-installs
 
