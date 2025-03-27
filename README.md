@@ -40,3 +40,28 @@ pip install scikit-build-core numpy
 cd /path/to/brewster
 pip install --no-build-isolation --config-settings=editable.rebuild=true -Cbuild-dir=build -ve .
 ```
+
+## Nick's notes
+
+**Environment setup:**
+
+```
+conda create -n brewster -c conda-forge python numpy scikit-build cmake ninja pip astropy corner emcee scipy jupyter schwimmbad
+
+mamba activate brewster
+```
+
+**Option 1:**
+
+```
+python -m pip install --no-deps --no-build-isolation . -v
+```
+
+**Option 2:**
+
+```
+mkdir build
+cd build
+cmake ..
+cmake --build . -j && cmake --install .
+```
