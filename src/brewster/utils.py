@@ -1130,7 +1130,7 @@ class Retrieval_params:
             del dictionary['params']['scale2']
             ndata=2
 
-        if self.fwhm in [777] and self.do_fudgge==1:
+        if self.fwhm in [777] and self.do_fudge==1:
             del dictionary['params']['scale1']
             del dictionary['params']['scale2']
             ndata=0
@@ -1580,10 +1580,11 @@ def cloud_para_gen(dic):
 
 
 
-def get_opacities(gaslist,w1,w2,press,xpath='../Linelists',xlist='gaslistR10K.dat',malk=0):
+def get_opacities(gaslist,w1,w2,press,xpath='/Users/carolina/Documents/AMNH/Linelists',xlist='gaslistR10K.dat',malk=0):
     # Now we'll get the opacity files into an array
     ngas = len(gaslist)
-
+    xlist = "/Users/carolina/Documents/AMNH/brewster_v2/data/gaslistR10K.dat"
+    xpath = "/Users/carolina/Documents/AMNH/Linelists/"
     totgas = 0
     gasdata = []
     with open(xlist) as fa:
@@ -1882,14 +1883,14 @@ class ArgsGen:
         self.inlinetemps, self.inwavenum, self.linelist,self.gasnames,self.gasmass, self.nwave = get_opacities(
             self.gaslist, self.w1, self.w2, self.press, self.xpath, self.xlist, self.malk)
 
-        self.tmpcia, self.ciatemps = ciamod.read_cia("data/CIA_DS_aug_2015.dat", self.inwavenum)
+        self.tmpcia, self.ciatemps = ciamod.read_cia("/Users/carolina/Documents/AMNH/brewster_v2/data/CIA_DS_aug_2015.dat", self.inwavenum)
         self.cia = np.asfortranarray(np.empty((4, self.ciatemps.size, self.nwave)), dtype='float32')
         self.cia[:, :, :] = self.tmpcia[:, :, :self.nwave]
         self.ciatemps = np.asfortranarray(self.ciatemps, dtype='float32')
 
         # BFF and Chemical grids
         self.bff_raw, self.ceTgrid, self.metscale, self.coscale, self.gases_myP = sort_bff_and_CE(
-            self.chemeq, "data/chem_eq_tables_P3K.pic", self.press, self.gaslist)
+            self.chemeq, "/Users/carolina/Documents/AMNH/brewster_v2/data/chem_eq_tables_P3K.pic", self.press, self.gaslist)
 
 
     def __str__(self):
