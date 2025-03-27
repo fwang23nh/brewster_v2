@@ -4,12 +4,12 @@
 """ Module of bits to define Instrument, ModelConfig, IOConfig and Retrieval_params class"""
 
 import numpy as np
-from brewster import ciamod
+from . import ciamod
 import sys
 import pickle
 from scipy.interpolate import interp1d
 from scipy.interpolate import InterpolatedUnivariateSpline
-from brewster import TPmod
+from . import TPmod
 from collections import namedtuple
 
 __author__ = "Fei Wang"

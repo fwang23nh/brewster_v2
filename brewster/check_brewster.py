@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from brewster import code_test as ct
+from . import code_test as ct
 import numpy as np
 
 def main():

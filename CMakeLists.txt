@@ -113,4 +113,10 @@ add_f2py_module(cloudpost
   ${BREWSTER_SRC_DIR}/cloudpost.f90
 )
 
-install(TARGETS marvin forwardmodel ciamod bbconv cloudpost DESTINATION brewster)
+# install(TARGETS marvin forwardmodel ciamod bbconv cloudpost DESTINATION brewster)
+
+if (SKBUILD)
+  install(TARGETS marvin forwardmodel ciamod bbconv cloudpost DESTINATION brewster)
+else()
+  install(TARGETS marvin forwardmodel ciamod bbconv cloudpost DESTINATION ${CMAKE_SOURCE_DIR}/brewster)
+endif()

@@ -2,7 +2,7 @@ from __future__ import print_function
 import pickle
 import numpy as np
 import emcee
-from rotBroadInt import rot_int_cmj as rotBroad
+from .rotBroadInt import rot_int_cmj as rotBroad
 
 
 def get_endchain(runname,fin,results_path='./'):

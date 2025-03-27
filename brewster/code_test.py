@@ -2,12 +2,12 @@
 # parameters a drawn from a retrieval on G570D
 import numpy as np
 import pickle as pickle
-from brewster.bensconv import prism_non_uniform
-from brewster.bensconv import conv_uniform_R
+from .bensconv import prism_non_uniform
+from .bensconv import conv_uniform_R
 from collections import namedtuple
-from brewster import utils
-from brewster import settings
-from brewster import test_module
+from . import utils
+from . import settings
+from . import test_module
 
 
 

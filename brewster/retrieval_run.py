@@ -10,11 +10,11 @@ import sys
 import pickle
 from builtins import str
 from builtins import range
-import utils
+from . import utils
 from schwimmbad import MPIPool
 # import pymultinest as mn
-from brewster import test_module
-from brewster import settings
+from . import test_module
+from . import settings
 
 __author__ = "Fei Wang"
 __copyright__ = "Copyright 2024 - Fei Wang"
