@@ -4,22 +4,19 @@
 """ Module of bits to define Instrument, ModelConfig, IOConfig and Retrieval_params class"""
 
 import numpy as np
-import ciamod
-import os
-import gc
+from brewster import ciamod
 import sys
 import pickle
-from scipy import interpolate
 from scipy.interpolate import interp1d
 from scipy.interpolate import InterpolatedUnivariateSpline
-import TPmod
+from brewster import TPmod
 from collections import namedtuple
 
 __author__ = "Fei Wang"
 __copyright__ = "Copyright 2024 - Fei Wang"
 __credits__ = ["Fei Wang", "Ben Burningham"]
 __license__ = "GPL"
-__version__ = "0.2"  
+__version__ = "0.2"
 __maintainer__ = ""
 __email__ = ""
 __status__ = "Development"
@@ -28,7 +25,7 @@ __status__ = "Development"
 class Instrument:
     """
     A class to represent an instrument object.
-    
+
     Parameters
     ----------
     data : str
@@ -41,16 +38,16 @@ class Instrument:
         number of instruments
     R_file : str
         path to the R vs wl file
-    
+
     Methods
     -------
     instrument_dic_gen()
-    load_R_file(): 
+    load_R_file():
         loads the R vs wl file
     """
-    
+
     def __init__(self, fwhm=None, wavelength_range=None, ndata=None,wavpoints=None, R_file=None):
-        self.fwhm  = fwhm 
+        self.fwhm  = fwhm
         self.wavelength_range = wavelength_range
         self.ndata = ndata
         self.wavpoints = wavpoints
@@ -59,14 +56,14 @@ class Instrument:
         self.R = None
         self.wl = None
         self.logf_flag = None
-        
+
         # only load R if the user provides it
         if R_file:
             self.load_R_file()
 
         self.dictionary = self.instrument_dic_gen()
 
-#     @classmethod 
+#     @classmethod
 
     def load_R_file(self):
         """
@@ -157,11 +154,11 @@ class ModelConfig:
         self.fresh = fresh
         self.xpath = xpath
         self.xlist = xlist
-        
+
         self.dist = dist
         self.dist_err = 0
         self.pfile = pfile
-        
+
         # Default MCMC parameters
         self.nwalkers = None
         self.nburn = 10000
@@ -323,11 +320,11 @@ class ModelConfig:
         return base_info + samplemode_info
 
 
-    
+
 class IOConfig:
     """
     A class to represent an IO configuration object.
-    
+
     Parameters
     ----------
     runname : str, optional
@@ -348,7 +345,7 @@ class IOConfig:
         Run test flag (default: 1)
     make_arg_pickle : int, optional
         Make argument pickle flag (default: 2)
-    
+
     Methods
     -------
     IO_config_dic_gen()
@@ -387,7 +384,7 @@ class IOConfig:
                 'make_arg_pickle': self.make_arg_pickle
             }
         }
-    
+
     def update_dictionary(self):
         """
         Update the model configuration dictionary with the current attributes.
@@ -457,7 +454,7 @@ def hansan_b_customized_distribution(x):
 
 #     args_instance=settings.runargs
 
-#     return np.log10((np.random.rand(x)* (max(args_instance.obspec[2,:]**2)*(0.1 - 0.01))) + (0.01*min(args_instance.obspec[2,10::3]**2))) 
+#     return np.log10((np.random.rand(x)* (max(args_instance.obspec[2,:]**2)*(0.1 - 0.01))) + (0.01*min(args_instance.obspec[2,10::3]**2)))
 
 
 
@@ -475,27 +472,27 @@ class Retrieval_params:
     gastype_list : list of str
         List of gas types, corresponding to the gas names in gaslist.
     fwhm : float, optional
-        Full width at half maximum of the spectral lines. 
+        Full width at half maximum of the spectral lines.
     do_fudge : int, optional
-        Flag indicating whether to apply tolerance_parameter to the data. 
+        Flag indicating whether to apply tolerance_parameter to the data.
     ndata : int
         number of instruments
     ptype : int
         Type of pressure-temperature profile.
     do_clouds : int, optional
-        Flag indicating whether to include cloud parameters in the retrieval. 
+        Flag indicating whether to include cloud parameters in the retrieval.
         - 1: Include clouds.
     npatches : int, optional
-        Number of patches for cloud distribution. 
+        Number of patches for cloud distribution.
     cloudname : list of str
         List of cloud names.
     cloudpatch_index : list of int, optional
-        Indexes for `cloudname` corresponding to which cloud patches 
+        Indexes for `cloudname` corresponding to which cloud patches
     particle_dis : str, optional
         Distribution type for particles in the cloud. Default is None.
         E.g., 'log_normal', 'hansan', etc.
         only used when include Mie cloud.
-    
+
     Methods
     -------
     gas_dic_gen(gasname, gastype):
@@ -515,7 +512,7 @@ class Retrieval_params:
     __str__():
         String representation of the class instance.
     """
-    
+
     def __init__(self, samplemode,chemeq=None, gaslist=None, gastype_list=None,fwhm=None,do_fudge=1,ptype=None,do_clouds=1,npatches=None,cloudname=None,cloudpatch_index=None,particle_dis=None):
         self.samplemode = samplemode
         self.chemeq = chemeq
@@ -528,13 +525,13 @@ class Retrieval_params:
         self.cloudname = cloudname
         self.cloudpatch_index=cloudpatch_index
         self.particle_dis=particle_dis
-        
+
         self.dictionary = self.retrieval_para_dic_gen(chemeq, gaslist, gastype_list,fwhm,do_fudge, ptype,do_clouds,npatches,cloudname,cloudpatch_index,particle_dis)
-        
-        
-        
+
+
+
     def gas_dic_gen(self,gasname,gastype):
-        
+
         dictionary = {}
         if gastype=='U':
 
@@ -557,7 +554,7 @@ class Retrieval_params:
                             'range':None,
                             'prior': None},
 
-                           "p_ref": 
+                           "p_ref":
                             {'initialization':None,
                               'distribution':['normal',-1,0.2],
                               'range':None,
@@ -567,7 +564,7 @@ class Retrieval_params:
                             {'initialization':None,
                              'distribution':['uniform',0,1],
                              'range':None,
-                             'prior': None}    
+                             'prior': None}
                            }}
         elif gastype=='H':
             dictionary[gasname]={
@@ -577,8 +574,8 @@ class Retrieval_params:
                             'distribution':['normal',-4.0,0.5],
                             'range':None,
                             'prior': None},
-                            
-                           "p_ref": 
+
+                           "p_ref":
                             {'initialization':None,
                               'distribution':['normal',-1,0.2],
                               'range':None,
@@ -587,10 +584,10 @@ class Retrieval_params:
                            }}
 
         return dictionary
-            
-    
-    
-    
+
+
+
+
     def pt_dic_gen(self,ptype):
         dictionary = {}
 
@@ -602,7 +599,7 @@ class Retrieval_params:
                             'distribution':['normal',50,1],
                              'range':None,
                             'prior':None}}}
-            
+
             for i in range(13):
                 dictionary['params']["T_%d" % (i+1)] = {
                     'initialization': None,
@@ -610,7 +607,7 @@ class Retrieval_params:
                     'range':[0,5000],
                     'prior': None
                 }
-            
+
 
 
         elif ptype==2:
@@ -750,7 +747,7 @@ class Retrieval_params:
                             'distribution':['uniform',1,2],
                             'range':None,
                             'prior':None},
-                            
+
                           'lndelta':
                            {'initialization':None,
                             'distribution':['normal',0,1],
@@ -789,7 +786,7 @@ class Retrieval_params:
         dictionary = {}
         if do_clouds==0:
             return {}
-        
+
         else:
 
             if cloudname=='grey cloud deck':
@@ -871,7 +868,7 @@ class Retrieval_params:
                              }}
 
             elif 'Mie scattering cloud deck' in cloudname:
-                
+
                 cloudspecies=cloudname.split('--')[1].strip()
                 cloudnum=cloud_dic.get(cloudspecies,None)
 
@@ -889,7 +886,7 @@ class Retrieval_params:
                                    'dp_mcd_%s'%cloudspecies:
                                     {'initialization':None,
                                     'distribution':['customized',dp_customized_distribution], #lambda x: np.abs(0.1 * np.random.randn(x))
-                                    'range':None, 
+                                    'range':None,
                                     'prior':None},
                                     'hansan_a_mcd_%s'%cloudspecies:
                                     {'initialization':None,
@@ -902,7 +899,7 @@ class Retrieval_params:
                                     'range':None,
                                     'prior':None}
                                         }}
-                                
+
                 if particle_dis=="log_normal":
                     dictionary["patch"]={
                         'cloudnum': cloudnum,
@@ -1037,15 +1034,15 @@ class Retrieval_params:
 
 
             return dictionary
-    
-    
+
+
     def refinement_params_dic_gen(self):
         """
         Initialize model configuration dictionary based on the specified method.
-    
+
         """
-        
-        
+
+
         dictionary = {}
 
 
@@ -1112,9 +1109,9 @@ class Retrieval_params:
                 }
         else:
             raise ValueError("Unsupported samplemode. Please choose 'mcmc' or 'multinest'.")
-            
+
         # Remove 'scale1' and 'scale2' if fwhm condition is not met
-    
+
         if (self.fwhm >=0 and self.fwhm <=500) or (self.fwhm in [-5,-6] and self.do_fudge==1):
 
             del dictionary['params']['scale1']
@@ -1127,17 +1124,17 @@ class Retrieval_params:
 
         if self.fwhm in [-1, -3, -4] and self.do_fudge==1:
             ndata=3
-            
+
         if self.fwhm in [555, 888] and self.do_fudge==1:
             del dictionary['params']['scale1']
             del dictionary['params']['scale2']
             ndata=2
-            
+
         if self.fwhm in [777] and self.do_fudgge==1:
             del dictionary['params']['scale1']
             del dictionary['params']['scale2']
             ndata=0
-            
+
         # Add tolerance parameters after 'dlambda'
         if self.do_fudge==1:
             for i in range(ndata):
@@ -1150,8 +1147,8 @@ class Retrieval_params:
         return dictionary
 
 
-    
-    
+
+
     def gas_allparams_gen(self,chemeq,gaslist,gastype_list):
         gas_dic= {}
         if chemeq==1:
@@ -1175,20 +1172,20 @@ class Retrieval_params:
             if gaslist_lower[-2:] == ['k', 'na']:
                 gasnum=gasnum-1
                 gaslist=list(gaslist[0:-2])+["K_Na"]
-                
+
             elif gaslist_lower[-3:] == ['k','na','cs']:
                 gasnum=gasnum-2
                 gaslist=list(gaslist[0:-3])+['K_Na_Cs']
-                
-                
+
+
             for i in range(0,gasnum):
                 dic=self.gas_dic_gen(gaslist[i],gastype_list[i])
-                gas_dic.update(dic)  
+                gas_dic.update(dic)
 
         return gas_dic
-    
-    
-    
+
+
+
     def cloud_allparams_gen(self,do_clouds,npatches,cloudname,cloudpatch_index,particle_dis):
         cloud_dic = {}
 
@@ -1230,30 +1227,30 @@ class Retrieval_params:
                 'prior': None}}
         self.dictionary["added_params"]=added_dic
 
-    
-    
+
+
     def retrieval_para_dic_gen(self,chemeq,gaslist,gastype_list,fwhm,do_fudge,ptype,do_clouds,npatches,cloudname,cloudpacth_index,particle_dis):
         retrieval_param={}
         gas_dic=self.gas_allparams_gen(chemeq,gaslist,gastype_list)
         refinement_dic=self.refinement_params_dic_gen()
         pt_dic=self.pt_dic_gen(ptype)
-        cloud_dic=self.cloud_allparams_gen(do_clouds,npatches,cloudname,cloudpacth_index,particle_dis) 
+        cloud_dic=self.cloud_allparams_gen(do_clouds,npatches,cloudname,cloudpacth_index,particle_dis)
         retrieval_param["gas"]=gas_dic
         retrieval_param["refinement_params"]=refinement_dic
         retrieval_param["pt"]=pt_dic
         retrieval_param["cloud"]=cloud_dic
 
         return retrieval_param
-    
-    
+
+
     def update_dictionary(self):
         """Update the model configuration dictionary with the current attributes."""
         self.dictionary.update(self.dictionary)
 
-            
+
     def __str__(self):
         s = []
-        
+
         # Retrieve cloud keys
         cloud_keys = self.dictionary.get('cloud', {}).keys()
         ncloud = len(cloud_keys) - 1 if len(cloud_keys) > 1 else 1
@@ -1283,16 +1280,16 @@ class Retrieval_params:
             f'{s}'
             f'- added_params: {list(add_params_keys)}\n'
         )
-            
+
 
 def get_all_parametres(dic):
 
     gaslist = list(dic['gas'].keys())
     gastype_values = [info['gastype'] for key, info in dic['gas'].items() if 'gastype' in info]
-    
+
     gas=[]
     gas_values=[]
-    
+
     for i in range(len(gaslist)):
         gas.append(gaslist[i])
         gas_values.append(dic['gas'][gaslist[i]]['params']['log_abund']['initialization'])
@@ -1300,23 +1297,23 @@ def get_all_parametres(dic):
             gas.append("p_ref_%s"%gaslist[i])
             gas.append("alpha_%s"%gaslist[i])
             gas_values.append(dic['gas'][gaslist[i]]['params']['p_ref']['initialization'])
-            gas_values.append(dic['gas'][gaslist[i]]['params']['alpha']['initialization'])    
+            gas_values.append(dic['gas'][gaslist[i]]['params']['alpha']['initialization'])
 
         elif gastype_values[i]=='H':
             gas.append("p_ref_%s"%gaslist[i])
             gas_values.append(dic['gas'][gaslist[i]]['params']['p_ref']['initialization'])
-       
 
-            
+
+
 
     refinement_params = list(dic['refinement_params']['params'].keys())
     refinement_params_values = [dic['refinement_params']['params'][p]['initialization'] for p in refinement_params]
 
     pt = list(dic['pt']['params'].keys())
     pt_values = [dic['pt']['params'][p]['initialization'] for p in pt]
-    
-    
-    
+
+
+
     cloud = []
     cloud_values = []
     if 'cloud' in dic:
@@ -1345,14 +1342,14 @@ def get_all_parametres(dic):
     for param, value in zip(all_params, all_params_values):
         if param not in unique_params:
             unique_params[param] = value
-            
+
     return list(unique_params.keys()), list(unique_params.values())
 
 
 
 def update_dictionary(dic, params_instance):
     # Update gas parameters
-    
+
     gastype_values = [info['gastype'] for key, info in dic['gas'].items() if 'gastype' in info]
     gaslist=list(dic['gas'].keys())
     for i in range(len(gaslist)):
@@ -1364,23 +1361,23 @@ def update_dictionary(dic, params_instance):
         if gastype_values[i]=='H':
             dic['gas'][gaslist[i]]['params']['p_ref']['initialization'] = getattr(params_instance, "p_ref_%s"%gaslist[i])
 
-    
+
     # Update refinement parameters
     for param in dic['refinement_params']['params'].keys():
         dic['refinement_params']['params'][param]['initialization'] = getattr(params_instance, param)
-    
+
     # Update pt parameters
     for param in dic['pt']['params'].keys():
         dic['pt']['params'][param]['initialization'] = getattr(params_instance, param)
 
 
-    # Update added parameters 
+    # Update added parameters
     if 'added_params' in dic.keys():
         for param in dic['added_params'].keys():
             dic['added_params'][param]['initialization'] = getattr(params_instance, param)
-    
+
     # Update cloud parameters
-    
+
     if 'cloud' in dic and dic['cloud']:
         if 'patch 1' in dic['cloud']:
             for cloud_type in dic['cloud']['patch 1'].keys():
@@ -1396,7 +1393,7 @@ def update_dictionary(dic, params_instance):
                 for param in dic['cloud']['patch 2'][cloud_type]['params'].keys():
                     if hasattr(params_instance, param):
                         dic['cloud']['patch 2'][cloud_type]['params'][param]['initialization'] = getattr(params_instance, param)
-    
+
     return dic
 
 
@@ -1426,15 +1423,15 @@ def MC_P0_gen(updated_dic,model_config_instance,args_instance):
     nwalkers=model_config_instance.nwalkers
     ndim=model_config_instance.ndim
     p0 = np.empty([nwalkers,ndim])
-    
-    
+
+
     all_distributions=get_distribution_values(updated_dic)
-    
+
     for i in range(model_config_instance.ndim):
         if all_distributions[i][0]=='normal':
             mu,sigma=all_distributions[i][1:]
             p0[:,i]=mu+sigma*np.random.randn(nwalkers).reshape(nwalkers)
-            
+
         elif  all_distributions[i][0]=='uniform':
             pmin,pmax=all_distributions[i][1:]
             p0[:,i]= np.random.uniform(pmin, pmax, nwalkers).reshape(nwalkers)
@@ -1445,7 +1442,7 @@ def MC_P0_gen(updated_dic,model_config_instance,args_instance):
 
     if args_instance.proftype==1:
 
-        all_params,all_params_values =get_all_parametres(updated_dic) 
+        all_params,all_params_values =get_all_parametres(updated_dic)
         params_master = namedtuple('params',all_params)
         params_instance = params_master(*all_params_values)
         T_1_index=params_instance._fields.index('T_1')
@@ -1466,8 +1463,8 @@ def MC_P0_gen(updated_dic,model_config_instance,args_instance):
 
     return p0
 
-    
-    
+
+
 def cloud_para_gen(dic):
 
 
@@ -1483,12 +1480,12 @@ def cloud_para_gen(dic):
         # Determine if there is more than one patch
         if 'patch 2' in dic['cloud'] and dic['cloud']['patch 2']:
             npatches = 2
-            
+
         cloudnum_list=[]
         for cloud_type, cloud_info in dic['cloud']['patch 1'].items():
             if 'cloudnum' in cloud_info:
                 cloudnum_list.append(cloud_info['cloudnum'])
-            
+
         # if len(cloudnum_list) ==2: #and len(set(cloudnum_list)) == len(cloudnum_list):
         #     nclouds = 2
         nclouds= len(cloudnum_list)
@@ -1501,7 +1498,7 @@ def cloud_para_gen(dic):
     # Populate arrays
     patch_index = 0
     for patch_key in dic['cloud'].keys():
-        if patch_key.startswith('patch 1'):            
+        if patch_key.startswith('patch 1'):
             for i in range(nclouds):
                 cloudkey=list(dic['cloud'][patch_key].keys())
                 cloud_info = dic['cloud'][patch_key][cloudkey[i]]
@@ -1510,7 +1507,7 @@ def cloud_para_gen(dic):
                     cloudtype[patch_index, i] = cloud_info['cloudtype']
                     do_clouds[patch_index] = 1
 
-            
+
     if npatches==2:
         cloudkey=list(dic['cloud']['patch 2'].keys())
         cloud_info = dic['cloud']['patch 2'][cloudkey[0]]
@@ -1519,8 +1516,8 @@ def cloud_para_gen(dic):
             cloudnum[1, 1] = cloud_info['cloudnum']
             cloudtype[1, 1] = cloud_info['cloudtype']
             do_clouds[1] = 1
-        
-                    
+
+
     return cloudnum, cloudtype, do_clouds
 
 
@@ -1533,8 +1530,8 @@ def cloud_para_gen(dic):
 
 #     # but forward model wants pressure in bar
 #     coarsePress = pow(10,logcoarsePress)
-#     press = pow(10,logfinePress)        
-    
+#     press = pow(10,logfinePress)
+
 #     dist=model.dist
 #     use_disort=model.use_disort
 #     xpath=model.xpath
@@ -1547,37 +1544,37 @@ def cloud_para_gen(dic):
 #     gaslist_lower = [gas.lower() for gas in gaslist]
 
 #     chemeq=re_params.chemeq
-    
+
 #     if gaslist_lower[-1] == 'k_na':
 #         gaslist=list(gaslist[0:-1])+['k', 'na']
 
 #     elif gaslist_lower[-1] == 'k_na_cs':
 #         gaslist=list(gaslist[0:-1])+['k','na','cs']
 
-    
+
 #     fwhm=instrument.fwhm
 #     w1,w2=instrument.wavelength_range[:]
 #     proftype=re_params.ptype
 
 #     cloudnum, cloudtype, do_clouds=cloud_para_gen(re_params.dictionary)
-    
+
 #     prof = np.full(13, 100.)
 #     if proftype == 9:
 #         modP, modT = np.loadtxt(pfile, skiprows=1, usecols=(1, 2), unpack=True)
 #         tfit = InterpolatedUnivariateSpline(np.log10(modP), modT, k=1)
 #         prof = tfit(logcoarsePress)
-        
-        
+
+
 #     inlinetemps,inwavenum,linelist,gasnum,nwave = get_opacities(gaslist,w1,w2,press,xpath,xlist,malk)
 #     tmpcia, ciatemps = ciamod.read_cia("CIA_DS_aug_2015.dat",inwavenum)
 #     cia = np.asfortranarray(np.empty((4,ciatemps.size,nwave)),dtype='float32')
-#     cia[:,:,:] = tmpcia[:,:,:nwave] 
+#     cia[:,:,:] = tmpcia[:,:,:nwave]
 #     ciatemps = np.asfortranarray(ciatemps, dtype='float32')
-    
-    
+
+
 #     # grab BFF and Chemical grids
 #     bff_raw,ceTgrid,metscale,coscale,gases_myP = sort_bff_and_CE(chemeq,"chem_eq_tables_P3K.pic",press,gaslist)
-    
+
 #     return gases_myP,chemeq,dist,cloudtype,do_clouds,gasnum,cloudnum,inlinetemps,coarsePress,press,inwavenum,linelist,cia,ciatemps,use_disort,fwhm,obspec,proftype,do_fudge, prof,do_bff,bff_raw,ceTgrid,metscale,coscale
 
 
@@ -1593,7 +1590,7 @@ def get_opacities(gaslist,w1,w2,press,xpath='../Linelists',xlist='gaslistR10K.da
         for line_aa in fa.readlines():
             if len(line_aa) == 0:
                 break
-            totgas = totgas +1 
+            totgas = totgas +1
             line_aa = line_aa.strip()
             gasdata.append(line_aa.split())
 
@@ -1642,8 +1639,8 @@ def get_opacities(gaslist,w1,w2,press,xpath='../Linelists',xlist='gaslistR10K.da
                 pfit = interp1d(np.log10(inpress),np.log10(inlinelist[:,i,j]))
                 linelist[gas,:,i,(j-r1)] = np.asfortranarray(pfit(np.log10(press)))
     linelist[np.isnan(linelist)] = -50.0
-    
-    # convert gaslist into fortran array of ascii strings for fortran code 
+
+    # convert gaslist into fortran array of ascii strings for fortran code
     gasnames = np.empty((len(gaslist), 10), dtype='c')
     for i in range(0,len(gaslist)):
         gasnames[i,0:len(gaslist[i])] = gaslist[i]
@@ -1681,7 +1678,7 @@ def sort_bff_and_CE(chemeq,ce_table,press,gaslist):
             for i in range (0,nabtemp):
                 pfit = InterpolatedUnivariateSpline(Pgrid,np.log10(abunds[i1[0],i2[0],i,:,gas]),k=1)
                 ab_myP[i,:,gas] = pfit(np.log10(press))
-                
+
         bff_raw[:,:,0] = ab_myP[:,:,0]
         bff_raw[:,:,1] = ab_myP[:,:,2]
         bff_raw[:,:,2] = ab_myP[:,:,4]
@@ -1706,7 +1703,7 @@ def sort_bff_and_CE(chemeq,ce_table,press,gaslist):
             if (nmatch != ngas-1):
                 print("you've requested a gas that isn't in the Vischer table. Please check and try again.")
                 sys.exit()
-            
+
             gases[:,:,:,:,-1] = abunds[:,:,:,:,0]*0+1e-90
 
             for i in range(0,nmet):
@@ -1751,7 +1748,7 @@ def sort_bff_and_CE(chemeq,ce_table,press,gaslist):
 class ArgsGen:
     """
     A class to generate and manage forward model arguments.
-    
+
     Parameters
     ----------
     re_params : object
@@ -1762,7 +1759,7 @@ class ArgsGen:
         Instrument class containing instrument specifications.
     obspec : object
         Observation spectra object.
-    
+
     Attributes
     ----------
     gases_myP : list
@@ -1817,7 +1814,7 @@ class ArgsGen:
         Metallicity scaling grid.
     coscale : np.array
         Carbon-to-oxygen ratio scaling grid.
-    
+
     Methods
     -------
     generate()
@@ -1838,11 +1835,11 @@ class ArgsGen:
         # Set up pressure grids in log(bar)
         logcoarsePress = np.arange(-4.0, 2.5, 0.53)
         logfinePress = np.arange(-4.0, 2.4, 0.1)
-        
+
         # Pressure in bar
         self.coarsePress = pow(10, logcoarsePress)
         self.press = pow(10, logfinePress)
-        
+
         # Retrieve model parameters
         self.dist = self.model.dist
         self.dist_err = self.model.dist_err
@@ -1857,30 +1854,30 @@ class ArgsGen:
         # Process gas list
         self.gaslist = list(self.re_params.dictionary['gas'].keys())
         gaslist_lower = [gas.lower() for gas in self.gaslist]
-        
+
         if gaslist_lower[-1] == 'k_na':
             self.gaslist = list(self.gaslist[:-1]) + ['k', 'na']
         elif gaslist_lower[-1] == 'k_na_cs':
             self.gaslist = list(self.gaslist[:-1]) + ['k', 'na', 'cs']
-        
+
         # Retrieve instrument parameters
         self.fwhm = self.instrument.fwhm
         self.w1, self.w2 = self.instrument.wavelength_range
         self.R = self.instrument.R
         self.wl = self.instrument.wl
         self.logf_flag = self.instrument.logf_flag #!!!!!!!!!!!!!!!!
-        
+
         # Profile type and cloud parameters
         self.proftype = self.re_params.ptype
         self.cloudnum, self.cloudtype, self.do_clouds = cloud_para_gen(self.re_params.dictionary)
-        
+
         # Generate temperature profile
         self.prof = np.full(13, 100.0)
         if self.proftype == 9:
             logmodP,modT = np.loadtxt(self.pfile,skiprows=0,usecols=(0,1),unpack=True)
             tfit = InterpolatedUnivariateSpline(logmodP,modT,k=1)
             self.prof = tfit(np.log10(self.coarsePress))
-        
+
         # Get opacities, CIA data
         self.inlinetemps, self.inwavenum, self.linelist,self.gasnames,self.gasmass, self.nwave = get_opacities(
             self.gaslist, self.w1, self.w2, self.press, self.xpath, self.xlist, self.malk)
@@ -1889,12 +1886,12 @@ class ArgsGen:
         self.cia = np.asfortranarray(np.empty((4, self.ciatemps.size, self.nwave)), dtype='float32')
         self.cia[:, :, :] = self.tmpcia[:, :, :self.nwave]
         self.ciatemps = np.asfortranarray(self.ciatemps, dtype='float32')
-        
+
         # BFF and Chemical grids
         self.bff_raw, self.ceTgrid, self.metscale, self.coscale, self.gases_myP = sort_bff_and_CE(
             self.chemeq, "data/chem_eq_tables_P3K.pic", self.press, self.gaslist)
 
-        
+
     def __str__(self):
         return f"""
         ArgsGen Model Parameters:
@@ -1910,7 +1907,7 @@ class ArgsGen:
         Gas List: {self.gaslist}
         do_clouds: {self.do_clouds}
         Number of Clouds: {self.cloudnum}
-        Cloud Type: {self.cloudtype} 
+        Cloud Type: {self.cloudtype}
         Metallicity Scale: {self.metscale}
         C/O Ratio Scale: {self.coscale}
         Coarse Pressure Grid: {self.coarsePress}
