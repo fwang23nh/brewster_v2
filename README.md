@@ -36,7 +36,7 @@ the fortran objects automatically on import of any of the modules.
 
 ```
 pip install --upgrade pip
-pip install scikit-build-core
+pip install scikit-build-core numpy
 cd /path/to/brewster
 pip install --no-build-isolation --config-settings=editable.rebuild=true -Cbuild-dir=build -ve .
 ```
