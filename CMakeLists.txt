@@ -29,7 +29,7 @@ cmake_print_variables(F2PY_INCLUDE_DIR)
 cmake_print_variables(Python_NumPy_INCLUDE_DIRS)
 
 set(BREWSTER_SRC_DIR
-  "${CMAKE_CURRENT_SOURCE_DIR}/src/fortran"
+  "${CMAKE_CURRENT_SOURCE_DIR}/brewster/fortran"
 )
 
 function(add_f2py_module name)
@@ -81,8 +81,8 @@ function(add_f2py_module name)
   )
 endfunction()
 
-file(GLOB MARVIN_SOURCE_F77 src/fortran/*.f)
-file(GLOB MARVIN_SOURCE_F90 src/fortran/*.f90)
+file(GLOB MARVIN_SOURCE_F77 brewster/fortran/*.f)
+file(GLOB MARVIN_SOURCE_F90 brewster/fortran/*.f90)
 set_source_files_properties(${MARVIN_SOURCE_F77} PROPERTIES
   COMPILE_FLAGS "${BREWSTER_F77_FLAGS}"
 )
@@ -113,4 +113,12 @@ add_f2py_module(cloudpost
   ${BREWSTER_SRC_DIR}/cloudpost.f90
 )
 
-install(TARGETS marvin forwardmodel ciamod bbconv cloudpost DESTINATION brewster)
+if (SKBUILD)
+
+  install(TARGETS marvin forwardmodel ciamod bbconv cloudpost DESTINATION brewster)
+
+else()
+
+  install(TARGETS marvin forwardmodel ciamod bbconv cloudpost DESTINATION ${CMAKE_SOURCE_DIR}/brewster)
+
+endif()
