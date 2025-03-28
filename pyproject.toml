@@ -1,23 +1,2 @@
 [build-system]
-requires = ["scikit-build-core", "numpy"]
-build-backend = "scikit_build_core.build"
-
-[project]
-name = "brewster"
-version = "2.0.0"
-dependencies = [
-    "numpy",
-    "astropy",
-    "corner",
-    "emcee",
-    "scipy",
-]
-
-[project.scripts]
-check-brewster = "brewster.check_brewster:main"
-
-[tool.scikit-build]
-ninja.version = ">=1.10"
-cmake.version = ">=3.18.0"
-cmake.build-type = "RelWithDebInfo"
-wheel.packages = ["src/brewster"]
+requires = ["setuptools>=42", "wheel", "scikit-build", "cmake>=3.12", "ninja", "numpy"]
