@@ -48,7 +48,7 @@ pip install --no-build-isolation --config-settings=editable.rebuild=true -Cbuild
 ```
 conda create -n brewster -c conda-forge python numpy scikit-build cmake ninja pip astropy corner emcee scipy jupyter schwimmbad
 
-mamba activate brewster
+conda activate brewster
 ```
 
 **Option 1:**
