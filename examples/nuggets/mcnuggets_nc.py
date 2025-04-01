@@ -340,14 +340,14 @@ linelist[np.isnan(linelist)] = -50.0
 
 
 # Get the cia bits
-tmpcia, ciatemps = ciamod.read_cia("CIA_DS_aug_2015.dat",inwavenum)
+tmpcia, ciatemps = ciamod.read_cia("../../data/CIA_DS_aug_2015.dat",inwavenum)
 cia = np.asfortranarray(np.empty((4,ciatemps.size,nwave)),dtype='float32')
 cia[:,:,:] = tmpcia[:,:,:nwave] 
 ciatemps = np.asfortranarray(ciatemps, dtype='float32')
 
 # Sort out the BFF opacity stuff:
 
-intab = np.loadtxt("2015_06_1060grid_feh_00_co_10.txt",skiprows=1)
+intab = np.loadtxt("data/2015_06_1060grid_feh_00_co_10.txt",skiprows=1)
 test = np.array(intab)
 test2 = test.reshape(60,18,36)
 Pgrid = test2[20:21,:,1].reshape(18)
@@ -434,5 +434,5 @@ def save_object(obj, filename):
     with open(filename, 'wb') as output:
         pickle.dump(obj, output, pickle.HIGHEST_PROTOCOL)
 
-save_object(samplus,'/nobackup/bburning/2M2224_NoCloud_postprod.pk1')
+save_object(samplus,'/postproduction/2M2224_NoCloud_postprod.pk1')
 

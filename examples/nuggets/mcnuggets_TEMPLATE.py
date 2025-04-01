@@ -52,7 +52,7 @@ COMM = MPI.COMM_WORLD
 
 
 # only the first rank has to do all the crap...
-runname "YOUR RUNNAME HERE"
+runname = "YOUR RUNNAME HERE"
 
 # using the Burrow's alkalis (via Mike)?
 malk = 0
@@ -129,7 +129,7 @@ for i in gasnum:
 inlinetemps,inwavenum,linelist,gasnum,nwave = testkit.get_opacities(gaslist,w1,w2,press,xpath,xlist,malk)
 
 # Get the cia bits
-tmpcia, ciatemps = ciamod.read_cia("CIA_DS_aug_2015.dat",inwavenum)
+tmpcia, ciatemps = ciamod.read_cia("../../data/CIA_DS_aug_2015.dat",inwavenum)
 cia = np.asfortranarray(np.empty((4,ciatemps.size,nwave)),dtype='float32')
 cia[:,:,:] = tmpcia[:,:,:nwave] 
 ciatemps = np.asfortranarray(ciatemps, dtype='float32')
