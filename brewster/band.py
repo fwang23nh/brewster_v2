@@ -9,8 +9,6 @@ from scipy import interpolate
 from scipy.interpolate import interp1d
 
 
-
-
 __author__ = "Ben Burningham"
 __copyright__ = "Copyright 2015 - Ben Burningham"
 __credits__ = ["Ben Burningham", "The EMCEE DOCS"]

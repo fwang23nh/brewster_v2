@@ -15,8 +15,6 @@ __email__ = ""
 __status__ = "Development"
 
 
-
-
     # now need to translate cloudparams in to cloud profile even
     # if do_clouds is zero..
     # 5 entries for cloudparams for simple slab model are:
