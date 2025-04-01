@@ -1,14 +1,24 @@
 # Brewster Development Branch
 A spectral inversion code for retrieval analysis of emission spectra from brown dwarfs and giant planets.
+## How to Use this Branch
+1. Clone the repository
+2. Use `git checkout dev` to check out this branch
+   
+If you want to **create a fork** of Brewster_V2 to then use this branch, create a fork and **uncheck** "Copy the `main` branch only" 
+1. `git clone` forked_repository_url
+2. `cd brewster_v2`
+3. `git add upstream https://github.com/fwang23nh/brewster_v2.git` (allows you to fetch any updates)
+4. `git checkout dev`
+
 
 ## What's needed to run the code:
 - Everything in this repository
-- Atmospheric Models
-- Line lists 
-- Clouds (.mieff files) 
+- Line lists (Dir: /Linelists/)
+- Clouds (.mieff files, Dir: /Clouds/)
+- Atmospheric Models (Dir: Brewster/Data *Recommended, can live anywhere on your machine)
+
+Environment Requirements:
 - gFortran compiler (https://gcc.gnu.org/wiki/GFortranBinaries or https://hpc.sourceforge.net)
- 
- The Atmospheric Models can live anywhere on your machine.
 
 ## Current Installation Process for Brewster
 1. If you do not have a fortran compiler on your machine, get the proper version of the gfortran compiler from https://gcc.gnu.org/wiki/GFortranBinaries or https://hpc.sourceforge.net.
@@ -41,7 +51,7 @@ cd /path/to/brewster
 pip install --no-build-isolation --config-settings=editable.rebuild=true -Cbuild-dir=build -ve .
 ```
 
-## Nick's notes
+## Nick's Notes
 
 **Environment setup:**
 
