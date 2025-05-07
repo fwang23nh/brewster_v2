@@ -157,6 +157,7 @@ class ModelConfig:
         self.fresh = fresh
         self.xpath = xpath
         self.xlist = xlist
+        self.cloudpath = cloudpath
         
         self.dist = dist
         self.dist_err = 0
@@ -1745,6 +1746,16 @@ def sort_bff_and_CE(chemeq,ce_table,press,gaslist):
 
 
 
+def get_clouddata(cloudnum,cloudpath = "../Clouds/"):
+
+    """
+    A function to get the clouddata from the cloud path, and put into memory. 
+    The result should be a array like cloudnum (update name) with npatch, nclouda and each of these having miewave, mierad, qext, qscat, cos_qscat
+
+    """
+
+
+    
 
 
 

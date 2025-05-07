@@ -4,7 +4,8 @@ module main
 
 contains 
   subroutine forward(temp,logg,R2D2,gasname,molmass,logVMR,&
-       pcover,do_clouds,incloudnum,cloudname,cloudrad,cloudsig,cloudprof,&
+       pcover,do_clouds,cloudname,clouddata,miewave,mierad,&
+       cloudrad,cloudsig,cloudprof,&
        inlinetemps,inpress,inwavenum,linelist,cia,ciatemp,use_disort,clphot,&
        othphot,do_cf,do_bff,bff,out_spec,clphotspec,othphotspec,cf)
     
@@ -25,17 +26,17 @@ contains
     real, INTENT(IN) :: R2D2, logg
     real,dimension(npatch) :: pcover
     integer,dimension(npatch):: do_clouds
+    integer,allocatable,dimension(:):: cloudops
     character(len=15),intent(inout) :: gasname(:)
     real, intent(inout) :: molmass(:)
     double precision, intent(inout) :: logVMR(:,:)
     character(len=15),INTENT(INOUT) :: cloudname(:,:)
-
+    double precision,INTENT(INOUT) :: clouddata(:,:,:,:,:)
+    double precision,INTENT(INOUT) :: miewave(:), mierad(:)
     double precision,INTENT(INOUT) :: cloudrad(:,:,:)
     double precision,INTENT(INOUT) :: cloudsig(:,:,:)
     double precision,INTENT(INOUT) :: cloudprof(:,:,:)
-    integer,intent(inout):: incloudnum(:,:)
     double precision,intent(inout) :: inwavenum(:)
-    !real,dimension(nlinetemps) :: inlinetemps
     real,intent(inout) :: inlinetemps(:)
     real,intent(in) :: inpress(:)
     double precision,intent(inout):: linelist(:,:,:,:)
@@ -75,8 +76,9 @@ contains
     wavenum = inwavenum
     linetemps = inlinetemps
     press = inpress
-    cloudnum = incloudnum
 
+    allocate(cloudops(nclouds))
+    
     call set_pressure_scale
 
     ! TEST LINE - set artificial temp profile
@@ -203,7 +205,7 @@ contains
        patch(ipatch)%cover = pcover(ipatch)
        
        patch(ipatch)%cloudy = do_clouds(ipatch)
-       
+       cloudops(:) = 1
        if (patch(ipatch)%cloudy .ne. 0) then
           do icloud = 1, nclouds
              patch(ipatch)%atm(1)%cloud(icloud)%name = cloudname(ipatch,icloud)
@@ -212,15 +214,9 @@ contains
              ! in case of simple/generic/mixed cloud we won't be doing Mie coeffs
              ! we'll just use  rg, and rsig as w0 and gg
              ! for the cloud
-             if (cloudnum(ipatch,icloud) .gt. 50) then
-                !if (nclouds .ne. 1) then
-                !   write(*,*) "Error: mixto cloud case should have nclouds = 1"
-                !   stop
-                !else
-                ! FOR GREY SIMPLE CASE (MIXTO): put DTAU_cloud in cloudprofile
-                ! and albedo in rg, and asymmetry = 0.0.
-                ! Power law option has power law in rsig
-                !
+             if (trim(cloudname(ipatch,icloud)) .eq. 'grey' &
+                  .or. trim(cloudname(ipatch,icloud)) .eq. 'power') then
+                cloudops(icloud) = 0
                 do ilayer= 1, nlayers
                    patch(ipatch)%atm(ilayer)%opd_ext = &
                         patch(ipatch)%atm(ilayer)%opd_ext + &
@@ -233,7 +229,7 @@ contains
                          cloudrad(ipatch,ilayer,icloud)))
                    patch(ipatch)%atm(ilayer)%gg = 0.d0 
                 end do ! layer loop
-             else !if cloud < 50
+             else !if cloud not grey or power
                 do ilayer = 1, nlayers
                    patch(ipatch)%atm(ilayer)%cloud(icloud)%name = &
                         patch(ipatch)%atm(1)%cloud(icloud)%name
@@ -244,15 +240,14 @@ contains
                 end do
              endif
           end do ! cloud loop
-          if (any(cloudnum(ipatch,:) .lt. 50)) then
-             !write(*,*) "calling cloud atlas"
-             call cloudatlas(patch(ipatch)%atm,patch(ipatch)%cloudy)
+
+          if (any(cloudops .ne. 0)) then
+             call cloudatlas(patch(ipatch)%atm,patch(ipatch)%cloudy,miewave,mierad,clouddata(ipatch,:,:,:,:))
           end if
           !do ilayer = 1,nlayers
           !   tau1 = tau1  + patch(1)%atm(ilayer)%cloud(1)%dtau1
           !end do
-          !write(*,*)'cloud 1 total optical depth = ', tau1
-          
+          !write(*,*)'cloud 1 total optical depth = ', tau1  
        else
           do ilayer = 1, nlayers
              patch(ipatch)%atm(ilayer)%gg = 0.0

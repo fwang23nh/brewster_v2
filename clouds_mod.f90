@@ -2,7 +2,7 @@ module clouds
 
 contains
   
-  subroutine cloudatlas(column,sizdist)
+  subroutine cloudatlas(column,sizdist,miewave,mierad,clouddata_patch)
 
     use sizes
     use common_arrays
@@ -13,19 +13,22 @@ contains
     implicit none
     type(a_layer), intent(inout):: column(nlayers)
     integer :: icloud, imiewave, irad,ilayer,oldw1, oldw2, idum1, idum2,iwave
-    integer :: sizdist,loc1,loc1a,loc1b,loc1m
+    integer :: sizdist,loc1,loc1a,loc1b,loc1m,nmiewave,nrad
     integer :: loc(1)
-    character(len=50) :: miefile
+    ! clouddata_patch (ncloud, miewave,mierad
+    double precision,intent(in):: clouddata_patch(:,:,:,:)
+    double precision,intent(in):: miewave(:),mierad(:)
     double precision ,allocatable, dimension(:,:,:) :: qscat,qext,cos_qscat
-    double precision, dimension(nmiewave):: miewavelen,miewaven, wdiff,ext,scat,cqs
-    double precision, allocatable, dimension(:,:) :: radius_in, radius
-    double precision, allocatable, dimension(:,:) :: dr, rup
+    double precision, allocatable, dimension(:) :: miewaven, wdiff,ext,scat,cqs
+    double precision, allocatable, dimension(:) :: radius
+    double precision, allocatable, dimension(:) :: dr, rup
     double precision, allocatable, dimension(:,:,:) :: scat_cloud,ext_cloud
     double precision, allocatable, dimension(:,:,:) :: cqs_cloud
     double precision, allocatable, dimension(:,:):: opd_ext,opd_scat, cos_qs
     double precision :: norm, rr, r2, rg, rsig, pw, pir2ndz, arg1, arg2,bot
     double precision :: f1, f2, intfact,lintfact,vrat,rmin,sum_ndz_2, sum_ndz_1
     double precision :: a, b, ndz, drr, arg3, argscat, argext, argcosqs
+
     double precision :: logcon, qpir2, frac
     real, allocatable,dimension(:) :: cld1arr 
     ! this will take the clouds and in turn calculate their opacities the layers
@@ -34,10 +37,12 @@ contains
 
     ! get the distribution from do_clouds
     ! 2 = log normal, 1 = hansen
-    allocate(qscat(nmiewave,nrad,nclouds),qext(nmiewave,nrad,nclouds))
-    allocate(cos_qscat(nmiewave,nrad,nclouds))
-    allocate(radius_in(nrad,nclouds), radius(nrad,nclouds))
-    allocate(dr(nrad,nclouds), rup(nrad,nclouds))
+
+
+
+    nmiewave = size(miewave)
+    nrad = size(mierad)
+    allocate(radius(nrad), dr(nrad), rup(nrad))
     allocate(scat_cloud(nlayers,nmiewave,nclouds))
     allocate(ext_cloud(nlayers,nmiewave,nclouds))
     allocate(cqs_cloud(nlayers,nmiewave,nclouds))
@@ -47,76 +52,32 @@ contains
 
     ! first set up the grids and get the Mie coefficients, cloud by cloud
 
-    !call init_column(column)
-    do icloud = 1, nclouds
+    
+    ! these are set for EGP cases. Ditched soot. it will throw an error. 
+    vrat = 2.2
+    rmin = 1e-7
        
-       ! This bit is lifted from setup_clouds3.1.f in EGP
-       ! it sets up the radius grid.
+    pw = 1. / 3.
+    f1 = ( 2*vrat / ( 1 + vrat) )**pw
+    f2 = ( 2 / ( 1 + vrat ) )**pw * vrat**(pw-1)
        
-       ! constants/ parameters are in sizes
+    do irad = 1, nrad
+       radius(irad) = rmin * vrat**(float(irad-1)/3.)
+       rup(irad) = f1*radius(irad)
+       dr(irad) = f2*radius(irad)
+    enddo
        
-       ! set rmin and vrat here though:
-       
-       if (trim(column(1)%cloud(icloud)%name) .eq. 'soot' ) then
-          vrat = 1.3
-          rmin = 1e-8
-       else
-          vrat = 2.2
-          rmin = 1e-7
-       endif
-
-
-       
-       pw = 1. / 3.
-       f1 = ( 2*vrat / ( 1 + vrat) )**pw
-       f2 = ( 2 / ( 1 + vrat ) )**pw * vrat**(pw-1)
-       
-       do irad = 1, nrad
-          radius(irad,icloud) = rmin * vrat**(float(irad-1)/3.)
-          rup(irad,icloud) = f1*radius(irad,icloud)
-          dr(irad,icloud) = f2*radius(irad,icloud)
-       enddo
-       
-       ! first get the mie or DHS  coefficients for the condensate
-
-       if (sizdist .gt. 0) then
-          write(miefile,"(A,A,A)")"../Clouds/",trim(column(1)%cloud(icloud)%name),".mieff"
-       else if (sizdist .lt. 0) then
-          write(miefile,"(A,A,A)")"../Clouds/",trim(column(1)%cloud(icloud)%name),".dhs"
-       end if
-          
-       
-       
-       open(unit=10, file= miefile, status='old')
-       
-       
-       read(10,*) idum1, idum2
-       
-       if (idum1 .ne. nmiewave .or. idum2 .ne. nrad) then
-          write(*,*) "Problem with mie coefficients file contents wrong waves or radii",trim(miefile)
-          stop
-       end if
-       
-       do irad = 1, nrad
-          read(10,*) radius_in(irad,icloud)
-          if (abs(radius(irad,icloud) - radius_in(irad,icloud)) .gt. &
-               0.01*radius(irad,icloud)) then
-             write(*,*) "Radius grid mismatch in mie file: ",trim(miefile)
-             stop
-          end if
-          do imiewave = 1, nmiewave
-             read(10,*) miewavelen(imiewave), qscat(imiewave,irad,icloud), &
-                  qext(imiewave,irad,icloud), cos_qscat(imiewave,irad,icloud)
-          end do
-       end do
-       close(10)   
-    end do  ! cloud loop
+    if (abs(radius(irad) - mierad(irad)) .gt. &
+         0.001*radius(irad)) then
+       write(*,*) "Radius grid mismatch in mie data"
+       stop
+    end if
 
     
-    miewaven = 1.0 / miewavelen
+    miewaven = 1.0 / miewave
 
     ! let's get the location for wave = 1um in miewavelen for later
-    loc = minloc(abs(miewavelen - 1e-4))
+    loc = minloc(abs(miewave - 1e-4))
     loc1 = loc(1)
     !write(*,*) miewavelen(loc1)
     
@@ -170,10 +131,10 @@ contains
                 norm = 0.
                 
                 do irad = 1,nrad
-                   rr = radius(irad,icloud)
-                   arg1 = dr(irad,icloud) / ( sqrt(2.*PI)*rr*log(rsig) )
+                   rr = radius(irad)
+                   arg1 = dr(irad) / ( sqrt(2.*PI)*rr*log(rsig) )
                    arg2 = -(log( rr/ rg ))**2 / ( 2*(log(rsig))**2 )
-                   qpir2 = PI * rr**2 * qext(loc1,irad,icloud)
+                   qpir2 = PI * rr**2 * clouddata_patch(icloud,loc1,irad,1)
                    norm = norm + (qpir2 * arg1 * exp(arg2))
                 end do
                 
@@ -186,21 +147,20 @@ contains
                 do imiewave = 1, nmiewave
                    do irad = 1, nrad
                       
-                      rr = radius(irad,icloud)
-                      arg1 = dr(irad,icloud) / ( sqrt(2.*PI)*rr*log(rsig) )
+                      rr = mierad(irad)
+                      arg1 = dr(irad) / ( sqrt(2.*PI)*rr*log(rsig) )
                       arg2 = -(log( rr/rg))**2 / ( 2*(log(rsig))**2 )
                       pir2ndz = ndz * PI * rr**2 * arg1* exp( arg2 )
                       
-                      
-                      scat_cloud(ilayer,imiewave,icloud) =  &
-                           scat_cloud(ilayer,imiewave,icloud) + & 
-                           qscat(imiewave,irad,icloud)*pir2ndz
                       ext_cloud(ilayer,imiewave,icloud) = &
                            ext_cloud(ilayer,imiewave,icloud) + &
-                           qext(imiewave,irad,icloud)*pir2ndz
+                           clouddata_patch(icloud,imiewave,irad,1)*pir2ndz      
+                      scat_cloud(ilayer,imiewave,icloud) =  &
+                           scat_cloud(ilayer,imiewave,icloud) + & 
+                           clouddata_patch(icloud,imiewave,irad,2)*pir2ndz
                       cqs_cloud(ilayer,imiewave,icloud) = &
                            cqs_cloud(ilayer,imiewave,icloud) + &
-                           cos_qscat(imiewave,irad,icloud)*pir2ndz
+                           clouddata_patch(icloud,imiewave,irad,3)*pir2ndz
                    enddo ! radius loop
                    
                    ! sum over clouds
@@ -227,13 +187,13 @@ contains
 
                 bot = 0.d0
                 do irad = 1, nrad
-                   rr = radius(irad,icloud)
-                   drr = dr(irad,icloud)
+                   rr = radius(irad)
+                   drr = dr(irad)
                    !write(*,*) (-rr/(a*b)), log(drr)
                    arg1 = (-rr/(a*b)) + log(drr)
                    !write(*,*) arg1
                    arg2 = ((1.- 3.*b)/b) * log(rr)
-                   argext = log(qext(loc1,irad,icloud) * PI * rr**2.)
+                   argext = log(clouddata_patch(icloud,loc1,irad,1) * PI * rr**2.)
                    bot = bot + exp(arg1 + arg2 + argext)
                       
                 end do ! radius loop
@@ -274,15 +234,15 @@ contains
                 
                 do imiewave = 1, nmiewave
                    do irad = 1, nrad
-                      rr = radius(irad,icloud)
-                      drr = dr(irad,icloud)
+                      rr = radius(irad)
+                      drr = dr(irad)
                       !write(*,*) (-rr/(a*b)), log(drr)
                       arg1 = (-rr/(a*b)) + log(drr)
                       !write(*,*) arg1
                       arg2 = ((1. - 3.*b)/b) * log(rr)
-                      argscat = log(qscat(imiewave,irad,icloud) * PI * rr**2)
-                      argext = log(qext(imiewave,irad,icloud) * PI * rr**2)
-                      argcosqs =  cos_qscat(imiewave,irad,icloud) * PI * rr**2
+                      argscat = log(clouddata_patch(icloud,loc1,irad,2) * PI * rr**2)
+                      argext = log(clouddata_patch(icloud,loc1,irad,1) * PI * rr**2)
+                      argcosqs = clouddata_patch(icloud,loc1,irad,3) * PI * rr**2
                       !write(*,*) logcon, arg1, arg2, arg3, arg4 
                       scat_cloud(ilayer,imiewave,icloud) =  &
                            scat_cloud(ilayer,imiewave,icloud) + &
@@ -393,7 +353,7 @@ contains
     !close(10)
 
 
-    deallocate(qscat,qext,cos_qscat,radius_in,radius,dr,rup)
+    deallocate(radius,dr,rup)
     deallocate(scat_cloud,ext_cloud,cqs_cloud)
     deallocate(opd_ext,opd_scat,cos_qs)
  
