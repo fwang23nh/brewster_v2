@@ -75,7 +75,7 @@ def lnprior(theta,re_params):
         gaslist,
         gasnames,
         gasmass,
-        cloudnum,
+        cloudflag,
         inlinetemps,
         coarsePress,
         press,
@@ -106,7 +106,7 @@ def lnprior(theta,re_params):
         args_instance.gaslist,
         args_instance.gasnames,
         args_instance.gasmass,
-        args_instance.cloudnum,
+        args_instance.cloudflag,
         args_instance.inlinetemps,
         args_instance.coarsePress,
         args_instance.press,
@@ -348,9 +348,9 @@ def lnprior(theta,re_params):
     # pc = attribute_names.index(first_cloud_para)
 
     if ((npatches > 1) and np.all(do_clouds != 0)):
-        cloudparams = cloud_dic.unpack_patchy(re_params,params_instance,cloudtype,cloudnum,do_clouds)
+        cloudparams = cloud_dic.unpack_patchy(re_params,params_instance,cloudtype,cloudflag,do_clouds)
     else:
-        cloudparams = cloud_dic.unpack_default(re_params,params_instance,cloudtype,cloudnum,do_clouds)
+        cloudparams = cloud_dic.unpack_default(re_params,params_instance,cloudtype,cloudflag,do_clouds)
 
 
     if (cloudtype.size > cloudtype.shape[1]):
@@ -371,7 +371,7 @@ def lnprior(theta,re_params):
         for i in range(0,npatches):
             if (do_clouds[i] != 0):
                 for j in range (0, nclouds):
-                    if (cloudnum[i,j] == 99):
+                    if (cloudflag[i,j] == 'grey'):
                         if (cloudtype[i,j] == 1):
                             cloud_tau0[i,j] = cloudparams[0,i,j]
                             cloud_top[i,j] = cloudparams[1,i,j]
@@ -417,7 +417,7 @@ def lnprior(theta,re_params):
                             taupow[i,j] = 0.0
                             loga[i,j] =  0.0
                             b[i,j] = 0.5
-                    elif (cloudnum[i,j] == 89):
+                    elif (cloudflag[i,j] == 'powerlaw'):
                         if (cloudtype[i,j] == 1):
                             cloud_tau0[i,j] = cloudparams[0,i,j]
                             cloud_top[i,j] = cloudparams[1,i,j]
@@ -1081,7 +1081,7 @@ def priormap_dic(theta,re_params):
         gaslist,
         gasnames,
         gasmass,
-        cloudnum,
+        cloudflag,
         inlinetemps,
         coarsePress,
         press,
@@ -1112,7 +1112,7 @@ def priormap_dic(theta,re_params):
         args_instance.gaslist,
         args_instance.gasnames,
         args_instance.gasmass,
-        args_instance.cloudnum,
+        args_instance.cloudflag,
         args_instance.inlinetemps,
         args_instance.coarsePress,
         args_instance.press,
@@ -1433,10 +1433,14 @@ def priormap_dic(theta,re_params):
         nclouds = cloudtype.size
 
     if np.all(do_clouds!= 0):
-        cloudlist=list(re_params.dictionary["cloud"]["patch 1"].keys())
+        cloudlist=[]
+        for i in range(1, 3):
+            for key in re_params.dictionary['cloud']['patch %s' % i].keys():
+                if 'clear' not in key:
+                    cloudlist.append(key)
 
-        for cloudname in cloudlist:
-            if cloudname=='grey cloud deck':
+        for cloud in cloudlist:
+            if cloud=='grey cloud deck':
             # 'cloudnum': 99,'cloudtype':2,
                 logp_gcd_index=params_instance._fields.index('logp_gcd')
                 dp_gcd_index=params_instance._fields.index('dp_gcd')
@@ -1448,7 +1452,7 @@ def priormap_dic(theta,re_params):
                 # cloud height
                 phi[dp_gcd_index] = theta[dp_gcd_index] * 7.
                         
-            elif cloudname=='grey cloud slab':
+            elif cloud=='grey cloud slab':
             # 'cloudnum': 99,'cloudtype':1,
                 tau_gcs_index=params_instance._fields.index('tau_gcs')
                 logp_gcs_index=params_instance._fields.index('logp_gcs')
@@ -1465,7 +1469,7 @@ def priormap_dic(theta,re_params):
                     (phi[logp_gcs_index] - np.log10(press[0]))
                                     
         
-            elif cloudname=='powerlaw cloud deck':
+            elif cloud=='powerlaw cloud deck':
             # 'cloudnum': 89,'cloudtype':2,
                 logp_pcd_index=params_instance._fields.index('logp_pcd')
                 dp_pcd_index=params_instance._fields.index('dp_pcd')
@@ -1481,10 +1485,10 @@ def priormap_dic(theta,re_params):
                 phi[alpha_pcd_index] = (theta[alpha_pcd_index] * 20.) - 10.
 
 
-            elif 'Mie scattering cloud deck' in cloudname:
+            elif 'Mie scattering cloud deck' in cloud:
             #   'cloudnum': cloudnum,'cloudtype':2,
 
-                cloudspecies=cloudname.split('--')[1].strip()
+                cloudspecies=cloud.split('--')[1].strip()
                 logp_pcd_index=params_instance._fields.index('logp_mcd_%s'%cloudspecies)
                 dp_pcd_index=params_instance._fields.index('dp_mcd_%s'%cloudspecies)
                 #cloud base
@@ -1513,7 +1517,7 @@ def priormap_dic(theta,re_params):
                     # particle spread
                     phi[mu_mcd_index] = theta[mu_mcd_index]                                                 
 
-            elif cloudname=='power law cloud slab':
+            elif cloud=='power law cloud slab':
                     # 'cloudnum': 89, 'cloudtype':1,
                     tau_pcs_index=params_instance._fields.index('tau_pcs')
                     logp_pcs_index=params_instance._fields.index('logp_pcs')
@@ -1535,9 +1539,9 @@ def priormap_dic(theta,re_params):
                     phi[alpha_pcs_index] = (theta[alpha_pcs_index] * 20.) - 10.
 
 
-            elif 'Mie scattering cloud slab' in cloudname:
+            elif 'Mie scattering cloud slab' in cloud:
 
-                cloudspecies=cloudname.split('--')[1].strip()
+                cloudspecies=cloud.split('--')[1].strip()
 
                 tau_mcs_index=params_instance._fields.index('tau_mcs_%s'%cloudspecies)
                 logp_mcs_index=params_instance._fields.index('logp_mcs_%s'%cloudspecies)
@@ -1593,7 +1597,7 @@ def lnlike(theta,re_params):
         gaslist,
         gasnames,
         gasmass,
-        cloudnum,
+        cloudflag,
         inlinetemps,
         coarsePress,
         press,
@@ -1624,7 +1628,7 @@ def lnlike(theta,re_params):
         args_instance.gaslist,
         args_instance.gasnames,
         args_instance.gasmass,
-        args_instance.cloudnum,
+        args_instance.cloudflag,
         args_instance.inlinetemps,
         args_instance.coarsePress,
         args_instance.press,
@@ -1814,7 +1818,6 @@ def lnlike(theta,re_params):
     elif(fwhm == 777): #STILL NEEDS TO BE TESTED
         #Convolving Non_uniform R, tolerance parameter as a fraction of error, 
         #so we are allowing the tolerance parameter to be different at each datapoint
-
         
         spec1 = conv_non_uniform_R(modspec[1,:], modspec[0,:], args_instance.R, obspec[0,:])
         
@@ -2168,7 +2171,7 @@ def modelspec(theta,re_params,args_instance,gnostics):
         gaslist,
         gasnames,
         gasmass,
-        cloudnum,
+        cloudflag,
         inlinetemps,
         coarsePress,
         press,
@@ -2199,7 +2202,7 @@ def modelspec(theta,re_params,args_instance,gnostics):
         args_instance.gaslist,
         args_instance.gasnames,
         args_instance.gasmass,
-        args_instance.cloudnum,
+        args_instance.cloudflag,
         args_instance.inlinetemps,
         args_instance.coarsePress,
         args_instance.press,
@@ -2314,9 +2317,9 @@ def modelspec(theta,re_params,args_instance,gnostics):
     # use correct unpack method depending on situation
 
     if ((npatches > 1) and np.all(do_clouds != 0)):
-        cloudparams = cloud_dic.unpack_patchy(re_params,params_instance,cloudtype,cloudnum,do_clouds)
+        cloudparams = cloud_dic.unpack_patchy(re_params,params_instance,cloudtype,cloudflag,do_clouds)
     else:
-        cloudparams = cloud_dic.unpack_default(re_params,params_instance,cloudtype,cloudnum,do_clouds)
+        cloudparams = cloud_dic.unpack_default(re_params,params_instance,cloudtype,cloudflag,do_clouds)
 
     ndim = len(theta)
 
@@ -2423,12 +2426,12 @@ def modelspec(theta,re_params,args_instance,gnostics):
     # now need to translate cloudparams in to cloud profile even
     # if do_clouds is zero..
 
-    cloudprof,cloudrad,cloudsig = cloud_dic.atlas(do_clouds,cloudnum,cloudtype,cloudparams,press)
+    cloudprof,cloudrad,cloudsig = cloud_dic.atlas(do_clouds,cloudflag,cloudtype,cloudparams,press)
     cloudprof = np.asfortranarray(cloudprof,dtype = 'float64')
     cloudrad = np.asfortranarray(cloudrad,dtype = 'float64')
     cloudsig = np.asfortranarray(cloudsig,dtype = 'float64')
     pcover = np.asfortranarray(pcover,dtype = 'float32')
-    cloudnum = np.asfortranarray(cloudnum,dtype='i')
+    cloudflag = np.asfortranarray(cloudflag,dtype='i')
     do_clouds = np.asfortranarray(do_clouds,dtype = 'i')
 
     # get r2d2 sorted for multi-instruments
@@ -2491,7 +2494,7 @@ def modelspec(theta,re_params,args_instance,gnostics):
 
 
     # now we can call the forward model
-    outspec,tmpclphotspec,tmpophotspec,cf = forwardmodel.marv(temp,logg,R2D2,gasnames,gasmass,logVMR,pcover,do_clouds,cloudnum,cloudrad,cloudsig,cloudprof,inlinetemps,press,inwavenum,linelist,cia,ciatemps,use_disort,clphot,ophot,make_cf,do_bff,bff)
+    outspec,tmpclphotspec,tmpophotspec,cf = forwardmodel.marv(temp,logg,R2D2,gasnames,gasmass,logVMR,pcover,do_clouds,cloudflag,cloudrad,cloudsig,cloudprof,inlinetemps,press,inwavenum,linelist,cia,ciatemps,use_disort,clphot,ophot,make_cf,do_bff,bff)
         
 
     # Trim to length where it is defined.
