@@ -1512,7 +1512,8 @@ def priormap_dic(theta,re_params):
                 # cloud height
                 phi[dp_pcd_index] = theta[dp_pcd_index] * 7.
 
-                particle_dis=re_params.dictionary["cloud"]["patch 1"]["particle_dis"]
+                particle_dis=re_params.dictionary["cloud"]["patch 1"][cloudname]['particle_dis']
+                
                 if  particle_dis=="hansan": 
                     hansan_a_mcd_index=params_instance._fields.index('hansan_a_mcd_%s'%cloudspecies)
                     hansan_b_mcd_index=params_instance._fields.index('hansan_b_mcd_%s'%cloudspecies)                                               
@@ -1568,7 +1569,7 @@ def priormap_dic(theta,re_params):
                 phi[dp_mcs_index] = theta[dp_mcs_index] * \
                     (phi[logp_mcs_index] - np.log10(press[0]))
 
-                particle_dis=re_params.dictionary["cloud"]["patch 1"]["particle_dis"]
+                particle_dis=re_params.dictionary["cloud"]["patch 1"][cloudname]['particle_dis']
                                                                         
                 if particle_dis=="hansan": 
                     hansan_a_mcs_index=params_instance._fields.index('hansan_a_mcs_%s'%cloudspecies)
