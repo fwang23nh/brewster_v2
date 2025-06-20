@@ -48,7 +48,7 @@ samplemode='mcmc'
 
 instrument_instance = utils.Instrument(fwhm,wavelength_range,ndata)
 re_params = utils.Retrieval_params(samplemode,chemeq,gaslist,gastype_list,fwhm,do_fudge,ptype,do_clouds,npatches,cloudname,cloudpacth_index,particle_dis)
-model_config_instance = utils.ModelConfig(samplemode)
+model_config_instance = utils.ModelConfig(samplemode,do_fudge)
 io_config_instance = utils.IOConfig()
 
 
