@@ -1115,27 +1115,36 @@ class Retrieval_params:
             
         # Remove 'scale1' and 'scale2' if fwhm condition is not met
     
-        if self.fwhm in [555, 888] and self.do_fudge == 1:
+        if self.fwhm in [555, 888]:
             del dictionary['params']['scale1']
             del dictionary['params']['scale2']
-            ndata = 2
+            if  self.do_fudge == 1:
+                ndata = 2
 
-        elif self.fwhm in [777] and self.do_fudge == 1:
+        elif self.fwhm in [777]:
+            del dictionary['params']['scale1']
+            del dictionary['params']['scale2']
+            if self.do_fudge == 1:
+                ndata = 0
+
+        elif self.fwhm >=0 or self.fwhm in [-5,-6]:
             del dictionary['params']['scale1']
             del dictionary['params']['scale2']
             ndata = 0
+            if self.do_fudge==1:
+                ndata = 1
 
-        elif (self.fwhm >= 0 or self.fwhm in [-5, -6]) and self.do_fudge == 1:
+        elif self.fwhm in [-2]:
             del dictionary['params']['scale1']
-            del dictionary['params']['scale2']
             ndata = 1
+            if self.do_fudge == 1:
+                ndata = 2
 
-        elif self.fwhm in [-2] and self.do_fudge == 1:
-            del dictionary['params']['scale1']
+        elif self.fwhm in [-1, -3, -4]:
             ndata = 2
+            if self.do_fudge == 1:
+                ndata = 3
 
-        elif self.fwhm in [-1, -3, -4] and self.do_fudge == 1:
-            ndata = 3
 
         # Add tolerance parameters after 'dlambda'
         if self.do_fudge==1:
