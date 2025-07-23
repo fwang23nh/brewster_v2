@@ -1528,7 +1528,7 @@ def cloud_para_gen(dic):
 
     # Initialize arrays
     do_clouds = np.zeros([npatches], dtype='i')
-    cloudflag = np.zeros([npatches, nclouds], dtype=object)
+    cloudflag = np.zeros([npatches, nclouds], dtype=object, order='F')
     cloudtype = np.zeros([npatches, nclouds], dtype='i')
 
     cloudnames= np.zeros([npatches, nclouds], dtype=object)
@@ -1544,9 +1544,11 @@ def cloud_para_gen(dic):
             for i in range(nclouds):
                 cloudkey=list(dic['cloud'][patch_key].keys())
                 cloud_info = dic['cloud'][patch_key][cloudkey[i]]
-                
-                cloudflag[patch_index, i] = cloudkey[i].split(' ')[0]
-                if cloudflag[patch_index, i]=='Mie':
+
+
+                cloudflag[patch_index, i] = cloudkey[i]
+                # cloudflag[patch_index, i] = cloudkey[i].split(' ')[0]
+                if 'Mie'in cloudflag[patch_index, i]:
                     cloudnames[patch_index, i] = cloudkey[i].split('--')[1]
                 cloudtype[patch_index, i] = cloud_info['cloudtype']
                 do_clouds[patch_index] = 1
@@ -1805,9 +1807,9 @@ def get_clouddata(cloudname,cloudpath = "../Clouds/"):
     # ])
 
         # Flatten all arrays (column-major order for Fortran)
-    cloud =[miewave_f,mierad_f, qext_f,qscat_f,cos_qscat_f]
+    cloud =[qext_f,qscat_f,cos_qscat_f]
 
-    return cloud
+    return cloud,miewave_f,mierad_f
 
 
     
@@ -1941,17 +1943,22 @@ class ArgsGen:
         self.cloudflag, self.cloudtype, self.do_clouds,self.cloudnames = cloud_para_gen(self.re_params.dictionary)
         
 
+
+
+    
+        cloud_demo,self.miewave,self.mierad= get_clouddata('H2O.mieff', self.model.cloudpath)
+
+
         # Initialize clouddata as a nested list to hold arrays
-        self.clouddata = np.zeros_like(self.cloudflag)
-        # [[None for _ in range(len(self.cloudflag[0]))] for _ in range(len(self.cloudflag))]
+        self.cloudata = np.zeros((*self.cloudflag.shape, 3, len(self.miewave), len(self.mierad)), order='F')
 
         for i in range(len(self.cloudflag)):
             for j in range(len(self.cloudflag[0])):
-                if self.cloudflag[i][j] == 'Mie':
-                    self.clouddata[i][j] = get_clouddata(self.cloudnames[i][j], self.model.cloudpath)
+                val = self.cloudflag[i][j]
+                if isinstance(val, str) and 'Mie' in val:
+                    self.cloudata[i][j] = np.asfortranarray(
+                        get_clouddata(self.cloudnames[i][j], self.model.cloudpath)[0])
 
-
-        
         # Generate temperature profile
         self.prof = np.full(13, 100.0)
         if self.proftype == 9:
