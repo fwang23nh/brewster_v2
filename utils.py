@@ -1517,13 +1517,21 @@ def cloud_para_gen(dic):
         if 'patch 2' in dic['cloud'] and dic['cloud']['patch 2']:
             npatches = 2
             
-        cloudname_list = []
-        for i in range(1, 3):
-            for key in dic['cloud']['patch %s' % i].keys():
-                if 'clear' not in key:
-                    cloudname_list.append(key.split(' ')[0])
+        # cloudname_list = []
+        # for i in range(npatches):
+        #     for key in dic['cloud']['patch %s' % (i+1)].keys():
+        #         if 'clear' not in key:
+        #             cloudname_list.append(key.split(' ')[0])
             
-        nclouds= len(cloudname_list)
+        # nclouds= len(cloudname_list)
+
+        cloudname_set = set() #Used a set (cloudname_set) to automatically remove duplicates.
+        for i in range(npatches):
+            for key in dic['cloud'][f'patch {i+1}']:
+                if 'clear' not in key:
+                    cloudname_set.add(key.split(' ')[0])
+
+        nclouds = len(cloudname_set)
           
 
     # Initialize arrays
