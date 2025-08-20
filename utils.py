@@ -516,7 +516,7 @@ class Retrieval_params:
         String representation of the class instance.
     """
     
-    def __init__(self, samplemode,chemeq=None, gaslist=None, gastype_list=None,fwhm=None,do_fudge=1,ptype=None,do_clouds=1,npatches=None,cloudname=None,cloudpatch_index=None,particle_dis=None):
+    def __init__(self, samplemode,chemeq=None, gaslist=None, gastype_list=None,fwhm=None,do_fudge=1,ptype=None,do_clouds=1,npatches=None,cloudname=None,cloudpatch_index=None,particle_dis=None, instrument=None):
         self.samplemode = samplemode
         self.chemeq = chemeq
         self.gaslist = gaslist
@@ -528,6 +528,7 @@ class Retrieval_params:
         self.cloudname = cloudname
         self.cloudpatch_index=cloudpatch_index
         self.particle_dis=particle_dis
+        self.instrument=instrument
         
         self.dictionary = self.retrieval_para_dic_gen(chemeq, gaslist, gastype_list,fwhm,do_fudge, ptype,do_clouds,npatches,cloudname,cloudpatch_index,particle_dis)
         
@@ -706,7 +707,7 @@ class Retrieval_params:
 
                           'lndelta':
                            {'initialization':None,
-                            'distribution':['normal',0,1],
+                            'distribution':['normal',0.5,0.5],
                             'range':None,
                             'prior':None},
 
@@ -1071,6 +1072,11 @@ class Retrieval_params:
                         'distribution': ['normal', 0, 0.001],
                         'prior': None
                     },
+                    'frac_param': {
+                        'initialization': None,
+                        'distribution': ['normal', 0.5, 0.1],
+                        'prior': None
+                    },
                     'dlambda': {
                         'initialization': None,
                         'distribution': ['normal', 0, 0.001],
@@ -1115,37 +1121,42 @@ class Retrieval_params:
             
         # Remove 'scale1' and 'scale2' if fwhm condition is not met
     
+        if (self.fwhm >=0 and self.fwhm <=500) or (self.fwhm in [-5,-6]):
+
+            del dictionary['params']['scale1']
+            del dictionary['params']['scale2']
+            if self.samplemode.lower() == 'mcmc':
+                del dictionary['params']['frac_param']
+            if self.do_fudge==1:
+            	ndata=1
+
+        if self.fwhm in [-2]:
+            del dictionary['params']['scale1']
+            del dictionary['params']['frac_param']
+            if self.do_fudge==1:
+           		ndata=2
+
+        if self.fwhm in [-1, -3, -4]:
+            del dictionary['params']['frac_param']
+            if self.do_fudge==1:
+           		ndata=3
+            
         if self.fwhm in [555, 888]:
             del dictionary['params']['scale1']
             del dictionary['params']['scale2']
-            if  self.do_fudge == 1:
-                ndata = 2
-
-        elif self.fwhm in [777]:
-            del dictionary['params']['scale1']
-            del dictionary['params']['scale2']
-            if self.do_fudge == 1:
-                ndata = 0
-
-        elif self.fwhm >=0 or self.fwhm in [-5,-6]:
-            del dictionary['params']['scale1']
-            del dictionary['params']['scale2']
-            ndata = 0
+            #del dictionary['params']['frac_param']
+            if self.samplemode.lower() == 'mcmc':
+                del dictionary['params']['frac_param']
             if self.do_fudge==1:
-                ndata = 1
-
-        elif self.fwhm in [-2]:
+            	ndata=int(np.max(self.instrument.logf_flag))
+            
+            
+        if self.fwhm in [777]:
             del dictionary['params']['scale1']
-            ndata = 1
-            if self.do_fudge == 1:
-                ndata = 2
-
-        elif self.fwhm in [-1, -3, -4]:
-            ndata = 2
-            if self.do_fudge == 1:
-                ndata = 3
-
-
+            del dictionary['params']['scale2']
+            if self.do_fudge==1:
+           		ndata=0
+            
         # Add tolerance parameters after 'dlambda'
         if self.do_fudge==1:
             for i in range(ndata):
@@ -1647,6 +1658,9 @@ def get_opacities(gaslist,w1,w2,press,xpath='../Linelists',xlist='gaslistR10K.da
         inlinelist= pickle.load(open(lists[gas], "rb" ) )[3]
         for i in range (0,ntemps):
             for j in range (r1,r2+1):
+               # print(f"gas={gas}, i={i}, j={j}")
+               # print("inpress shape:", inpress.shape)
+               # print("inlinelist[:, i, j] shape:", inlinelist[:, i, j].shape)
                 pfit = interp1d(np.log10(inpress),np.log10(inlinelist[:,i,j]))
                 linelist[gas,:,i,(j-r1)] = np.asfortranarray(pfit(np.log10(press)))
     linelist[np.isnan(linelist)] = -50.0
@@ -1845,7 +1859,7 @@ class ArgsGen:
     def generate(self):
         # Set up pressure grids in log(bar)
         logcoarsePress = np.arange(-4.0, 2.5, 0.53)
-        logfinePress = np.arange(-4.0, 2.4, 0.1)
+        logfinePress = np.arange(-4.0, 2.4, 0.1) #np.linspace(-4.0, 2.4, 100)#logfinePress = np.arange(-4.0, 2.4, 0.1) #PRESSURE LAYER CHANGE
         
         # Pressure in bar
         self.coarsePress = pow(10, logcoarsePress)

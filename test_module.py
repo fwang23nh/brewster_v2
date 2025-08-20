@@ -134,6 +134,14 @@ def lnprior(theta,re_params):
     knots = len(coarsePress)
     ndim = len(theta)
 
+    def matching_params(params_instance,param):
+        matching_params = [
+            (name, getattr(params_instance, name))
+            for name in dir(params_instance)
+            if param in name
+        ]
+        return matching_params[0][0],matching_params[0][1]
+
     # set up the priors here
     if (chemeq != 0):
         invmr = np.array([-3.,-3.])
@@ -235,30 +243,69 @@ def lnprior(theta,re_params):
                 logf2 = np.log10(0.1*(max(obspec[2,:]))**2)
                 logf3 = np.log10(0.1*(max(obspec[2,:]))**2)
                 
-    elif (fwhm == 555):  #non-uniform R with flags for tolerance parameters
-        log_f_param = args_instance.logf_flag
-        s2 = obspec[0,:]
-        s2 = np.where(log_f_param == 1.0)
-        s3 = obspec[0,:]
-        s3 = np.where(log_f_param == 2.0)
+    elif (fwhm == 555):
         r2d2 = params_instance.r2d2
         dlam = params_instance.dlambda
         scale1 = 1.0
         scale2 = 1.0
+        
+        log_f_param = args_instance.logf_flag
+        log_f_param_max = int(np.max(log_f_param))
+        flag = 1.0 #starting as valid?
+
+        #dummy value
+        dummy_value = np.log10(0.1 * (np.max(obspec[2, :]))**2)
+        fail_value = 0.0 # something that will fail the prior
+
+        logf_list = []
+
         if (do_fudge == 1):
-                logf1 = params_instance.tolerance_parameter_1
-                logf2 = np.log10(0.1*(max(obspec[2,10::3]))**2) # dummy
-                logf3 = params_instance.tolerance_parameter_2
-                logf = np.log10(0.1*(max(obspec[2,10::3]))**2)
+            for i in range(1, log_f_param_max +1):
+                s_indices = np.where(log_f_param == float(i))
+
+                minerr = np.log10((0.01 * np.min(obspec[2, s_indices]))**2.)
+                maxerr = np.log10((100. * np.max(obspec[2, s_indices]))**2.)
+                tol_param_name = f'tolerance_parameter_{i}'
+                tol_value = getattr(params_instance, tol_param_name)
+
+                #checking boundaries and if outside then failed --> 0.0
+                if not (minerr < tol_value < maxerr):
+                    flag = 0.0
+
+                logf_list.append(tol_value)
+
+            #choosing values based on flag
+            if flag == 1.0:
+                logf = logf_list
+            else:
+                logf= [fail_value] * log_f_param_max
+                
         else:
-                # This is a place holder value so the code doesn't break
-                logf = np.log10(0.1*(max(obspec[2,:]))**2)
-                logf1 = np.log10(0.1*(max(obspec[2,:]))**2)
-                logf2 = np.log10(0.1*(max(obspec[2,:]))**2)
-                logf3 = np.log10(0.1*(max(obspec[2,:]))**2)
+            logf = [dummy_value] * log_f_param_max
+
+        
+       # s2 = obspec[0,:]
+       # s2 = np.where(log_f_param == 1.0)
+       # s3 = obspec[0,:]
+       # s3 = np.where(log_f_param == 2.0)
+       # r2d2 = params_instance.r2d2
+       # dlam = params_instance.dlambda
+       # scale1 = 1.0
+       # scale2 = 1.0
+       # if (do_fudge == 1):
+       #         logf1 = params_instance.tolerance_parameter_1
+       #         logf2 = np.log10(0.1*(max(obspec[2,10::3]))**2) # dummy
+       #         logf3 = params_instance.tolerance_parameter_2
+       #         logf = np.log10(0.1*(max(obspec[2,10::3]))**2)
+       # else:
+       #         # This is a place holder value so the code doesn't break
+       #         logf = np.log10(0.1*(max(obspec[2,:]))**2)
+       #         logf1 = np.log10(0.1*(max(obspec[2,:]))**2)
+       #         logf2 = np.log10(0.1*(max(obspec[2,:]))**2)
+       #         logf3 = np.log10(0.1*(max(obspec[2,:]))**2)
 
                 
-    elif (fwhm == 888): ### STILL NEEDS TO BE TESTED!!!
+    elif (fwhm == 888):
         log_f_param = args_instance.logf_flag
         s2 = obspec[0,:]
         s2 = np.where(log_f_param == 1.0)
@@ -280,7 +327,7 @@ def lnprior(theta,re_params):
                 logf2 = np.log10(0.1*(max(obspec[2,:]))**2)
                 logf3 = np.log10(0.1*(max(obspec[2,:]))**2)
                 
-    elif (fwhm == 777): ### STILL NEEDS TO BE TESTED!!!
+    elif (fwhm == 777): #STILL NEEDS TO BE TESTED
         
         s1 = np.where(obspec[0,:] > 0.0)
         s2 = s1
@@ -289,7 +336,7 @@ def lnprior(theta,re_params):
         r2d2 = params_instance.r2d2
         dlam = params_instance.dlambda
         if (do_fudge == 1):
-            logf =  params_instance.tolerance_parameter_1
+            logf =  params_instance.frac_param
             logf1 = np.log10(0.1*(max(obspec[2,:]))**2)
             logf2 = np.log10(0.1*(max(obspec[2,:]))**2)
             logf3 = np.log10(0.1*(max(obspec[2,:]))**2)
@@ -593,12 +640,12 @@ def lnprior(theta,re_params):
             and (0 < gam < 5000)
             and ((0.01*np.min(obspec[2,:]**2)) < 10.**logf
                  < (100.*np.max(obspec[2,:]**2)))
-            and ((0.01*np.min(obspec[2,s1]**2)) < 10.**logf1
-                 < (100.*np.max(obspec[2,s1]**2)))
+           # and ((0.01*np.min(obspec[2,s1]**2)) < 10.**logf1
+           #      < (100.*np.max(obspec[2,s1]**2)))
             and ((0.01*np.min(obspec[2,s2]**2)) < 10.**logf2
                  < (100.*np.max(obspec[2,s2]**2)))
-            and ((0.01*np.min(obspec[2,s3]**2)) < 10.**logf3
-                 < (100.*np.max(obspec[2,s3]**2)))
+           # and ((0.01*np.min(obspec[2,s3]**2)) < 10.**logf3
+           #      < (100.*np.max(obspec[2,s3]**2)))
             and (np.all(cloud_tau0 >= 0.0))
             and (np.all(cloud_tau0 <= 100.0))
             and np.all(cloud_top < cloud_bot)
@@ -664,7 +711,13 @@ def lnprior(theta,re_params):
         M = (R**2 * g/(6.67E-11))/1.898E27
         Rj = R / 69911.e3
         #         and  and (-5. < logbeta < 0))
+        
+        #prior on deck cloud dp
+        dp_mcd_index=params_instance._fields.index(matching_params(params_instance,"dp_mcd")[0])
+        dp_mcd= params_instance[dp_mcd_index]
+        
         if (all(invmr > -12.0) and all(invmr < 0.0) and (np.sum(10.**(invmr)) < 1.0)
+            and 0 < dp_mcd <= 0.44
             and np.all(gas_profile > -25.0) and np.all(gas_profile < 0.0)
             and np.log10(press[0]) <= P_hgas <= 2.4
             and  all(pcover > 0.) and (np.sum(pcover) == 1.0)
@@ -808,35 +861,35 @@ def lnprior(theta,re_params):
 
                 if  gastype_values[i]=="H":
                       P_hgas= getattr(params_instance, "p_ref_%s"%gas_keys[i])
-    
+
+
+                      
+        #print(f"lndelta = {lndelta}, exp(lndelta) = {np.exp(lndelta)}")
+
+        if np.isnan(lndelta) or np.isinf(lndelta):
+            #print(f"Invalid lndelta detected: {lndelta}")
+            return -np.inf
+        
         delta=np.exp(lndelta)
+        #if delta < 0:
+        #    return -np.inf
+        #print(f"before: delta = {delta}, alpha = {alpha}")
+        if (delta <= 0 or alpha <= 0 or np.isnan(alpha) or np.isnan(delta) or np.isinf(alpha) or np.isinf(delta)):
+            return -np.inf
+        #print(f"delta = {delta}, alpha = {alpha}")
         Tconnect = (((3/4) * Tint**4) * ((2/3) + (0.1)))**(1/4)
         T = np.empty([press.size])
         T[:] = -100.
+        #if  (1. < alpha  < 2. and 0. < delta < 0.1
+        #    and T1 > 0.0 and T1 < T2 and T2 < T3 and T3 < Tconnect and Tint >0.0):
+        #    T = TPmod.set_prof(proftype,junkP,press,theta[pc+nc:-2]) #inversion not allowed, theta[:-2]  the pressure  deck  of  nonuniform gas
+        # put prior on P1 to put it shallower than 100 bar 
+        P1 = ((1/delta)**(1/alpha))
+        if  (1 < alpha  < 2. and P1 < 100 and P1 > press[0]
+            and T1 < T2 and T2 < T3 and T3 < Tconnect #this line turns off inversion
+            and T1 > 0.0 and T2 > 0.0 and T3 > 0.0 and Tint >0.0):
+            T = TPmod.set_prof(proftype,junkP,press,intemp) #allow inversion theta[:-2]  the pressure  deck  of  nonuniform gas
 
-        P1 = ((1/delta)**(1/alpha)) # P1 - pressure where tau = 1
-        cp = 0.84*14.32 + 0.16*5.19
-        cv = 0.84*10.16 + 0.16*3.12
-        gamma=cp/cv
-
-        tau=delta*(press)**alpha
-        T_edd=(((3/4)*Tint**4)*((2/3)+(tau)))**(1/4)
-        nabla_ad=(gamma-1)/gamma
-        nabla_rad = np.diff(np.log(T_edd))/np.diff(np.log(press))
-        convtest = np.any(np.where(nabla_rad >= nabla_ad))
-        # Now get temperatures on the adiabat from RC boundary downwards
-        if convtest:
-            RCbound = np.where(nabla_rad >= nabla_ad)[0][0]
-            P_RC = press[RCbound]
-        else:
-            P_RC = 1000.
-
-        # put prior on P_RC to put it shallower than 100 bar
-        if  (1 < alpha  < 2. and P_RC < 100 and P1 < P_RC
-             and P_RC > press[0] and  P1 > press[0]
-             and T1 > 0.0 and T2 > 0.0 and T3 > 0.0 and Tint >0.0):
-            T = TPmod.set_prof(proftype,junkP,press,intemp) # allow inversion
-     
         #for mass prior
         D = 3.086e+16 * dist
         R = -1.0
@@ -846,7 +899,27 @@ def lnprior(theta,re_params):
         M = (R**2 * g/(6.67E-11))/1.898E27
         Rj = R / 69911.e3
         #         and  and (-5. < logbeta < 0))
+
+        def matching_params(params_instance,param):
+            matching_params = [
+                (name, getattr(params_instance, name))
+                for name in dir(params_instance)
+                if param in name
+            ]       
+            return matching_params[0][0],matching_params[0][1]
+
+        #prior on deck cloud dp (Mie)
+        dp_mcd_index=params_instance._fields.index(matching_params(params_instance,"dp_mcd")[0])
+        dp_mcd= params_instance[dp_mcd_index]
+        
+        #prior on deck cloud dp (gray)
+        #dp_gcd_index=params_instance._fields.index(matching_params(params_instance,"dp_gcd")[0])
+        #dp_gcd= params_instance[dp_gcd_index]
+        
+
         if (all(invmr > -12.0) and all(invmr < 0.0) and (np.sum(10.**(invmr)) < 1.0)
+            and 0 < dp_mcd <= 0.44
+            #and 0 < dp_gcd <= 0.44
             and np.all(gas_profile > -25.0) and np.all(gas_profile < 0.0)
             and np.log10(press[0]) <= P_hgas <= 2.4
             and  all(pcover > 0.) and (np.sum(pcover) == 1.0)
@@ -858,17 +931,24 @@ def lnprior(theta,re_params):
             and 0.1 < scale1 < 10.0
             and 0.1 < scale2 < 10.0
             and alpha > 0.0
-            and lndelta > 0.0
+            and delta > 0.0
+            and lndelta > -4.0
             and  0.5 < Rj < 2.0
             and -0.01 < dlam < 0.01
-            and ((0.01*np.min(obspec[2,:]**2)) < 10.**logf
-                 < (100.*np.max(obspec[2,:]**2)))
-            #and ((0.01*np.min(obspec[2,s1]**2)) < 10.**logf1   #!!!!!!
+            and all(
+                (0.01 * np.min(obspec[2, np.where(log_f_param == float(i+1))]**2))
+                < 10.**logf[i]
+                < (100. * np.max(obspec[2, np.where(log_f_param == float(i+1))]**2))
+                for i in range(len(logf))
+            )
+            #and ((0.01*np.min(obspec[2,:]**2)) < 10.**logf
+            #     < (100.*np.max(obspec[2,:]**2)))
+            ##and ((0.01*np.min(obspec[2,s1]**2)) < 10.**logf1   #!!!!!!
             #     < (100.*np.max(obspec[2,s1]**2)))
-           # and ((0.01*np.min(obspec[2,s2]**2)) < 10.**logf2
-           #      < (100.*np.max(obspec[2,s2]**2)))
-           # and ((0.01*np.min(obspec[2,s3]**2)) < 10.**logf3
-           #      < (100.*np.max(obspec[2,s3]**2)))
+            #and ((0.01*np.min(obspec[2,s2]**2)) < 10.**logf2
+            #     < (100.*np.max(obspec[2,s2]**2)))
+            #and ((0.01*np.min(obspec[2,s3]**2)) < 10.**logf3
+            #     < (100.*np.max(obspec[2,s3]**2)))
             and (np.all(cloud_tau0 >= 0.0))
             and (np.all(cloud_tau0 <= 100.0))
             and np.all(cloud_top < cloud_bot)
@@ -918,9 +998,9 @@ def lnprior(theta,re_params):
         T = np.empty([press.size])
         T[:] = -100.
 
-         #if  (1 < alpha  < 2. and 0. < delta < 0.1
-          #   and T1 > 0.0 and T1 < T2 and T2 < T3 and T3 < Tconnect and Tint >0.0):
-           #  T = TPmod.set_prof(proftype,junkP,press,theta[pc+nc:])  # no inversion 
+        #if  (1 < alpha  < 2. and 0. < delta < 0.1
+        #     and T1 > 0.0 and T1 < T2 and T2 < T3 and T3 < Tconnect and Tint >0.0):
+        #     T = TPmod.set_prof(proftype,junkP,press,theta[pc+nc:])  # no inversion (here)
         P1 = ((1/delta)**(1/alpha))
         # put prior on P1 to put it shallower than 100 bar   
         if  (1 < alpha  < 2. and P1 < 100. and P1 > press[0]
@@ -1204,8 +1284,43 @@ def priormap_dic(theta,re_params):
     R_j = ((max_rad - min_rad)*theta[R_index]) + min_rad
     phi[R_index] = R_j
     
-    
-    if (fwhm < 0.0):
+    if (fwhm == 555):
+        log_f_param = args_instance.logf_flag
+        log_f_param_max = int(np.max(log_f_param))
+       # s2 = np.where(log_f_param == 1.0)
+
+       # s3 = np.where(log_f_param == 2.0)
+        
+        # now dlam
+        dlam_index=params_instance._fields.index('dlambda')
+        phi[dlam_index] = (theta[dlam_index] * 0.02) - 0.01
+
+        if (do_fudge == 1):
+            for i in range(1, log_f_param_max + 1):
+                s_indices = np.where(log_f_param == float(i))
+                minerr = np.log10((0.01 * np.min(obspec[2, s_indices]))**2.)
+                maxerr = np.log10((100 * np.max(obspec[2, s_indices]))**2.)
+
+                tol_param_name=f'tolerance_parameter_{i}'
+                tol_param_index=params_instance._fields.index(tol_param_name)
+                phi[tol_param_index] = (theta[tol_param_index] * (maxerr-minerr)) + minerr
+
+       # if (do_fudge == 1):
+       #     minerr1 = np.log10((0.01 * np.min(obspec[2, s2]))**2.)
+       #     maxerr1 = np.log10((100 * np.max(obspec[2, s2]))**2.)
+       #     tolerance_parameter_1_index = params_instance._fields.index('tolerance_parameter_1')
+       #     phi[tolerance_parameter_1_index] = (theta[tolerance_parameter_1_index] * (maxerr1 - minerr1)) + minerr1
+
+
+       #     if s3[0].size > 0:
+       #         minerr2 = np.log10((0.01 * np.min(obspec[2, s3]))**2.)
+       #         maxerr2 = np.log10((100 * np.max(obspec[2, s3]))**2.)
+       #         tolerance_parameter_2_index = params_instance._fields.index('tolerance_parameter_2')
+       #         phi[tolerance_parameter_2_index] = (theta[tolerance_parameter_2_index] * (maxerr2 - minerr2)) + minerr2
+
+            
+        
+    elif (fwhm < 0.0):
         if (fwhm == -1 or fwhm == -3 or fwhm == -4 or fwhm == -8):
             s1  = np.where(obspec[0,:] < 2.5)
             s2  = np.where(np.logical_and(obspec[0,:] > 2.5,obspec[0,:] < 5.0))
@@ -1388,7 +1503,7 @@ def priormap_dic(theta,re_params):
                                                                    
                                                
        # Tint - prior following Molliere+2020
-        phi[Tint_index] = 300 + (theta[Tint_index] * 2000)
+      #  phi[Tint_index] = 300 + (theta[Tint_index] * 2000)  #UNCOMMENT IN CASE OF INVERSION
         # alpha, between 1 and 2
         phi[alpha_index] = theta[alpha_index] + 1. 
         # lndlelta
@@ -1398,11 +1513,27 @@ def priormap_dic(theta,re_params):
         phi[lndelta_index] = theta[lndelta_index]*pmax+p_diff                                           
 
         # T1
-        phi[T1_index] = 10. + (theta[T1_index] * 4000)
+       # phi[T1_index] = 10. + (theta[T1_index] * 4000)
         # T2
-        phi[T2_index] = 10. + (theta[T2_index] * 4000)
+       # phi[T2_index] = 10. + (theta[T2_index] * 4000)
         # T3
-        phi[T3_index] = 10.+ (theta[T3_index] * 4000)
+       # phi[T3_index] = 10.+ (theta[T3_index] * 4000)
+
+        # IN CASE OF NO INVERSION UNCOMMENT THESE: T3 = T1 + d_T2 + d_T3,   T2 = T1 + d_T2 --> T3 > T2 > T1
+
+        phi[T1_index] = 10. + (theta[T1_index] *4000)
+
+       #T2 > T1 
+        delta_T2 = theta[T2_index] * 1000
+        phi[T2_index] = phi[T1_index] + delta_T2
+
+       # T3 > T2 
+        delta_T3 = theta[T3_index] * 1000
+        phi[T3_index] = phi[T2_index] + delta_T3
+
+       # Tint > T3
+        delta_Tint = theta[Tint_index] * 1000
+        phi[Tint_index] = phi[T3_index] + delta_Tint
 
     elif (proftype == 77):
                                                    
@@ -1512,8 +1643,7 @@ def priormap_dic(theta,re_params):
                 # cloud height
                 phi[dp_pcd_index] = theta[dp_pcd_index] * 7.
 
-                particle_dis=re_params.dictionary["cloud"]["patch 1"][cloudname]['particle_dis']
-                
+                particle_dis=re_params.dictionary["cloud"]["patch 1"][cloudname]["particle_dis"]
                 if  particle_dis=="hansan": 
                     hansan_a_mcd_index=params_instance._fields.index('hansan_a_mcd_%s'%cloudspecies)
                     hansan_b_mcd_index=params_instance._fields.index('hansan_b_mcd_%s'%cloudspecies)                                               
@@ -1569,7 +1699,7 @@ def priormap_dic(theta,re_params):
                 phi[dp_mcs_index] = theta[dp_mcs_index] * \
                     (phi[logp_mcs_index] - np.log10(press[0]))
 
-                particle_dis=re_params.dictionary["cloud"]["patch 1"][cloudname]['particle_dis']
+                particle_dis=re_params.dictionary["cloud"]["patch 1"][cloudname]["particle_dis"]
                                                                         
                 if particle_dis=="hansan": 
                     hansan_a_mcs_index=params_instance._fields.index('hansan_a_mcs_%s'%cloudspecies)
@@ -1705,9 +1835,22 @@ def lnlike(theta,re_params):
         else:
             # This is a place holder value so the code doesn't break
             logf = np.log10(0.1*(max(obspec[2,10::3]))**2)
+    elif (fwhm == 777):
+        if (do_fudge ==1):
+            logf = params_instance.frac_param
+        else:
+            # This is a place holder value so the code doesn't break
+            logf = np.log10(0.1*(max(obspec[2,10::3]))**2)
     elif (fwhm == 555):
         if (do_fudge == 1):
-            logf = [params_instance.tolerance_parameter_1,params_instance.tolerance_parameter_2]
+            if np.max(logf_flag) == 1.0:
+                logf = [params_instance.tolerance_parameter_1]
+            elif np.max(logf_flag) == 2.0:
+                logf = [params_instance.tolerance_parameter_1,params_instance.tolerance_parameter_2]
+            elif np.max(logf_flag) == 3.0:
+                logf = [params_instance.tolerance_parameter_1, params_instance.tolerance_parameter_2, params_instance.tolerance_parameter_3]
+            elif np.max(logf_flag) == 4.0:
+                logf = [params_instance.tolerance_parameter_1,params_instance.tolerance_parameter_2,params_instance.tolerance_parameter_3,params_instance.tolerance_parameter_4]
         else:
             # This is a place holder value so the code doesn't break
             logf = np.log10(0.1*(max(obspec[2,10::3]))**2)
@@ -1791,7 +1934,7 @@ def lnlike(theta,re_params):
 
  
  
-    elif (fwhm == 888): #STILL NEEDS TO BE TESTED
+    elif (fwhm == 888):
         #Non-uniform R, NIRSpec + MIRI, two tolerance parameters
         print(f"obspec shape: {obspec.shape}")
         print(f"modspec shape: {modspec.shape}")
@@ -1828,9 +1971,7 @@ def lnlike(theta,re_params):
         
         
     elif(fwhm == 777): #STILL NEEDS TO BE TESTED
-        #Convolving Non_uniform R, tolerance parameter as a fraction of error, 
-        #so we are allowing the tolerance parameter to be different at each datapoint
-
+        #Non_uniform R, tolerance parameter as a fraction of error,  so we are allowing the tolerance parameter to be different at each datapoint
         
         spec1 = conv_non_uniform_R(modspec[1,:], modspec[0,:], args_instance.R, obspec[0,:])
         
@@ -1843,51 +1984,50 @@ def lnlike(theta,re_params):
         
         
     elif(fwhm == 555):
-        #Convolving with Non-uniform R, the user provides the R file with conditions towards the tolerance parameter, 
-        #so we are allowing the tolerance parameter to be different at each datapoint
+        #Non-uniform R, the user provides the R file with conditions towards the tolerance parameter, so we are allowing the tolerance parameter to be different at each datapoint
         
-        log_f_param = args_instance.logf_flag
-        
-        or1 = obspec[0,:]
-       # indices1 = np.where(log_f_param == 1.0)
-       # or1 = or1[indices1]
-        or1 = np.where(log_f_param == 1.0)
-        obs_wl1 = obspec[0,:]
-        indices1 = np.where(log_f_param == 1.0)
-        obs_wl1 = obs_wl1[indices1]
-        #print('or1', or1)
-        #print('obs_wl1',obs_wl1)
-        #print('modspec[1,or1]',modspec[1,or1])
-        #print('modspec[0,or1]',modspec[0,or1])
-        #print('args_instance.R[or1]',args_instance.R[or1])
-        spec1 = conv_non_uniform_R(modspec[1,:], modspec[0,:], args_instance.R[or1], obs_wl1)
-        
-        or2 = obspec[0,:]
+       log_f_param = args_instance.logf_flag
+
+       log_f_param_max = int(np.max(log_f_param))
+       lnLik = 0.0
+
+       for i in range(1, log_f_param_max + 1):
+           or_indices = np.where(log_f_param == float(i))
+
+           obs_wl_i = obspec[0,:]
+
+           spec_i = conv_non_uniform_R(modspec[1,:], modspec[0,:], args_instance.R[or_indices], obs_wl_i[or_indices])
+
+           if (do_fudge == 1):
+               s_i = obspec[2, or_indices]**2 + 10.**logf[i-1]
+           else:
+               s_i = obspec[2, or_indices]**2
+
+           lnLik_i = -0.5 * np.sum((((obspec[1,or_indices] - spec_i[:])**2) / s_i) + np.log(2.*np.pi*s_i))
+           lnLik += lnLik_i
        
-       # indices2 = np.where(log_f_param == 2.0)
-       # or2 = or2[indices2]
-        or2 = np.where(log_f_param == 2.0)
-        obs_wl2 = obspec[0,:]
-        indices2 = np.where(log_f_param == 2.0)
-        obs_wl2 = obs_wl2[indices2]
-       # print('or2',or2)
-       # print('modspec[1,or2]',modspec[1,or2])
-       # print('modspec[0,or2]',modspec[0,or2])
-       # print('args_instance.R[or2]',args_instance.R[or2])
-        spec2 = conv_non_uniform_R(modspec[1,:], modspec[0,:], args_instance.R[or2], obs_wl2)
+      # or1 = np.where(log_f_param == 1.0)
+      # obs_wl1 = obspec[0,:]
+      # spec1 = conv_non_uniform_R(modspec[1,:], modspec[0,:], args_instance.R[or1], obs_wl1[or1])
+
+
+      # or2 = np.where(log_f_param == 2.0)
+      # obs_wl2 = obspec[0,:]
+      # spec2 = conv_non_uniform_R(modspec[1,:], modspec[0,:], args_instance.R[or2], obs_wl2[or2])
+   
         
-        if (do_fudge == 1):
-            s2 = obspec[2,or1]**2 + 10.**logf[0]
-            s3 = obspec[2,or2]**2 + 10.**logf[1]
-        else:
-            s2 = obspec[2,or1]**2
-            s3 = obspec[2,or2]**2 
+      # if (do_fudge == 1):
+      #     s2 = obspec[2,or1]**2 + 10.**logf[0]
+      #     s3 = obspec[2,or2]**2 + 10.**logf[1]
+      # else:
+      #     s2 = obspec[2,or1]**2
+      #     s3 = obspec[2,or2]**2 
         
-        lnLik1=-0.5*np.sum((((obspec[1,or1] - spec1[:])**2) / s2) + np.log(2.*np.pi*s2)) 
-        lnLik2=-0.5*np.sum((((obspec[1,or2] - spec2[:])**2) / s3) + np.log(2.*np.pi*s3))
-        lnLik = lnLik1 + lnLik2
-        
-        
+      # lnLik1=-0.5*np.sum((((obspec[1,or1] - spec1[:])**2) / s2) + np.log(2.*np.pi*s2)) 
+      # lnLik2=-0.5*np.sum((((obspec[1,or2] - spec2[:])**2) / s3) + np.log(2.*np.pi*s3))
+      # lnLik = lnLik1 + lnLik2
+   
+    
          
             
     elif (fwhm < 0.0):
