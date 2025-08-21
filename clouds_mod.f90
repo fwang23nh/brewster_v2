@@ -2,7 +2,7 @@ module clouds
 
 contains
   
-  subroutine cloudatlas(column,sizdist,miewave,mierad,clouddata_patch)
+  subroutine cloudcalcs(column,sizdist,miewave,mierad,clouddata)
 
     use sizes
     use common_arrays
@@ -13,10 +13,10 @@ contains
     implicit none
     type(a_layer), intent(inout):: column(nlayers)
     integer :: icloud, imiewave, irad,ilayer,oldw1, oldw2, idum1, idum2,iwave
-    integer :: sizdist,loc1,loc1a,loc1b,loc1m,nmiewave,nrad
+    integer :: loc1,loc1a,loc1b,loc1m,nmiewave,nrad
     integer :: loc(1)
-    ! clouddata_patch (ncloud, miewave,mierad
-    double precision,intent(in):: clouddata_patch(:,:,:,:)
+    integer,intent(in):: sizdist(:)
+    double precision,intent(in):: clouddata(:,:,:,:)
     double precision,intent(in):: miewave(:),mierad(:)
     double precision ,allocatable, dimension(:,:,:) :: qscat,qext,cos_qscat
     double precision, allocatable, dimension(:) :: miewaven, wdiff,ext,scat,cqs
@@ -51,6 +51,7 @@ contains
     allocate(cld1arr(nlayers))
 
     ! first set up the grids and get the Mie coefficients, cloud by cloud
+     write(1,*) 'here clouds 54'   
 
     
     ! these are set for EGP cases. Ditched soot. it will throw an error. 
@@ -65,15 +66,14 @@ contains
        radius(irad) = rmin * vrat**(float(irad-1)/3.)
        rup(irad) = f1*radius(irad)
        dr(irad) = f2*radius(irad)
-    enddo
-       
+
     if (abs(radius(irad) - mierad(irad)) .gt. &
          0.001*radius(irad)) then
-       write(*,*) "Radius grid mismatch in mie data"
+       write(1,*) "Radius grid mismatch in mie data"
        stop
     end if
+    enddo
 
-    
     miewaven = 1.0 / miewave
 
     ! let's get the location for wave = 1um in miewavelen for later
@@ -98,12 +98,14 @@ contains
     sum_ndz_1 = 0.d0
     sum_ndz_2 = 0.d0
     ! This sets up options to print ndz etc
+
     do ilayer = 1, nlayers
        cld1arr(ilayer) = column(ilayer)%cloud(1)%dtau1
     end do
     loc = maxloc(cld1arr)
     idum1 = loc(1)
  
+    write(1,*) 'here clouds 112'   
 
     do ilayer = 1, nlayers
        do icloud = 1, nclouds
@@ -113,7 +115,7 @@ contains
           
           if (column(ilayer)%cloud(icloud)%dtau1 .gt. 1.d-6) then
 
-             if (abs(sizdist) .eq. 2) then
+             if (sizdist(icloud) .eq. 2) then
                 ! we take geometric mean parameter from python code
                 ! as a value between 0 and 1. This is then translated here to
                 ! hold a value between 1 and 5
@@ -129,18 +131,20 @@ contains
                 ! all radii particles across the distribution
                 ! get Ndz from 1/ this sum
                 norm = 0.
-                
+      write(1,*) 'here clouds 138'   
+               
                 do irad = 1,nrad
                    rr = radius(irad)
                    arg1 = dr(irad) / ( sqrt(2.*PI)*rr*log(rsig) )
                    arg2 = -(log( rr/ rg ))**2 / ( 2*(log(rsig))**2 )
-                   qpir2 = PI * rr**2 * clouddata_patch(icloud,loc1,irad,1)
+                   qpir2 = PI * rr**2 * clouddata(icloud,1,loc1,irad)
                    norm = norm + (qpir2 * arg1 * exp(arg2))
                 end do
                 
                 ! so Ndz (i.e total number density * height of layer) 
                 ndz  =  1. / norm
 
+     write(1,*) 'here clouds 145'   
 
                 ! now loop over radius and fill up wavelength dependent opacity for
                 ! each cloud
@@ -154,13 +158,13 @@ contains
                       
                       ext_cloud(ilayer,imiewave,icloud) = &
                            ext_cloud(ilayer,imiewave,icloud) + &
-                           clouddata_patch(icloud,imiewave,irad,1)*pir2ndz      
+                           clouddata(icloud,1,imiewave,irad)*pir2ndz      
                       scat_cloud(ilayer,imiewave,icloud) =  &
                            scat_cloud(ilayer,imiewave,icloud) + & 
-                           clouddata_patch(icloud,imiewave,irad,2)*pir2ndz
+                           clouddata(icloud,2,imiewave,irad)*pir2ndz
                       cqs_cloud(ilayer,imiewave,icloud) = &
                            cqs_cloud(ilayer,imiewave,icloud) + &
-                           clouddata_patch(icloud,imiewave,irad,3)*pir2ndz
+                           clouddata(icloud,3,imiewave,irad)*pir2ndz
                    enddo ! radius loop
                    
                    ! sum over clouds
@@ -173,15 +177,15 @@ contains
 !                        scat_cloud(ilayer,imiewave,icloud))
       
                 end do ! miewave loop
-             elseif (abs(sizdist) .eq. 1) then
+             elseif (sizdist(icloud) .eq. 1) then
 
                 ! Hansen distribution
-                
+
                 ! radii supplied in um, convert to cm
                 a = column(ilayer)%cloud(icloud)%rg * 1d-4
                 ! b is not a length, it is dimensionless
                 b  = column(ilayer)%cloud(icloud)%rsig
-                
+                write(1,*) 'here clouds 189'   
 
                 ! first need to get ndz from the optical depth dtau at 1um
 
@@ -193,11 +197,15 @@ contains
                    arg1 = (-rr/(a*b)) + log(drr)
                    !write(*,*) arg1
                    arg2 = ((1.- 3.*b)/b) * log(rr)
-                   argext = log(clouddata_patch(icloud,loc1,irad,1) * PI * rr**2.)
+                   write(1,*) 'here clouds 202'
+                   write(1,*) clouddata(icloud,1,loc1,irad)
+                   argext = log(clouddata(icloud,1,loc1,irad) * PI * rr**2.)
+                   write(1,*) 'here clouds 204'   
                    bot = bot + exp(arg1 + arg2 + argext)
                       
                 end do ! radius loop
-                
+                 write(1,*) 'here clouds 204'   
+               
                 logcon = log(column(ilayer)%cloud(icloud)%dtau1 / bot)
 
                 arg3 = ((((2.*b) - 1.)/b) * log(a*b))
@@ -205,6 +213,7 @@ contains
 
                 
                 ndz = exp(logcon +arg2 - arg3)
+                write(1,*) 'here clouds 213'   
 
 
                 !if (icloud .eq. 1) then
@@ -231,6 +240,7 @@ contains
                 arg1 = ((((2.*b) - 1.)/b) * log(a*b)) + log(ndz)
 
                 logcon =  (arg1 - arg2) 
+                write(1,*) 'here clouds 239'   
                 
                 do imiewave = 1, nmiewave
                    do irad = 1, nrad
@@ -240,9 +250,9 @@ contains
                       arg1 = (-rr/(a*b)) + log(drr)
                       !write(*,*) arg1
                       arg2 = ((1. - 3.*b)/b) * log(rr)
-                      argscat = log(clouddata_patch(icloud,loc1,irad,2) * PI * rr**2)
-                      argext = log(clouddata_patch(icloud,loc1,irad,1) * PI * rr**2)
-                      argcosqs = clouddata_patch(icloud,loc1,irad,3) * PI * rr**2
+                      argscat = log(clouddata(icloud,2,loc1,irad) * PI * rr**2)
+                      argext = log(clouddata(icloud,1,loc1,irad) * PI * rr**2)
+                      argcosqs = clouddata(icloud,3,loc1,irad) * PI * rr**2
                       !write(*,*) logcon, arg1, arg2, arg3, arg4 
                       scat_cloud(ilayer,imiewave,icloud) =  &
                            scat_cloud(ilayer,imiewave,icloud) + &
@@ -272,7 +282,8 @@ contains
              
           end if
        end do   ! cloud loop
-       
+       write(1,*) 'here clouds 281'   
+
        ! rebin to working resolution (nwave) grid and write to
        
        do iwave= 1 , nwave
@@ -357,7 +368,7 @@ contains
     deallocate(scat_cloud,ext_cloud,cqs_cloud)
     deallocate(opd_ext,opd_scat,cos_qs)
  
-end subroutine cloudatlas
+end subroutine cloudcalcs
 
 
 

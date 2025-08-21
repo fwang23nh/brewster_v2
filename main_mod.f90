@@ -4,7 +4,7 @@ module main
 
 contains 
   subroutine forward(temp,logg,R2D2,gasname,molmass,logVMR,&
-       pcover,do_clouds,cloudname,clouddata,miewave,mierad,&
+       pcover,cloudmap,sizdist,cloudname,clouddata,miewave,mierad,&
        cloudrad,cloudsig,cloudprof,&
        inlinetemps,inpress,inwavenum,linelist,cia,ciatemp,use_disort,clphot,&
        othphot,do_cf,do_bff,bff,out_spec,clphotspec,othphotspec,cf)
@@ -25,17 +25,17 @@ contains
     double precision,INTENT(IN):: temp(:)
     real, INTENT(IN) :: R2D2, logg
     real,dimension(npatch) :: pcover
-    integer,dimension(npatch):: do_clouds
-    integer,allocatable,dimension(:):: cloudops
+    integer,intent(INOUT) :: sizdist(:)
+    integer,INTENT(INOUT):: cloudmap(:,:)
     character(len=15),intent(inout) :: gasname(:)
     real, intent(inout) :: molmass(:)
     double precision, intent(inout) :: logVMR(:,:)
-    character(len=15),INTENT(INOUT) :: cloudname(:,:)
-    double precision,INTENT(INOUT) :: clouddata(:,:,:,:,:)
+    character(len=50),INTENT(INOUT) :: cloudname(:)
+    double precision,INTENT(INOUT) :: clouddata(:,:,:,:)
     double precision,INTENT(INOUT) :: miewave(:), mierad(:)
-    double precision,INTENT(INOUT) :: cloudrad(:,:,:)
-    double precision,INTENT(INOUT) :: cloudsig(:,:,:)
-    double precision,INTENT(INOUT) :: cloudprof(:,:,:)
+    double precision,INTENT(INOUT) :: cloudrad(:,:)
+    double precision,INTENT(INOUT) :: cloudsig(:,:)
+    double precision,INTENT(INOUT) :: cloudprof(:,:)
     double precision,intent(inout) :: inwavenum(:)
     real,intent(inout) :: inlinetemps(:)
     real,intent(in) :: inpress(:)
@@ -66,6 +66,8 @@ contains
     call init_all
     !wavenum[nwave],wavelen[nwave])
 
+    write(1,*) 'here main 69'
+
 
     do ipatch = 1, npatch
        call init_column(patch(ipatch)%atm)
@@ -77,8 +79,6 @@ contains
     linetemps = inlinetemps
     press = inpress
 
-    allocate(cloudops(nclouds))
-    
     call set_pressure_scale
 
     ! TEST LINE - set artificial temp profile
@@ -118,7 +118,7 @@ contains
     call cpu_time(tstart)
     
     
-    
+     write(1,*) 'here main 123'   
     ! now H2 and He fractions and mu for each layer
     do ilayer = 1, nlayers
 
@@ -199,51 +199,56 @@ contains
     
     ! now put in the cloud details
     call cpu_time(cloudstart)
+    write(1,*) 'here main 204'   
+
     do ipatch = 1, npatch
+       write(1,*) 'here main 207'   
        
        
        patch(ipatch)%cover = pcover(ipatch)
+       write(1,*) 'here main 211'   
        
-       patch(ipatch)%cloudy = do_clouds(ipatch)
-       cloudops(:) = 1
-       if (patch(ipatch)%cloudy .ne. 0) then
+       if (any(cloudmap(:,ipatch) .ne. 0)) then
           do icloud = 1, nclouds
-             patch(ipatch)%atm(1)%cloud(icloud)%name = cloudname(ipatch,icloud)
-             
-             
+             write(1,*) 'here main 221'   
+
+          
              ! in case of simple/generic/mixed cloud we won't be doing Mie coeffs
              ! we'll just use  rg, and rsig as w0 and gg
              ! for the cloud
-             if (trim(cloudname(ipatch,icloud)) .eq. 'grey' &
-                  .or. trim(cloudname(ipatch,icloud)) .eq. 'power') then
-                cloudops(icloud) = 0
-                do ilayer= 1, nlayers
-                   patch(ipatch)%atm(ilayer)%opd_ext = &
-                        patch(ipatch)%atm(ilayer)%opd_ext + &
-                        ((cloudprof(ipatch,ilayer,icloud) * &
-                        (wavelen**cloudsig(ipatch,ilayer,icloud))))
-                   patch(ipatch)%atm(ilayer)%opd_scat = &
-                        patch(ipatch)%atm(ilayer)%opd_scat + &
-                        ((cloudprof(ipatch,ilayer,icloud) * &
-                        (wavelen**cloudsig(ipatch,ilayer,icloud))* &
-                         cloudrad(ipatch,ilayer,icloud)))
-                   patch(ipatch)%atm(ilayer)%gg = 0.d0 
-                end do ! layer loop
-             else !if cloud not grey or power
-                do ilayer = 1, nlayers
-                   patch(ipatch)%atm(ilayer)%cloud(icloud)%name = &
-                        patch(ipatch)%atm(1)%cloud(icloud)%name
-                   patch(ipatch)%atm(ilayer)%cloud(icloud)%dtau1 = &
-                        cloudprof(ipatch,ilayer,icloud)
-                   patch(ipatch)%atm(ilayer)%cloud(icloud)%rg = cloudrad(ipatch,ilayer,icloud) 
-                   patch(ipatch)%atm(ilayer)%cloud(icloud)%rsig = cloudsig(ipatch,ilayer,icloud)
-                end do
-             endif
-          end do ! cloud loop
+             if (cloudmap(icloud,ipatch) .ne. 0) then
+                if (verify('grey',trim(cloudname(icloud))) .eq. 0 &
+                     .or. verify('power',trim(cloudname(icloud))) .eq. 0) then
 
-          if (any(cloudops .ne. 0)) then
-             call cloudatlas(patch(ipatch)%atm,patch(ipatch)%cloudy,miewave,mierad,clouddata(ipatch,:,:,:,:))
-          end if
+                   write(1,*) 'here main 223'   
+
+                   do ilayer= 1, nlayers
+                      patch(ipatch)%atm(ilayer)%opd_ext = &
+                           patch(ipatch)%atm(ilayer)%opd_ext + &
+                           ((cloudprof(ilayer,icloud) * &
+                           (wavelen**cloudsig(ilayer,icloud))))
+                      patch(ipatch)%atm(ilayer)%opd_scat = &
+                           patch(ipatch)%atm(ilayer)%opd_scat + &
+                           ((cloudprof(ilayer,icloud) * &
+                           (wavelen**cloudsig(ilayer,icloud))* &
+                           cloudrad(ilayer,icloud)))
+                      patch(ipatch)%atm(ilayer)%gg = 0.d0 
+                   end do ! layer loop
+                else !if cloud not grey or power
+                   do ilayer = 1, nlayers
+                      patch(ipatch)%atm(ilayer)%cloud(icloud)%name = cloudname(icloud)
+                      patch(ipatch)%atm(ilayer)%cloud(icloud)%dtau1 = &
+                           cloudprof(ilayer,icloud)
+                      patch(ipatch)%atm(ilayer)%cloud(icloud)%rg = cloudrad(ilayer,icloud) 
+                      patch(ipatch)%atm(ilayer)%cloud(icloud)%rsig = cloudsig(ilayer,icloud)
+                   end do
+                end if
+             end if
+          end do ! cloud loop
+       
+          write(1,*) 'here main 249'
+          write(1,*) clouddata(1,1,1,1)
+          call cloudcalcs(patch(ipatch)%atm,sizdist,miewave,mierad,clouddata(:,:,:,:))
           !do ilayer = 1,nlayers
           !   tau1 = tau1  + patch(1)%atm(ilayer)%cloud(1)%dtau1
           !end do

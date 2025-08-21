@@ -2525,7 +2525,8 @@ def modelspec(theta,re_params,args_instance,gnostics):
     # now we can call the forward model
     # outspec,tmpclphotspec,tmpophotspec,cf = forwardmodel.marv(temp,logg,R2D2,gasnames,gasmass,logVMR,pcover,do_clouds,cloudflag,miewave,
     #     mierad,cloudsig,cloudprof,inlinetemps,press,inwavenum,linelist,cia,ciatemps,use_disort,clphot,ophot,make_cf,do_bff,bff)
-    
+
+    print(cloudata[0,0,0,0,0])
     outspec,tmpclphotspec,tmpophotspec,cf = forwardmodel.marv(temp,logg,R2D2,gasnames,gasmass,logVMR,pcover,do_clouds,cloudflag,cloudata,miewave,mierad,
      cloudrad,cloudsig,cloudprof,inlinetemps,press,inwavenum,linelist,cia,ciatemps,use_disort,clphot,ophot,make_cf,do_bff,bff)
 
@@ -2546,7 +2547,6 @@ def modelspec(theta,re_params,args_instance,gnostics):
     # shiftspec[1,:][np.isnan(shiftspec[1,:])] = 1e-20
 
     return shiftspec, cloud_phot_press,other_phot_press,cfunc
-
 
 
 
