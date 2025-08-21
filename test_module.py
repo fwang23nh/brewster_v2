@@ -13,7 +13,7 @@ import os
 import sys
 import pickle
 import forwardmodel
-import cloud_dic
+import cloud_dic_new
 from builtins import str
 from builtins import range
 from scipy import interpolate
@@ -71,7 +71,6 @@ def lnprior(theta,re_params):
         chemeq,
         dist,
         cloudtype,
-        do_clouds,
         gaslist,
         gasnames,
         gasmass,
@@ -102,7 +101,6 @@ def lnprior(theta,re_params):
         args_instance.chemeq,
         args_instance.dist,
         args_instance.cloudtype,
-        args_instance.do_clouds,
         args_instance.gaslist,
         args_instance.gasnames,
         args_instance.gasmass,
@@ -332,7 +330,9 @@ def lnprior(theta,re_params):
             scale2 = 1.0
 
 
-    npatches = do_clouds.size
+
+    npatches = args_instance.cloudmap.shape[0]
+    # npatches = do_clouds.size
     if (npatches > 1):
         prat = params_instance.fcld
         pcover = np.array([prat,(1.-prat)])
@@ -347,10 +347,12 @@ def lnprior(theta,re_params):
     # # Find the index of pc
     # pc = attribute_names.index(first_cloud_para)
 
-    if ((npatches > 1) and np.all(do_clouds != 0)):
-        cloudparams = cloud_dic.unpack_patchy(re_params,params_instance,cloudtype,cloudflag,do_clouds)
-    else:
-        cloudparams = cloud_dic.unpack_default(re_params,params_instance,cloudtype,cloudflag,do_clouds)
+    # if ((npatches > 1) and np.all(do_clouds != 0)):
+    #     cloudparams = cloud_dic.unpack_patchy(re_params,params_instance,cloudtype,cloudflag,do_clouds)
+    # else:
+    #     cloudparams = cloud_dic.unpack_default(re_params,params_instance,cloudtype,cloudflag,do_clouds)
+
+    cloudparams,cloudmap=cloud_dic_new.cloud_unpack(re_params,params_instance)
 
 
     if (cloudtype.size > cloudtype.shape[1]):
@@ -367,9 +369,11 @@ def lnprior(theta,re_params):
     loga = np.empty_like(cloud_tau0)
     b = np.empty_like(cloud_tau0)
 
-    if (np.abs(sum(do_clouds)) >= 1):
+    npatches = args_instance.cloudmap.shape[0]
+
+    if np.any(cloudmap):
         for i in range(0,npatches):
-            if (do_clouds[i] != 0):
+            if (cloudmap[i]=="True"):
                 for j in range (0, nclouds):
                     if (cloudflag[i,j] == 'grey'):
                         if (cloudtype[i,j] == 1):
@@ -2188,8 +2192,6 @@ def modelspec(theta,re_params,args_instance,gnostics):
     (   gases_myP,
         chemeq,
         dist,
-        cloudtype,
-        do_clouds,
         gaslist,
         gasnames,
         gasmass,
@@ -2217,13 +2219,13 @@ def modelspec(theta,re_params,args_instance,gnostics):
         miewave,
         mierad,
         cloudata,
-        cloudflag
+        cloud_opaname,
+        cloudsize,
+        cloudmap
     ) = (
         args_instance.gases_myP,
         args_instance.chemeq,
         args_instance.dist,
-        args_instance.cloudtype,
-        args_instance.do_clouds,
         args_instance.gaslist,
         args_instance.gasnames,
         args_instance.gasmass,
@@ -2251,7 +2253,9 @@ def modelspec(theta,re_params,args_instance,gnostics):
         args_instance.miewave,
         args_instance.mierad,
         args_instance.cloudata,
-        args_instance.cloudflag
+        args_instance.cloud_opaname,
+        args_instance.cloudsize,
+        args_instance.cloudmap
     )
         
     nlayers = press.size
@@ -2334,7 +2338,7 @@ def modelspec(theta,re_params,args_instance,gnostics):
 
 
         
-    npatches = do_clouds.size
+    npatches = args_instance.cloudmap.shape[0]
     if (npatches > 1):
         prat =  params_instance.fcld
         pcover = np.array([prat,(1.-prat)])
@@ -2344,10 +2348,16 @@ def modelspec(theta,re_params,args_instance,gnostics):
         
     # use correct unpack method depending on situation
 
-    if ((npatches > 1) and np.all(do_clouds != 0)):
-        cloudparams = cloud_dic.unpack_patchy(re_params,params_instance,cloudtype,cloudflag,do_clouds)
-    else:
-        cloudparams = cloud_dic.unpack_default(re_params,params_instance,cloudtype,cloudflag,do_clouds)
+    # if ((npatches > 1) and np.all(do_clouds != 0)):
+    #     cloudparams = cloud_dic.unpack_patchy(re_params,params_instance,cloudtype,cloudflag,do_clouds)
+    # else:
+    #     cloudparams = cloud_dic.unpack_default(re_params,params_instance,cloudtype,cloudflag,do_clouds)
+
+
+    
+    cloudparams=cloud_dic_new.cloud_unpack(re_params,params_instance)
+
+    
 
     ndim = len(theta)
 
@@ -2367,7 +2377,7 @@ def modelspec(theta,re_params,args_instance,gnostics):
         intemp = prof
 
     else:
-        raise ValueError("not valid profile type %proftype" % (char, string))
+        raise ValueError("not valid profile type %s" %proftype)
 
     # set the profile
     temp = TPmod.set_prof(proftype,coarsePress,press,intemp)
@@ -2454,14 +2464,19 @@ def modelspec(theta,re_params,args_instance,gnostics):
     # now need to translate cloudparams in to cloud profile even
     # if do_clouds is zero..
 
-    cloudprof,cloudrad,cloudsig = cloud_dic.atlas(do_clouds,cloudflag,cloudtype,cloudparams,press)
+    # cloudprof,cloudrad,cloudsig = cloud_dic.atlas(do_clouds,cloudflag,cloudtype,cloudparams,press)
+
+    cloudprof,cloudrad,cloudsig = cloud_dic_new.atlas(re_params,cloudparams,press)
+
+
+
     cloudprof = np.asfortranarray(cloudprof,dtype = 'float64')
     cloudrad = np.asfortranarray(cloudrad,dtype = 'float64')
     cloudsig = np.asfortranarray(cloudsig,dtype = 'float64')
     pcover = np.asfortranarray(pcover,dtype = 'float32')
 
 
-    do_clouds = np.asfortranarray(do_clouds,dtype = 'i')
+    # do_clouds = np.asfortranarray(do_clouds,dtype = 'i')
 
     # get r2d2 sorted for multi-instruments
     if re_params.samplemode=='mcmc':
@@ -2524,9 +2539,10 @@ def modelspec(theta,re_params,args_instance,gnostics):
 
     # now we can call the forward model
     # outspec,tmpclphotspec,tmpophotspec,cf = forwardmodel.marv(temp,logg,R2D2,gasnames,gasmass,logVMR,pcover,do_clouds,cloudflag,miewave,
-    #     mierad,cloudsig,cloudprof,inlinetemps,press,inwavenum,linelist,cia,ciatemps,use_disort,clphot,ophot,make_cf,do_bff,bff)
+    #     mierad,cloudsig,cloudprof,inlinetemps,press,inwavenum,linelist,cia,ciatemps,use_disort,clphot,ophot,make_cf,do_bff,bff)      
+
     
-    outspec,tmpclphotspec,tmpophotspec,cf = forwardmodel.marv(temp,logg,R2D2,gasnames,gasmass,logVMR,pcover,do_clouds,cloudflag,cloudata,miewave,mierad,
+    outspec,tmpclphotspec,tmpophotspec,cf = forwardmodel.marv(temp,logg,R2D2,gasnames,gasmass,logVMR,pcover,cloudmap,cloud_opaname,cloudsize,cloudata,miewave,mierad,
      cloudrad,cloudsig,cloudprof,inlinetemps,press,inwavenum,linelist,cia,ciatemps,use_disort,clphot,ophot,make_cf,do_bff,bff)
 
     # Trim to length where it is defined.
@@ -2542,8 +2558,6 @@ def modelspec(theta,re_params,args_instance,gnostics):
     shiftspec = np.empty_like(trimspec)
     shiftspec[0,:] =  trimspec[0,:] + dlam
     shiftspec[1,:] =  trimspec[1,:]
-
-    # shiftspec[1,:][np.isnan(shiftspec[1,:])] = 1e-20
 
     return shiftspec, cloud_phot_press,other_phot_press,cfunc
 
