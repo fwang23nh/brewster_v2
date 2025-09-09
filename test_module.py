@@ -371,9 +371,9 @@ def lnprior(theta,re_params):
 
     npatches = args_instance.cloudmap.shape[0]
 
-    if np.any(cloudmap):
+    if np.any(cloudmap==1):
         for i in range(0,npatches):
-            if (cloudmap[i]=="True"):
+            if (cloudmap[i]==1):
                 for j in range (0, nclouds):
                     if (cloudflag[i,j] == 'grey'):
                         if (cloudtype[i,j] == 1):
@@ -2474,6 +2474,8 @@ def modelspec(theta,re_params,args_instance,gnostics):
     cloudrad = np.asfortranarray(cloudrad,dtype = 'float64')
     cloudsig = np.asfortranarray(cloudsig,dtype = 'float64')
     pcover = np.asfortranarray(pcover,dtype = 'float32')
+    cloudsize = np.asfortranarray(cloudsize,dtype = 'i')
+    cloudmap = np.asfortranarray(cloudmap,dtype = 'i')
 
 
     # do_clouds = np.asfortranarray(do_clouds,dtype = 'i')

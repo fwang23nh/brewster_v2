@@ -1548,12 +1548,12 @@ def cloud_para_gen(dic):
                 cloud_opaname[i] = cloudname_set[i].split(' ')[0]
 
 
-        cloudmap = np.zeros((npatches, nclouds), dtype=bool,order='F')
+        cloudmap = np.zeros((npatches, nclouds), dtype=int,order='F')
         # Populate arrays
         for idx, cloud in enumerate(cloudname_set):
             for i in range(npatches):
                 if cloud in list(dic['cloud'][f'patch {i+1}'].keys()):
-                    cloudmap[i,idx]="True"
+                    cloudmap[i,idx]= 1
 
          
         return cloudname_set,cloud_opaname,cloudmap,np.array(cloudsize) 
@@ -1758,6 +1758,77 @@ def get_clouddata(cloudname,cloudpath = "../Clouds/"):
 
 
     
+def shared_memory_array(rank, comm, shape,datatype='d'):
+    ''' 
+    Creates a numpy array shared in memory across multiple cores.
+    Taken from Ryan MacDonald's Poseidon. Adapted for multiple nodes by 
+    Ben Burningham using github: rcthomas/example-allocate-shared.py
+
+    Adapted from :
+    https://stackoverflow.com/questions/32485122/shared-memory-in-mpi4py
+    
+    '''
+    
+    # Create a shared array of size given by product of each dimension
+    size = np.prod(shape)
+    itemsize = MPI.DOUBLE.Get_size() 
+
+    if (rank == 0): 
+        nbytes = size * itemsize   # Array memory allocated for first process
+    else:  
+        nbytes = 0   # No memory storage on other processes
+        
+    # On rank 0, create the shared block
+    # On other ranks, get a handle to it (known as a window in MPI speak)
+
+    
+    new_comm = MPI.Comm.Split(comm)
+    win = MPI.Win.Allocate_shared(nbytes, itemsize, comm=new_comm) 
+ 
+    # Create a numpy array whose data points to the shared memory
+    buf, itemsize = win.Shared_query(0) 
+    assert itemsize == MPI.DOUBLE.Get_size() 
+    array =  np.ndarray(buffer=buf, dtype=datatype, shape=shape,order='F')
+    
+    return array, win
+
+
+def get_gasdetails(gaslist,w1,w2,xpath='../Linelists',xlist='gaslistR10K.dat'):
+    # Now we'll get the opacity files into an array
+    ngas = len(gaslist)
+
+    totgas = 0
+    gasdata = []
+    with open(xlist) as fa:
+        for line_aa in fa.readlines():
+            if len(line_aa) == 0:
+                break
+            totgas = totgas +1 
+            line_aa = line_aa.strip()
+            gasdata.append(line_aa.split())
+
+    
+    list1 = []
+    for i in range(0,ngas):
+        for j in range(0,totgas):
+            if (gasdata[j][1].lower() == gaslist[i].lower()):
+                list1.append(gasdata[j])
+
+    gasnum = np.asfortranarray(np.array([i[0] for i in list1[0:ngas]],dtype='i'))
+    
+    lists = [xpath+i[3] for i in list1[0:ngas]]
+
+ 
+    # get the basic framework from water list
+    rawwavenum, inpress, inlinetemps, inlinelist = pickle.load(open(lists[0], "rb"))
+
+    wn1 = 10000. / w2
+    wn2 = 10000. / w1
+    inwavenum = np.asfortranarray(rawwavenum[np.where(np.logical_not(np.logical_or(rawwavenum[:] > wn2, rawwavenum[:] < wn1)))],dtype='float64')
+ 
+    nwave = inwavenum.size
+
+    return inlinetemps,inwavenum,gasnum,nwave
 
 
 
@@ -1981,3 +2052,5 @@ class ArgsGen:
         # Fine Pressure Grid: {self.press}
         # Chemical Grid T: {self.ceTgrid}
         # cloudflag: {self.cloudflag}
+
+

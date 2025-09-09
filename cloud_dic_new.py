@@ -69,7 +69,7 @@ def cloud_unpack(re_params,params_instance):
     cloudparams[4,:] = 0.5
 
 
-    # cloudmap = np.zeros((npatches, nclouds), dtype=bool)
+    # cloudmap = np.zeros((npatches, nclouds), dtype=int)
 
 
     for idx, cloud in enumerate(cloudname_set):
@@ -77,7 +77,7 @@ def cloud_unpack(re_params,params_instance):
             if cloud in list(re_params.dictionary['cloud'][f'patch {i+1}'].keys()):
                 cloud_rawparams_key = list(re_params.dictionary['cloud'][f'patch {i+1}'][cloud]['params'].keys())
                 cloud_rawparams=np.array([getattr(params_instance, key) for key in cloud_rawparams_key])
-                # cloudmap[i,idx]="True"
+                # cloudmap[i,idx]= 1
 
         if ((cloud_distype[idx] == "deck") and (cloud_opatype[idx] == 'grey')):
             cloudparams[1:4,idx] = cloud_rawparams[:]

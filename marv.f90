@@ -1,5 +1,5 @@
 subroutine marv(temp,logg,R2D2,ingasname,molmass,logVMR,pcover,&
-     cloudmap,sizdist,incloudname,clouddata,miewave,mierad, &
+     cloudmap,cloud_opaname,cloudsize,clouddata,miewave,mierad, &
      cloudrad,cloudsig,cloudprof,&
      inlinetemps,inpress,inwavenum,inlinelist,cia,ciatemps,&
      use_disort,make_cl_pspec,make_oth_pspec,make_cf,do_bff,bff,outspec,&
@@ -10,28 +10,28 @@ subroutine marv(temp,logg,R2D2,ingasname,molmass,logVMR,pcover,&
   
 
   !f2py integer, parameter :: nlinetemps
-  !f2py intent(in) logg,R2D2,ingasname,incloudname
+  !f2py intent(in) logg,R2D2,ingasname,cloud_opaname
   !f2py intent(inout) temp,logVMR,inpress
   !f2py intent(in) use_disort,make_cl_pspec,make_oth_pspec,make_cf,do_bff
   !f2py intent(inout) inlinetemps
-  !f2py intent(inout) cloudrad,cloudsig,cloudprof
+  !f2py intent(inout) cloudrad,cloudsig,cloudprof,cloudsize
   !f2py intent(inout) cia, ciatemps
   !f2py intent(inout) inlinelist, inwavenum,bff,clouddata,miewave,mierad
-  !f2py intent(inout) cloudmap,pcover,molmass,sizdist
+  !f2py intent(inout) cloudmap,pcover,molmass
   !f2py intent(out) out_spec, cl_phot_press,oth_phot_press,cfunc
 
   real,intent(inout) :: cia(:,:,:)
   real,dimension(nciatemps) :: ciatemps
   double precision,intent(inout) :: inlinelist(:,:,:,:)
   double precision,intent(inout):: temp(:)
-  integer,intent(inout):: sizdist(:)
+  integer,intent(inout):: cloudsize(:)
   real :: R2D2,logg
   double precision,intent(inout):: bff(:,:)
   real,intent(inout) :: pcover(:),molmass(:)
   ! cloudmap is ncloud,npatch
   integer,intent(inout) ::cloudmap(:,:)
   character(len=15),intent(in) :: ingasname(:)
-  character(len=50),intent(in) ::incloudname(:)
+  character(len=50),intent(in) ::cloud_opaname(:)
   character(len=15),dimension(:),allocatable:: gasname
   character(len=50),dimension(:),allocatable :: cloudname
   double precision,intent(inout) :: logVMR(:,:)
@@ -73,10 +73,10 @@ subroutine marv(temp,logg,R2D2,ingasname,molmass,logVMR,pcover,&
   allocate(gasname(size(ingasname)))
   allocate(cloudname(ncloud))
   gasname = ingasname
-  cloudname = incloudname
+  cloudname = cloud_opaname
   
   call forward(temp,logg,R2D2,gasname,molmass,logVMR,pcover,&
-       cloudmap,sizdist,cloudname,clouddata,miewave,mierad,&
+       cloudmap,cloudsize,cloudname,clouddata,miewave,mierad,&
        cloudrad,cloudsig,cloudprof,&
        inlinetemps,inpress,inwavenum,inlinelist,cia,ciatemps,use_disort,&
        clphot,othphot,do_cf,do_bff,bff,out_spec,clphotspec,othphotspec,cf)
