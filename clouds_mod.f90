@@ -51,7 +51,7 @@ contains
     allocate(cld1arr(nlayers))
 
     ! first set up the grids and get the Mie coefficients, cloud by cloud
-     write(1,*) 'here clouds 54'   
+    !write(1,*) 'here clouds 54'   
 
     
     ! these are set for EGP cases. Ditched soot. it will throw an error. 
@@ -105,7 +105,7 @@ contains
     loc = maxloc(cld1arr)
     idum1 = loc(1)
  
-    write(1,*) 'here clouds 112'   
+    !write(1,*) 'here clouds 112'   
 
     do ilayer = 1, nlayers
        do icloud = 1, nclouds
@@ -131,7 +131,7 @@ contains
                 ! all radii particles across the distribution
                 ! get Ndz from 1/ this sum
                 norm = 0.
-      write(1,*) 'here clouds 138'   
+      !write(1,*) 'here clouds 138'   
                
                 do irad = 1,nrad
                    rr = radius(irad)
@@ -144,7 +144,7 @@ contains
                 ! so Ndz (i.e total number density * height of layer) 
                 ndz  =  1. / norm
 
-     write(1,*) 'here clouds 145'   
+     !write(1,*) 'here clouds 145'   
 
                 ! now loop over radius and fill up wavelength dependent opacity for
                 ! each cloud
@@ -185,7 +185,7 @@ contains
                 a = column(ilayer)%cloud(icloud)%rg * 1d-4
                 ! b is not a length, it is dimensionless
                 b  = column(ilayer)%cloud(icloud)%rsig
-                write(1,*) 'here clouds 189'   
+                !write(1,*) 'here clouds 189'   
 
                 ! first need to get ndz from the optical depth dtau at 1um
 
@@ -197,14 +197,14 @@ contains
                    arg1 = (-rr/(a*b)) + log(drr)
                    !write(*,*) arg1
                    arg2 = ((1.- 3.*b)/b) * log(rr)
-                   write(1,*) 'here clouds 202'
-                   write(1,*) clouddata(icloud,1,loc1,irad)
+                   !write(1,*) 'here clouds 202'
+                   !write(1,*) clouddata(icloud,1,loc1,irad)
                    argext = log(clouddata(icloud,1,loc1,irad) * PI * rr**2.)
-                   write(1,*) 'here clouds 204'   
+                   !write(1,*) 'here clouds 204'   
                    bot = bot + exp(arg1 + arg2 + argext)
                       
                 end do ! radius loop
-                 write(1,*) 'here clouds 204'   
+                !write(1,*) 'here clouds 204'   
                
                 logcon = log(column(ilayer)%cloud(icloud)%dtau1 / bot)
 
@@ -213,7 +213,7 @@ contains
 
                 
                 ndz = exp(logcon +arg2 - arg3)
-                write(1,*) 'here clouds 213'   
+                !write(1,*) 'here clouds 213'   
 
 
                 !if (icloud .eq. 1) then
@@ -240,7 +240,7 @@ contains
                 arg1 = ((((2.*b) - 1.)/b) * log(a*b)) + log(ndz)
 
                 logcon =  (arg1 - arg2) 
-                write(1,*) 'here clouds 239'   
+                !write(1,*) 'here clouds 239'   
                 
                 do imiewave = 1, nmiewave
                    do irad = 1, nrad
@@ -282,7 +282,7 @@ contains
              
           end if
        end do   ! cloud loop
-       write(1,*) 'here clouds 281'   
+       !write(1,*) 'here clouds 281'   
 
        ! rebin to working resolution (nwave) grid and write to
        

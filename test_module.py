@@ -371,9 +371,9 @@ def lnprior(theta,re_params):
 
     npatches = args_instance.cloudmap.shape[0]
 
-    if np.any(cloudmap==1):
+    if np.any(cloudmap == 1):
         for i in range(0,npatches):
-            if (cloudmap[i]==1):
+            if (cloudmap[i] == 1):
                 for j in range (0, nclouds):
                     if (cloudflag[i,j] == 'grey'):
                         if (cloudtype[i,j] == 1):

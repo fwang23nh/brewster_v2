@@ -66,7 +66,7 @@ contains
     call init_all
     !wavenum[nwave],wavelen[nwave])
 
-    write(1,*) 'here main 69'
+    !write(1,*) 'here main 69'
 
 
     do ipatch = 1, npatch
@@ -118,7 +118,7 @@ contains
     call cpu_time(tstart)
     
     
-     write(1,*) 'here main 123'   
+    !write(1,*) 'here main 123'   
     ! now H2 and He fractions and mu for each layer
     do ilayer = 1, nlayers
 
@@ -199,18 +199,18 @@ contains
     
     ! now put in the cloud details
     call cpu_time(cloudstart)
-    write(1,*) 'here main 204'   
+    !write(1,*) 'here main 204'   
 
     do ipatch = 1, npatch
-       write(1,*) 'here main 207'   
+       !write(1,*) 'here main 207'   
        
        
        patch(ipatch)%cover = pcover(ipatch)
-       write(1,*) 'here main 211'   
+       !write(1,*) 'here main 211'   
        
        if (any(cloudmap(:,ipatch) .ne. 0)) then
           do icloud = 1, nclouds
-             write(1,*) 'here main 221'   
+             !write(1,*) 'here main 221'   
 
           
              ! in case of simple/generic/mixed cloud we won't be doing Mie coeffs
@@ -220,7 +220,7 @@ contains
                 if (verify('grey',trim(cloudname(icloud))) .eq. 0 &
                      .or. verify('power',trim(cloudname(icloud))) .eq. 0) then
 
-                   write(1,*) 'here main 223'   
+                   !write(1,*) 'here main 223'   
 
                    do ilayer= 1, nlayers
                       patch(ipatch)%atm(ilayer)%opd_ext = &
@@ -246,8 +246,8 @@ contains
              end if
           end do ! cloud loop
        
-          write(1,*) 'here main 249'
-          write(1,*) clouddata(1,1,1,1)
+          !write(1,*) 'here main 249'
+          
           call cloudcalcs(patch(ipatch)%atm,sizdist,miewave,mierad,clouddata(:,:,:,:))
           !do ilayer = 1,nlayers
           !   tau1 = tau1  + patch(1)%atm(ilayer)%cloud(1)%dtau1
