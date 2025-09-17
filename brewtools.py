@@ -4,6 +4,8 @@ import numpy as np
 import emcee
 import os
 from rotBroadInt import rot_int_cmj as rotBroad
+from collections import namedtuple
+
 
 
 def get_endchain(runname,fin,results_path='./'):
@@ -88,13 +90,16 @@ def get_nchain(runname, start_iter, end_iter, results_path='./'):
 
 
 
-def proc_spec(shiftspec,theta,fwhm,chemeq,gaslist,obspec,instrument):
+def proc_spec(shiftspec,theta,fwhm,chemeq,gaslist,obspec,instrument,all_params):
     import numpy as np
     import scipy as sp
     from bensconv import prism_non_uniform
     from bensconv import conv_uniform_R
     from bensconv import conv_uniform_FWHM
     from bensconv import conv_non_uniform_R
+    
+    params_master = namedtuple("params", all_params)
+    params_instance = params_master(*theta)
 
     if chemeq == 0:
         if (gaslist[len(gaslist)-1] == 'Na'):
@@ -126,26 +131,42 @@ def proc_spec(shiftspec,theta,fwhm,chemeq,gaslist,obspec,instrument):
     # If we've set a value for FWHM that we're using... 
     
     if (fwhm == 555.0): #this convolves with non uni R using the R file
-    	spec = np.zeros_like(obspec[0,:])
-    	#get the resolving power and the flag
-    	R = instrument.R
-    	log_f_param = instrument.logf_flag
-    	#instrument 1 (nirspec)
-    	or1= np.where(log_f_param == 1.0)
-    	obs_wl1 = obspec[0,:]
-    	obs_wl1 = obs_wl1[or1]
-    	spec1 = conv_non_uniform_R(modspec[1,:], modspec[0,:], R[or1], obs_wl1)
-    	spec[or1] = spec1
-    	#instrument 2 (miri)
-    	or2= np.where(log_f_param == 2.0)
-    	obs_wl2 = obspec[0,:]
-    	obs_wl2 = obs_wl2[or2]
-    	spec2 = conv_non_uniform_R(modspec[1,:], modspec[0,:], R[or2], obs_wl2)
-    	spec[or2] = spec2
-    	#output
-    	outspec = spec
-    	
-    	
+        spec = np.zeros_like(obspec[0,:])
+        #get the resolving power, the flag, and its maximum value, the scale, and its maximum value
+        R = instrument.R
+        #log_f_param = instrument.logf_flag
+        #log_f_param_max=int(np.max(log_f_param))
+        scales_param = instrument.scales
+        scales_param_max = int(np.max(scales_param))
+        
+        
+        scales= [getattr(params_instance, f) for f in params_instance._fields if f.startswith("scale")]
+                 
+        #looping thru their max values so we can map the spectral regions and do spec           
+        for j in range(0, scales_param_max + 1):
+            
+            or_indices = np.where(scales_param == float(j))[0]
+            
+            if or_indices.size == 0:
+                continue
+                
+            obs_wl_i = obspec[0, or_indices]
+            spec_i =conv_non_uniform_R(modspec[1,:], modspec[0,:], R[or_indices], obs_wl_i)
+            
+            
+            #if there's a scale parameter, then multiple it with spec
+            if j >0:
+                scale_value = scales[j-1]
+                #print(scale_value)
+                spec_i = scale_value * spec_i
+                
+            spec[or_indices] = spec_i
+            
+        outspec=spec
+        
+        
+        
+        
     elif (fwhm > 0.00 and fwhm < 1.00):
         # this is a uniform FWHM in microns
         

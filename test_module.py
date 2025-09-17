@@ -96,7 +96,8 @@ def lnprior(theta,re_params):
         coscale,
         R,
         wl,
-        logf_flag
+        logf_flag,
+        scales
     ) = (
         args_instance.gases_myP,
         args_instance.chemeq,
@@ -127,7 +128,8 @@ def lnprior(theta,re_params):
         args_instance.coscale,
         args_instance.R,
         args_instance.wl,
-        args_instance.logf_flag
+        args_instance.logf_flag,
+        args_instance.scales
     )
 
     
@@ -246,8 +248,19 @@ def lnprior(theta,re_params):
     elif (fwhm == 555):
         r2d2 = params_instance.r2d2
         dlam = params_instance.dlambda
-        scale1 = 1.0
-        scale2 = 1.0
+        #scale1 = 1.0
+        #scale2 = 1.0
+        
+        scale_param = args_instance.scales
+        scale_param_max = int(np.max(scale_param))
+        scales=[]
+        
+        for i in range(1, scale_param_max + 1):
+            scales.append(getattr(params_instance,f"scale{i}"))
+            #scale_name = f"scale{i}"
+            #if scale_name in params_instance._fields:
+            #   scale_index = params_instance._fields.index(scale_name)
+            #   phi[scale_index] = (theta[scale_index] * 1.5) + 0.5
         
         log_f_param = args_instance.logf_flag
         log_f_param_max = int(np.max(log_f_param))
@@ -262,6 +275,12 @@ def lnprior(theta,re_params):
         if (do_fudge == 1):
             for i in range(1, log_f_param_max +1):
                 s_indices = np.where(log_f_param == float(i))
+
+               # print(f"log_f_param.shape: {log_f_param.shape}")
+                #print(f"i={i}, log_f_param_max={log_f_param_max}")
+               #print(f"s_indices: {s_indices}")
+               # print(f"s_indices.shape: {s_indices.shape}")
+               #print(f"obspec.shape: {obspec.shape}")
 
                 minerr = np.log10((0.01 * np.min(obspec[2, s_indices]))**2.)
                 maxerr = np.log10((100. * np.max(obspec[2, s_indices]))**2.)
@@ -928,8 +947,13 @@ def lnprior(theta,re_params):
             and  0.0 < logg < 6.0
             and 1.0 < M < 80.
             and  0. < r2d2 < 1.
-            and 0.1 < scale1 < 10.0
-            and 0.1 < scale2 < 10.0
+            #and 0.1 < scale1 < 10.0
+            #and 0.1 < scale2 < 10.0
+            and all(
+                0.1 < getattr(params_instance, f"scale{i}") < 10.0
+                for i in range(1, scale_param_max+1)
+                if f"scale{i}" in params_instance._fields
+            )
             and alpha > 0.0
             and delta > 0.0
             and lndelta > -4.0
@@ -1197,7 +1221,8 @@ def priormap_dic(theta,re_params):
         coscale,
         R,
         wl,
-        logf_flag
+        logf_flag,
+        scales
     ) = (
         args_instance.gases_myP,
         args_instance.chemeq,
@@ -1228,7 +1253,8 @@ def priormap_dic(theta,re_params):
         args_instance.coscale,
         args_instance.R,
         args_instance.wl,
-        args_instance.logf_flag
+        args_instance.logf_flag,
+        args_instance.scales
     )
 
     phi = np.zeros_like(theta)
@@ -1287,10 +1313,16 @@ def priormap_dic(theta,re_params):
     if (fwhm == 555):
         log_f_param = args_instance.logf_flag
         log_f_param_max = int(np.max(log_f_param))
-       # s2 = np.where(log_f_param == 1.0)
-
-       # s3 = np.where(log_f_param == 2.0)
         
+        scales_param = args_instance.scales
+        nonzero_scales = sorted(set(scales_param) - {0})  
+
+        if nonzero_scales:  
+            for i in nonzero_scales:
+                pname = f"scale{i}"
+                p_index = params_instance._fields.index(pname)
+                phi[p_index] = (theta[p_index] * 1.5) + 0.5
+ 
         # now dlam
         dlam_index=params_instance._fields.index('dlambda')
         phi[dlam_index] = (theta[dlam_index] * 0.02) - 0.01
@@ -1720,6 +1752,7 @@ def priormap_dic(theta,re_params):
     return phi
                                                                      
 
+
 def lnlike(theta,re_params):
 
 
@@ -1760,7 +1793,8 @@ def lnlike(theta,re_params):
         coscale,
         R,
         wl,
-        logf_flag     
+        logf_flag,
+        scales     
     ) = (
         args_instance.gases_myP,
         args_instance.chemeq,
@@ -1791,7 +1825,8 @@ def lnlike(theta,re_params):
         args_instance.coscale,
         args_instance.R,
         args_instance.wl,
-        args_instance.logf_flag
+        args_instance.logf_flag,
+        args_instance.scales
     )
 
     # get the spectrum
@@ -1842,6 +1877,14 @@ def lnlike(theta,re_params):
             # This is a place holder value so the code doesn't break
             logf = np.log10(0.1*(max(obspec[2,10::3]))**2)
     elif (fwhm == 555):
+        scales_param = args_instance.scales
+        nonzero_scales = sorted(set(scales_param) - {0}) 
+
+        scales = {}
+        for i in nonzero_scales:
+            pname = f"scale{i}"
+            if hasattr(params_instance, pname): #it just checks if it exists, return True boolean
+                scales[pname] = getattr(params_instance, pname) #returns actual value
         if (do_fudge == 1):
             if np.max(logf_flag) == 1.0:
                 logf = [params_instance.tolerance_parameter_1]
@@ -1984,51 +2027,40 @@ def lnlike(theta,re_params):
         
         
     elif(fwhm == 555):
-        #Non-uniform R, the user provides the R file with conditions towards the tolerance parameter, so we are allowing the tolerance parameter to be different at each datapoint
-        
-       log_f_param = args_instance.logf_flag
-
-       log_f_param_max = int(np.max(log_f_param))
-       lnLik = 0.0
-
-       for i in range(1, log_f_param_max + 1):
-           or_indices = np.where(log_f_param == float(i))
-
-           obs_wl_i = obspec[0,:]
-
-           spec_i = conv_non_uniform_R(modspec[1,:], modspec[0,:], args_instance.R[or_indices], obs_wl_i[or_indices])
-
-           if (do_fudge == 1):
-               s_i = obspec[2, or_indices]**2 + 10.**logf[i-1]
-           else:
-               s_i = obspec[2, or_indices]**2
-
-           lnLik_i = -0.5 * np.sum((((obspec[1,or_indices] - spec_i[:])**2) / s_i) + np.log(2.*np.pi*s_i))
-           lnLik += lnLik_i
+        #Non-uniform R, the user provides the R file with flags for the number and location of the tolerance and scale parameters
+        #the columns of the R file as follows: R, wl, tol_flag,scale_flag
+        log_f_param = args_instance.logf_flag
+        log_f_param_max = int(np.max(log_f_param))
        
-      # or1 = np.where(log_f_param == 1.0)
-      # obs_wl1 = obspec[0,:]
-      # spec1 = conv_non_uniform_R(modspec[1,:], modspec[0,:], args_instance.R[or1], obs_wl1[or1])
+        scales_param = args_instance.scales
+        scales_param_max = int(np.max(scales_param))
+       
+        lnLik = 0.0
+       
+        region_flags = np.unique(np.vstack((log_f_param, scales_param)).T, axis=0)#get unique values as a 2 column array [logf,scales]
+        #for i,j in region_flags:
+        for logf_flag_val, scale_flag_val in region_flags: #loop thru them, so we get each flags
+            or_indices = np.where( (log_f_param == logf_flag_val) & (scales_param == scale_flag_val) ) #getting wl regions where both conditions are met
 
+            obs_wl_i = obspec[0, :]
+            spec_i = conv_non_uniform_R(modspec[1, :], modspec[0, :], args_instance.R[or_indices], obs_wl_i[or_indices])
 
-      # or2 = np.where(log_f_param == 2.0)
-      # obs_wl2 = obspec[0,:]
-      # spec2 = conv_non_uniform_R(modspec[1,:], modspec[0,:], args_instance.R[or2], obs_wl2[or2])
-   
-        
-      # if (do_fudge == 1):
-      #     s2 = obspec[2,or1]**2 + 10.**logf[0]
-      #     s3 = obspec[2,or2]**2 + 10.**logf[1]
-      # else:
-      #     s2 = obspec[2,or1]**2
-      #     s3 = obspec[2,or2]**2 
-        
-      # lnLik1=-0.5*np.sum((((obspec[1,or1] - spec1[:])**2) / s2) + np.log(2.*np.pi*s2)) 
-      # lnLik2=-0.5*np.sum((((obspec[1,or2] - spec2[:])**2) / s3) + np.log(2.*np.pi*s3))
-      # lnLik = lnLik1 + lnLik2
-   
-    
-         
+        # IF THERE ARE SCALE PARAMETERS
+            if scale_flag_val > 0:
+                scale_name = f"scale{int(scale_flag_val)}"
+                if scale_name in params_instance._fields:
+                    scale_value = getattr(params_instance, scale_name)
+                    spec_i = scale_value * spec_i  
+
+            if (do_fudge == 1) and (logf_flag_val > 0):
+                s_i = obspec[2, or_indices]**2 + 10.**logf[int(logf_flag_val)-1]
+            else:
+                s_i = obspec[2, or_indices]**2
+
+            lnLik_i = -0.5 * np.sum(((obspec[1, or_indices] - spec_i[:])**2) / s_i + np.log(2.*np.pi*s_i))
+            lnLik += lnLik_i
+       
+       
             
     elif (fwhm < 0.0):
         lnLik = 0.0
@@ -2345,7 +2377,8 @@ def modelspec(theta,re_params,args_instance,gnostics):
         coscale,
         R,
         wl,
-        logf_flag
+        logf_flag,
+        scales
     ) = (
         args_instance.gases_myP,
         args_instance.chemeq,
@@ -2376,7 +2409,8 @@ def modelspec(theta,re_params,args_instance,gnostics):
         args_instance.coscale,
         args_instance.R,
         args_instance.wl,
-        args_instance.logf_flag
+        args_instance.logf_flag,
+        args_instance.scales
     )
         
     nlayers = press.size

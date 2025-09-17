@@ -59,6 +59,7 @@ class Instrument:
         self.R = None
         self.wl = None
         self.logf_flag = None
+        self.scales = None
         
         # only load R if the user provides it
         if R_file:
@@ -70,14 +71,16 @@ class Instrument:
 
     def load_R_file(self):
         """
-        loads the R(first column) vs wl (second column) vs flag for tolerance param (third column) txt file (if provided)
+        loads the R(first column) vs wl (second column) vs flag for tolerance param (third column) 
+        vs scales flag (fourth column) txt file if provided
         """
         try:
             data = np.loadtxt(self.R_file)
             self.R = data[:,0]
             self.wl = data[:,1]
             self.logf_flag = data[:,2]
-            self.R_data = {'R': self.R, 'wl': self.wl, 'logf_flag': self.logf_flag}
+            self.scales = data[:,3]
+            self.R_data = {'R': self.R, 'wl': self.wl, 'logf_flag': self.logf_flag, 'scales': self.scales}
         except Exception as e:
             print(f'no such file: {e}')
 
@@ -1051,6 +1054,7 @@ class Retrieval_params:
 
 
         if self.samplemode.lower() == 'mcmc':
+               
                dictionary['params'] = {
                     'logg': {
                         'initialization': None,
@@ -1062,16 +1066,16 @@ class Retrieval_params:
                         'distribution': ['normal', 0, 1],
                         'prior': None
                     },
-                    'scale1': {
-                        'initialization': None,
-                        'distribution': ['normal', 0, 0.001],
-                        'prior': None
-                    },
-                    'scale2': {
-                        'initialization': None,
-                        'distribution': ['normal', 0, 0.001],
-                        'prior': None
-                    },
+                    #'scale1': {
+                    #    'initialization': None,
+                    #    'distribution': ['normal', 0, 0.001],
+                    #    'prior': None
+                    #},
+                    #'scale2': {
+                    #    'initialization': None,
+                    #    'distribution': ['normal', 0, 0.001],
+                    #    'prior': None
+                    #},
                     'frac_param': {
                         'initialization': None,
                         'distribution': ['normal', 0.5, 0.1],
@@ -1083,6 +1087,20 @@ class Retrieval_params:
                         'prior': None
                     }
                 }
+               scales_parameter_max = int(np.max(self.instrument.scales))
+               if scales_parameter_max > 0:
+                  for i in range(1, scales_parameter_max + 1):
+                      dictionary['params'][f'scale{i}'] = {
+                            'initialization': None,
+                            'distribution': ['normal', 1, 0.001],
+                            'prior': None
+                      }
+                      
+                  #for i in range(1, scales_parameter_max+1):
+                  #    dictionary['params'][f'scale{i}']['initialization'] =1.0 +1e3*np.random.randn()
+                      
+               
+                
         elif self.samplemode.lower() == 'multinest':
                     dictionary['params'] = {
                     'M': {
@@ -1128,34 +1146,53 @@ class Retrieval_params:
             if self.samplemode.lower() == 'mcmc':
                 del dictionary['params']['frac_param']
             if self.do_fudge==1:
-            	ndata=1
+                ndata=1
 
         if self.fwhm in [-2]:
             del dictionary['params']['scale1']
             del dictionary['params']['frac_param']
             if self.do_fudge==1:
-           		ndata=2
+                ndata=2
 
         if self.fwhm in [-1, -3, -4]:
             del dictionary['params']['frac_param']
             if self.do_fudge==1:
-           		ndata=3
+                ndata=3
             
         if self.fwhm in [555, 888]:
-            del dictionary['params']['scale1']
-            del dictionary['params']['scale2']
+            #if int(np.max(self.instrument.scales)) == 0:
+            #   scale_delete = [k for k in dictionary['params'] if k.startswith('scale')]
+            #   for k in scale_delete:
+            #   # del dictionary['params'][k]
+            #       del dictionary['params'][k]
+            scales_max = int(np.max(self.instrument.scales))
+
+            scale_keys = [k for k in dictionary['params'] if k.startswith('scale')]
+
+            if scales_max == 0:
+            # no scales remains
+                for k in scale_keys:
+                    del dictionary['params'][k]
+            else:
+            # only keep scale1 ... scale_n
+                for k in scale_keys:
+                    i = int(k.replace('scale', ''))
+                    if i > scales_max:
+                        del dictionary['params'][k]
+    
             #del dictionary['params']['frac_param']
             if self.samplemode.lower() == 'mcmc':
                 del dictionary['params']['frac_param']
+                
             if self.do_fudge==1:
-            	ndata=int(np.max(self.instrument.logf_flag))
+                ndata=int(np.max(self.instrument.logf_flag))
             
             
         if self.fwhm in [777]:
             del dictionary['params']['scale1']
             del dictionary['params']['scale2']
             if self.do_fudge==1:
-           		ndata=0
+                ndata=0
             
         # Add tolerance parameters after 'dlambda'
         if self.do_fudge==1:
@@ -1372,6 +1409,12 @@ def get_all_parametres(dic):
 def update_dictionary(dic, params_instance):
     # Update gas parameters
     
+    ordered_params = {}
+    for field in params_instance._fields:
+        if field in dictionary['refinement_params']['params']:
+            ordered_params[field] = dictionary['refinement_params']['params'][field]
+    dictionary['refinement_params']['params'] = ordered_params
+    
     gastype_values = [info['gastype'] for key, info in dic['gas'].items() if 'gastype' in info]
     gaslist=list(dic['gas'].keys())
     for i in range(len(gaslist)):
@@ -1448,6 +1491,7 @@ def MC_P0_gen(updated_dic,model_config_instance,args_instance):
     
     
     all_distributions=get_distribution_values(updated_dic)
+  
     
     for i in range(model_config_instance.ndim):
         if all_distributions[i][0]=='normal':
@@ -1891,6 +1935,7 @@ class ArgsGen:
         self.R = self.instrument.R
         self.wl = self.instrument.wl
         self.logf_flag = self.instrument.logf_flag #!!!!!!!!!!!!!!!!
+        self.scales = self.instrument.scales
         
         # Profile type and cloud parameters
         self.proftype = self.re_params.ptype
