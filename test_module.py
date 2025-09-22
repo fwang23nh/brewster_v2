@@ -13,7 +13,7 @@ import os
 import sys
 import pickle
 import forwardmodel
-import cloud_dic
+import cloud_dic_new
 from builtins import str
 from builtins import range
 from scipy import interpolate
@@ -71,11 +71,10 @@ def lnprior(theta,re_params):
         chemeq,
         dist,
         cloudtype,
-        do_clouds,
         gaslist,
         gasnames,
         gasmass,
-        cloudnum,
+        cloudflag,
         inlinetemps,
         coarsePress,
         press,
@@ -103,11 +102,10 @@ def lnprior(theta,re_params):
         args_instance.chemeq,
         args_instance.dist,
         args_instance.cloudtype,
-        args_instance.do_clouds,
         args_instance.gaslist,
         args_instance.gasnames,
         args_instance.gasmass,
-        args_instance.cloudnum,
+        args_instance.cloudflag,
         args_instance.inlinetemps,
         args_instance.coarsePress,
         args_instance.press,
@@ -398,7 +396,9 @@ def lnprior(theta,re_params):
             scale2 = 1.0
 
 
-    npatches = do_clouds.size
+
+    npatches = args_instance.cloudmap.shape[0]
+    # npatches = do_clouds.size
     if (npatches > 1):
         prat = params_instance.fcld
         pcover = np.array([prat,(1.-prat)])
@@ -413,10 +413,12 @@ def lnprior(theta,re_params):
     # # Find the index of pc
     # pc = attribute_names.index(first_cloud_para)
 
-    if ((npatches > 1) and np.all(do_clouds != 0)):
-        cloudparams = cloud_dic.unpack_patchy(re_params,params_instance,cloudtype,cloudnum,do_clouds)
-    else:
-        cloudparams = cloud_dic.unpack_default(re_params,params_instance,cloudtype,cloudnum,do_clouds)
+    # if ((npatches > 1) and np.all(do_clouds != 0)):
+    #     cloudparams = cloud_dic.unpack_patchy(re_params,params_instance,cloudtype,cloudflag,do_clouds)
+    # else:
+    #     cloudparams = cloud_dic.unpack_default(re_params,params_instance,cloudtype,cloudflag,do_clouds)
+
+    cloudparams,cloudmap=cloud_dic_new.cloud_unpack(re_params,params_instance)
 
 
     if (cloudtype.size > cloudtype.shape[1]):
@@ -433,11 +435,13 @@ def lnprior(theta,re_params):
     loga = np.empty_like(cloud_tau0)
     b = np.empty_like(cloud_tau0)
 
-    if (np.abs(sum(do_clouds)) >= 1):
+    npatches = args_instance.cloudmap.shape[0]
+
+    if np.any(cloudmap == 1):
         for i in range(0,npatches):
-            if (do_clouds[i] != 0):
+            if (cloudmap[i] == 1):
                 for j in range (0, nclouds):
-                    if (cloudnum[i,j] == 99):
+                    if (cloudflag[i,j] == 'grey'):
                         if (cloudtype[i,j] == 1):
                             cloud_tau0[i,j] = cloudparams[0,i,j]
                             cloud_top[i,j] = cloudparams[1,i,j]
@@ -483,7 +487,7 @@ def lnprior(theta,re_params):
                             taupow[i,j] = 0.0
                             loga[i,j] =  0.0
                             b[i,j] = 0.5
-                    elif (cloudnum[i,j] == 89):
+                    elif (cloudflag[i,j] == 'powerlaw'):
                         if (cloudtype[i,j] == 1):
                             cloud_tau0[i,j] = cloudparams[0,i,j]
                             cloud_top[i,j] = cloudparams[1,i,j]
@@ -904,10 +908,31 @@ def lnprior(theta,re_params):
         #    T = TPmod.set_prof(proftype,junkP,press,theta[pc+nc:-2]) #inversion not allowed, theta[:-2]  the pressure  deck  of  nonuniform gas
         # put prior on P1 to put it shallower than 100 bar 
         P1 = ((1/delta)**(1/alpha))
-        if  (1 < alpha  < 2. and P1 < 100 and P1 > press[0]
-            and T1 < T2 and T2 < T3 and T3 < Tconnect #this line turns off inversion
-            and T1 > 0.0 and T2 > 0.0 and T3 > 0.0 and Tint >0.0):
-            T = TPmod.set_prof(proftype,junkP,press,intemp) #allow inversion theta[:-2]  the pressure  deck  of  nonuniform gas
+        # if  (1 < alpha  < 2. and P1 < 100 and P1 > press[0]
+        #     and T1 > 0.0 and T2 > 0.0 and T3 > 0.0 and Tint >0.0):
+        #     T = TPmod.set_prof(proftype,junkP,press,intemp) #allow inversion theta[:-2]  the pressure  deck  of  nonuniform gas
+
+        cp = 0.84*14.32 + 0.16*5.19
+        cv = 0.84*10.16 + 0.16*3.12
+        gamma=cp/cv
+
+        tau=delta*(press)**alpha
+        T_edd=(((3/4)*Tint**4)*((2/3)+(tau)))**(1/4)
+        nabla_ad=(gamma-1)/gamma
+        nabla_rad = np.diff(np.log(T_edd))/np.diff(np.log(press))
+        convtest = np.any(np.where(nabla_rad >= nabla_ad))
+        # Now get temperatures on the adiabat from RC boundary downwards
+        if convtest:
+            RCbound = np.where(nabla_rad >= nabla_ad)[0][0]
+            P_RC = press[RCbound]
+        else:
+            P_RC = 1000.
+
+        # put prior on P_RC to put it shallower than 100 bar
+        if  (1 < alpha  < 2. and P_RC < 100 and P1 < P_RC
+             and P_RC > press[0] and  P1 > press[0]
+             and T1 > 0.0 and T2 > 0.0 and T3 > 0.0 and Tint >0.0):
+            T = TPmod.set_prof(proftype,junkP,press,intemp) # allow inversion
 
         #for mass prior
         D = 3.086e+16 * dist
@@ -1200,7 +1225,7 @@ def priormap_dic(theta,re_params):
         gaslist,
         gasnames,
         gasmass,
-        cloudnum,
+        cloudflag,
         inlinetemps,
         coarsePress,
         press,
@@ -1232,7 +1257,7 @@ def priormap_dic(theta,re_params):
         args_instance.gaslist,
         args_instance.gasnames,
         args_instance.gasmass,
-        args_instance.cloudnum,
+        args_instance.cloudflag,
         args_instance.inlinetemps,
         args_instance.coarsePress,
         args_instance.press,
@@ -1611,10 +1636,14 @@ def priormap_dic(theta,re_params):
         nclouds = cloudtype.size
 
     if np.all(do_clouds!= 0):
-        cloudlist=list(re_params.dictionary["cloud"]["patch 1"].keys())
+        cloudlist=[]
+        for i in range(1, 3):
+            for key in re_params.dictionary['cloud']['patch %s' % i].keys():
+                if 'clear' not in key:
+                    cloudlist.append(key)
 
-        for cloudname in cloudlist:
-            if cloudname=='grey cloud deck':
+        for cloud in cloudlist:
+            if cloud=='grey cloud deck':
             # 'cloudnum': 99,'cloudtype':2,
                 logp_gcd_index=params_instance._fields.index('logp_gcd')
                 dp_gcd_index=params_instance._fields.index('dp_gcd')
@@ -1626,7 +1655,7 @@ def priormap_dic(theta,re_params):
                 # cloud height
                 phi[dp_gcd_index] = theta[dp_gcd_index] * 7.
                         
-            elif cloudname=='grey cloud slab':
+            elif cloud=='grey cloud slab':
             # 'cloudnum': 99,'cloudtype':1,
                 tau_gcs_index=params_instance._fields.index('tau_gcs')
                 logp_gcs_index=params_instance._fields.index('logp_gcs')
@@ -1643,7 +1672,7 @@ def priormap_dic(theta,re_params):
                     (phi[logp_gcs_index] - np.log10(press[0]))
                                     
         
-            elif cloudname=='powerlaw cloud deck':
+            elif cloud=='powerlaw cloud deck':
             # 'cloudnum': 89,'cloudtype':2,
                 logp_pcd_index=params_instance._fields.index('logp_pcd')
                 dp_pcd_index=params_instance._fields.index('dp_pcd')
@@ -1659,10 +1688,10 @@ def priormap_dic(theta,re_params):
                 phi[alpha_pcd_index] = (theta[alpha_pcd_index] * 20.) - 10.
 
 
-            elif 'Mie scattering cloud deck' in cloudname:
+            elif 'Mie scattering cloud deck' in cloud:
             #   'cloudnum': cloudnum,'cloudtype':2,
 
-                cloudspecies=cloudname.split('--')[1].strip()
+                cloudspecies=cloud.split('--')[1].strip()
                 logp_pcd_index=params_instance._fields.index('logp_mcd_%s'%cloudspecies)
                 dp_pcd_index=params_instance._fields.index('dp_mcd_%s'%cloudspecies)
                 #cloud base
@@ -1691,7 +1720,7 @@ def priormap_dic(theta,re_params):
                     # particle spread
                     phi[mu_mcd_index] = theta[mu_mcd_index]                                                 
 
-            elif cloudname=='power law cloud slab':
+            elif cloud=='power law cloud slab':
                     # 'cloudnum': 89, 'cloudtype':1,
                     tau_pcs_index=params_instance._fields.index('tau_pcs')
                     logp_pcs_index=params_instance._fields.index('logp_pcs')
@@ -1713,9 +1742,9 @@ def priormap_dic(theta,re_params):
                     phi[alpha_pcs_index] = (theta[alpha_pcs_index] * 20.) - 10.
 
 
-            elif 'Mie scattering cloud slab' in cloudname:
+            elif 'Mie scattering cloud slab' in cloud:
 
-                cloudspecies=cloudname.split('--')[1].strip()
+                cloudspecies=cloud.split('--')[1].strip()
 
                 tau_mcs_index=params_instance._fields.index('tau_mcs_%s'%cloudspecies)
                 logp_mcs_index=params_instance._fields.index('logp_mcs_%s'%cloudspecies)
@@ -1772,7 +1801,7 @@ def lnlike(theta,re_params):
         gaslist,
         gasnames,
         gasmass,
-        cloudnum,
+        cloudflag,
         inlinetemps,
         coarsePress,
         press,
@@ -1804,7 +1833,7 @@ def lnlike(theta,re_params):
         args_instance.gaslist,
         args_instance.gasnames,
         args_instance.gasmass,
-        args_instance.cloudnum,
+        args_instance.cloudflag,
         args_instance.inlinetemps,
         args_instance.coarsePress,
         args_instance.press,
@@ -2351,12 +2380,9 @@ def modelspec(theta,re_params,args_instance,gnostics):
     (   gases_myP,
         chemeq,
         dist,
-        cloudtype,
-        do_clouds,
         gaslist,
         gasnames,
         gasmass,
-        cloudnum,
         inlinetemps,
         coarsePress,
         press,
@@ -2378,17 +2404,20 @@ def modelspec(theta,re_params,args_instance,gnostics):
         R,
         wl,
         logf_flag,
-        scales
+        scales,
+        miewave,
+        mierad,
+        cloudata,
+        cloud_opaname,
+        cloudsize,
+        cloudmap
     ) = (
         args_instance.gases_myP,
         args_instance.chemeq,
         args_instance.dist,
-        args_instance.cloudtype,
-        args_instance.do_clouds,
         args_instance.gaslist,
         args_instance.gasnames,
         args_instance.gasmass,
-        args_instance.cloudnum,
         args_instance.inlinetemps,
         args_instance.coarsePress,
         args_instance.press,
@@ -2411,6 +2440,12 @@ def modelspec(theta,re_params,args_instance,gnostics):
         args_instance.wl,
         args_instance.logf_flag,
         args_instance.scales
+        args_instance.miewave,
+        args_instance.mierad,
+        args_instance.cloudata,
+        args_instance.cloud_opaname,
+        args_instance.cloudsize,
+        args_instance.cloudmap
     )
         
     nlayers = press.size
@@ -2493,7 +2528,7 @@ def modelspec(theta,re_params,args_instance,gnostics):
 
 
         
-    npatches = do_clouds.size
+    npatches = args_instance.cloudmap.shape[0]
     if (npatches > 1):
         prat =  params_instance.fcld
         pcover = np.array([prat,(1.-prat)])
@@ -2503,10 +2538,16 @@ def modelspec(theta,re_params,args_instance,gnostics):
         
     # use correct unpack method depending on situation
 
-    if ((npatches > 1) and np.all(do_clouds != 0)):
-        cloudparams = cloud_dic.unpack_patchy(re_params,params_instance,cloudtype,cloudnum,do_clouds)
-    else:
-        cloudparams = cloud_dic.unpack_default(re_params,params_instance,cloudtype,cloudnum,do_clouds)
+    # if ((npatches > 1) and np.all(do_clouds != 0)):
+    #     cloudparams = cloud_dic.unpack_patchy(re_params,params_instance,cloudtype,cloudflag,do_clouds)
+    # else:
+    #     cloudparams = cloud_dic.unpack_default(re_params,params_instance,cloudtype,cloudflag,do_clouds)
+
+
+    
+    cloudparams=cloud_dic_new.cloud_unpack(re_params,params_instance)
+
+    
 
     ndim = len(theta)
 
@@ -2526,7 +2567,7 @@ def modelspec(theta,re_params,args_instance,gnostics):
         intemp = prof
 
     else:
-        raise ValueError("not valid profile type %proftype" % (char, string))
+        raise ValueError("not valid profile type %s" %proftype)
 
     # set the profile
     temp = TPmod.set_prof(proftype,coarsePress,press,intemp)
@@ -2613,13 +2654,21 @@ def modelspec(theta,re_params,args_instance,gnostics):
     # now need to translate cloudparams in to cloud profile even
     # if do_clouds is zero..
 
-    cloudprof,cloudrad,cloudsig = cloud_dic.atlas(do_clouds,cloudnum,cloudtype,cloudparams,press)
+    # cloudprof,cloudrad,cloudsig = cloud_dic.atlas(do_clouds,cloudflag,cloudtype,cloudparams,press)
+
+    cloudprof,cloudrad,cloudsig = cloud_dic_new.atlas(re_params,cloudparams,press)
+
+
+
     cloudprof = np.asfortranarray(cloudprof,dtype = 'float64')
     cloudrad = np.asfortranarray(cloudrad,dtype = 'float64')
     cloudsig = np.asfortranarray(cloudsig,dtype = 'float64')
     pcover = np.asfortranarray(pcover,dtype = 'float32')
-    cloudnum = np.asfortranarray(cloudnum,dtype='i')
-    do_clouds = np.asfortranarray(do_clouds,dtype = 'i')
+    cloudsize = np.asfortranarray(cloudsize,dtype = 'i')
+    cloudmap = np.asfortranarray(cloudmap,dtype = 'i')
+
+
+    # do_clouds = np.asfortranarray(do_clouds,dtype = 'i')
 
     # get r2d2 sorted for multi-instruments
     if re_params.samplemode=='mcmc':
@@ -2681,8 +2730,8 @@ def modelspec(theta,re_params,args_instance,gnostics):
 
 
     # now we can call the forward model
-    outspec,tmpclphotspec,tmpophotspec,cf = forwardmodel.marv(temp,logg,R2D2,gasnames,gasmass,logVMR,pcover,do_clouds,cloudnum,cloudrad,cloudsig,cloudprof,inlinetemps,press,inwavenum,linelist,cia,ciatemps,use_disort,clphot,ophot,make_cf,do_bff,bff)
-        
+    
+    outspec,tmpclphotspec,tmpophotspec,cf = forwardmodel.marv(temp,logg,R2D2,gasnames,gasmass,logVMR,pcover,cloudmap,cloud_opaname,cloudsize,cloudata,miewave,mierad, cloudrad,cloudsig,cloudprof,inlinetemps,press,inwavenum,linelist,cia,ciatemps,use_disort,clphot,ophot,make_cf,do_bff,bff)
 
     # Trim to length where it is defined.
     nwave = inwavenum.size
@@ -2698,10 +2747,7 @@ def modelspec(theta,re_params,args_instance,gnostics):
     shiftspec[0,:] =  trimspec[0,:] + dlam
     shiftspec[1,:] =  trimspec[1,:]
 
-    # shiftspec[1,:][np.isnan(shiftspec[1,:])] = 1e-20
-
     return shiftspec, cloud_phot_press,other_phot_press,cfunc
-
 
 
 

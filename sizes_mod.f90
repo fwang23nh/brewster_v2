@@ -32,12 +32,6 @@ module sizes
   integer,parameter :: ncwave = 1000
 
   
-  ! number of radius bins for mie coeff files
-  integer, parameter :: nrad = 60
-
-  ! number of wavelengths in mie coeff files
-  integer, parameter :: nmiewave = 196
-
   ! max wave number
   integer, parameter :: maxwave = 40000
 

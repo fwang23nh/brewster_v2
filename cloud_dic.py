@@ -38,7 +38,7 @@ __status__ = "Development"
 
 
 
-def atlas(do_clouds,cloudnum,cloudtype,cloudparams,press):
+def atlas(do_clouds,cloudflag,cloudtype,cloudparams,press):
 
     # Cloud types
     # 1:  slab cloud
@@ -73,12 +73,12 @@ def atlas(do_clouds,cloudnum,cloudtype,cloudparams,press):
 
 
                     tau = cloudparams[0,i,j]
-                    p1 = 10.**cloudparams[1,i,j]
+                    p2 = 10.**cloudparams[1,i,j]
                     if (cloudtype[i,j] == 1):
                         dP = cloudparams[2,i,j]
                     else:
                         dP = 0.005
-                    p2 = p1 * 10.**dP
+                    p1 = p2 / 10.**dP
                     rad = cloudparams[3,i,j]
                     sig = cloudparams[4,i,j]
                     pdiff = np.empty(nlayers,dtype='f')
@@ -108,7 +108,7 @@ def atlas(do_clouds,cloudnum,cloudtype,cloudparams,press):
                             cloudprof[i,k,j] = const * (l2**2 - l1**2)
 
                     # We're sampling particle radius in log space        
-                    if (cloudnum[i,j] < 50.):
+                    if (cloudflag[i, j].split(' ')[0] == 'Mie'):
                         cloudrad[i,:,j] = 10.**rad
                     else:
                         cloudrad[i,:,j] = rad
@@ -152,7 +152,7 @@ def atlas(do_clouds,cloudnum,cloudtype,cloudparams,press):
                                                         np.exp(term2))
 
                     # We're sampling particle radius in log space        
-                    if (cloudnum[i,j] < 50.):
+                    if (cloudflag[i, j].split(' ')[0] == 'Mie'): 
                         cloudrad[i,:,j] = 10.**rad
                     else:
                         cloudrad[i,:,j] = rad
@@ -181,7 +181,7 @@ def atlev(l0,press):
     return pl1, pl2
 
 
-def unpack_default(re_params,params_instance,cloudtype,cloudnum,do_clouds):
+def unpack_default(re_params,params_instance,cloudtype,cloudflag,do_clouds):
 
     if (cloudtype.size > cloudtype.shape[1]):
         nclouds = cloudtype.shape[1]
@@ -205,24 +205,24 @@ def unpack_default(re_params,params_instance,cloudtype,cloudnum,do_clouds):
                 cloud_namekeys=list(re_params.dictionary['cloud'][f'patch 1'].keys())
                 cloud_keys = re_params.dictionary['cloud'][f'patch 1'][cloud_namekeys[j]]['params']
                 cloud_params=np.array([getattr(params_instance, key) for key in cloud_keys])
-                if ((cloudtype[i,j] == 2) and (cloudnum[i,j] == 99)):
+                if ((cloudtype[i,j] == 2) and (cloudflag[i,j].split(' ')[0] == 'grey')):
                     cloudparams[1:4,i,j] = cloud_params[:]
                     cloudparams[4,i,j] = 0.0
-                elif ((cloudtype[i,j] == 1) and (cloudnum[i,j] == 99)):
+                elif ((cloudtype[i,j] == 1) and (cloudflag[i,j].split(' ')[0] == 'grey')):
                     cloudparams[0:4,i,j] = cloud_params[:]
                     cloudparams[4,i,j] = 0.0
-                elif ((cloudtype[i,j] == 2) and (cloudnum[i,j] < 90)):
+                elif (cloudtype[i, j] == 2) and (cloudflag[i, j].split(' ')[0] == 'powerlaw' or cloudflag[i, j].split(' ')[0] == 'Mie'):
                     cloudparams[1:5,i,j] = cloud_params[:]
-                elif ((cloudtype[i,j] == 3) and (cloudnum[i,j] == 99)):
+                elif ((cloudtype[i,j] == 3) and (cloudflag[i,j] == 'grey')):
                     cloudparams[0:2,i,j] = cloud_params[0:2]
                     cloudparams[3,i,j] =  cloud_params[2]
-                elif ((cloudtype[i,j] == 3) and (cloudnum[i,j] < 90)):
+                elif (cloudtype[i, j] == 3) and (cloudflag[i, j].split(' ')[0] == 'powerlaw' or cloudflag[i, j].split(' ')[0] == 'Mie'):
                     cloudparams[0:2,i,j] =  cloud_params[0:2]
                     cloudparams[3:5,i,j] =  cloud_params[2:4]
-                elif ((cloudtype[i,j] == 4) and (cloudnum[i,j] == 99)):
+                elif ((cloudtype[i,j] == 4) and (cloudflag[i,j].split(' ')[0] == 'grey')):
                     cloudparams[1,i,j] = cloud_params[0]
                     cloudparams[3,i,j] = cloud_params[1]
-                elif ((cloudtype[i,j] == 4) and (cloudnum[i,j] < 90)):
+                elif ((cloudtype[i,j] == 4) and (cloudflag[i,j].split(' ')[0] == 'powerlaw')):
                     cloudparams[1,i,j] = cloud_params[0]
                     cloudparams[3:5,i,j] = cloud_params[1:3]
                 elif (cloudtype[i,j] == 0):
@@ -235,7 +235,7 @@ def unpack_default(re_params,params_instance,cloudtype,cloudnum,do_clouds):
 
 
 
-def unpack_patchy(re_params,params_instance,cloudtype,cloudnum,do_clouds):
+def unpack_patchy(re_params,params_instance,cloudtype,cloudflag,do_clouds):
 
     if (cloudtype.size > cloudtype.shape[1]):
         nclouds = cloudtype.shape[1]
@@ -259,24 +259,24 @@ def unpack_patchy(re_params,params_instance,cloudtype,cloudnum,do_clouds):
             cloud_namekeys=list(re_params.dictionary['cloud'][f'patch {1}'].keys())
             cloud_keys = re_params.dictionary['cloud'][f'patch {1}'][cloud_namekeys[j]]['params']
             cloud_params=np.array([getattr(params_instance, key) for key in cloud_keys])
-            if ((cloudtype[0,j] == 2) and (cloudnum[0,j] == 99)):
+            if ((cloudtype[0,j] == 2) and (cloudflag[0,j].split(' ')[0] == 'grey')):
                 cloudparams[1:4,0,j] = cloud_params[:]
                 cloudparams[4,0,j] = 0.0
-            elif ((cloudtype[0,j] == 1) and (cloudnum[0,j] == 99)):
+            elif ((cloudtype[0,j] == 1) and (cloudflag[0,j].split(' ')[0] == 'grey')):
                 cloudparams[0:4,0,j] = cloud_params[:]
                 cloudparams[4,0,j] = 0.0
-            elif ((cloudtype[0,j] == 2) and (cloudnum[0,j] < 90)):
+            elif (cloudtype[0, j] == 2) and (cloudflag[0, j].split(' ')[0] == 'powerlaw' or cloudflag[0, j].split(' ')[0] == 'Mie'):
                 cloudparams[1:5,0,j] = cloud_params[:]
-            elif ((cloudtype[0,j] == 3) and (cloudnum[0,j] == 99)):
+            elif ((cloudtype[0,j] == 3) and (cloudflag[0,j].split(' ')[0] == 'grey')):
                 cloudparams[0:2,0,j] = cloud_params[0:2]
                 cloudparams[3,0,j] =  cloud_params[2]
-            elif ((cloudtype[0,j] == 3) and (cloudnum[0,j] < 90)):
+            elif (cloudtype[0, j] == 3) and (cloudflag[0, j].split(' ')[0] == 'powerlaw' or cloudflag[0, j].split(' ')[0] == 'Mie'):
                 cloudparams[0:2,0,j] =  cloud_params[0:2]
                 cloudparams[3:5,0,j] =  cloud_params[2:4]
-            elif ((cloudtype[0,j] == 4) and (cloudnum[0,j] == 99)):
+            elif ((cloudtype[0,j] == 4) and (cloudflag[0,j].split(' ')[0] == 'grey')):
                 cloudparams[1,0,j] = cloud_params[0]
                 cloudparams[3,0,j] = cloud_params[1]
-            elif ((cloudtype[0,j] == 4) and (cloudnum[0,j] < 90)):
+            elif ((cloudtype[0,j] == 4) and (cloudflag[0,j].split(' ')[0] == 'powerlaw')):
                 cloudparams[1,0,j] = cloud_params[0]
                 cloudparams[3:5,0,j] = cloud_params[1:3]
             elif (cloudtype[0,j] == 0):

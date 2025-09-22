@@ -150,7 +150,7 @@ class ModelConfig:
         Update the model configuration dictionary with the current attributes.
     """
 
-    def __init__(self, samplemode, do_fudge, use_disort=0, malk=0, mch4=0, do_bff=1, fresh=0, xpath="../Linelists/", xlist="data/gaslistRox.dat", dist=None, pfile="data/LSR1835_eqpt.dat"):
+    def __init__(self, samplemode, do_fudge, use_disort=0, malk=0, mch4=0, do_bff=1, fresh=0,cloudpath=None,xpath="../Linelists/", xlist="data/gaslistRox.dat", dist=None, pfile="data/LSR1835_eqpt.dat"):
         self.samplemode = samplemode
         self.use_disort = use_disort
         self.do_fudge = do_fudge
@@ -160,6 +160,7 @@ class ModelConfig:
         self.fresh = fresh
         self.xpath = xpath
         self.xlist = xlist
+        self.cloudpath = cloudpath
         
         self.dist = dist
         self.dist_err = 0
@@ -283,6 +284,7 @@ class ModelConfig:
             f"- xlist : {self.xlist}\n"
             f"- dist : {self.dist}\n"
             f"- pfile : {self.pfile}\n"
+            f"- cloudpath : {self.cloudpath}\n"
             f"\n"
         )
         if self.samplemode.lower() == 'mcmc':
@@ -452,7 +454,7 @@ def dp_customized_distribution(x):
     return np.abs(0.1 * np.random.randn(x))
 
 
-def hansan_b_customized_distribution(x):
+def hansen_b_customized_distribution(x):
     return np.abs(0.2+0.05 * np.random.randn(x))
 
 
@@ -496,7 +498,7 @@ class Retrieval_params:
         Indexes for `cloudname` corresponding to which cloud patches 
     particle_dis : str, optional
         Distribution type for particles in the cloud. Default is None.
-        E.g., 'log_normal', 'hansan', etc.
+        E.g., 'log_normal', 'hansen', etc.
         only used when include Mie cloud.
     
     Methods
@@ -519,7 +521,7 @@ class Retrieval_params:
         String representation of the class instance.
     """
     
-    def __init__(self, samplemode,chemeq=None, gaslist=None, gastype_list=None,fwhm=None,do_fudge=1,ptype=None,do_clouds=1,npatches=None,cloudname=None,cloudpatch_index=None,particle_dis=None, instrument=None):
+    def __init__(self, samplemode,chemeq=None, gaslist=None, gastype_list=None,fwhm=None,do_fudge=1,ptype=None,do_clouds=1,npatches=None,cloud_name=None,cloud_type=None,cloudpatch_index=None,particle_dis=None):
         self.samplemode = samplemode
         self.chemeq = chemeq
         self.gaslist = gaslist
@@ -528,12 +530,14 @@ class Retrieval_params:
         self.do_fudge = do_fudge
         self.ptype = ptype
         self.do_clouds = do_clouds
-        self.cloudname = cloudname
+        self.cloud_name = cloud_name
+        self.cloud_type = cloud_type
+        
         self.cloudpatch_index=cloudpatch_index
         self.particle_dis=particle_dis
         self.instrument=instrument
         
-        self.dictionary = self.retrieval_para_dic_gen(chemeq, gaslist, gastype_list,fwhm,do_fudge, ptype,do_clouds,npatches,cloudname,cloudpatch_index,particle_dis)
+        self.dictionary = self.retrieval_para_dic_gen(chemeq, gaslist, gastype_list,fwhm,do_fudge, ptype,do_clouds,npatches,cloud_name,cloud_type,cloudpatch_index,particle_dis)
         
         
         
@@ -789,17 +793,18 @@ class Retrieval_params:
 
 
 
-    def cloud_dic_gen(self,do_clouds,cloudname,particle_dis=None):
+    def cloud_dic_gen(self,do_clouds,cloud_type_name,particle_dis=None):
         dictionary = {}
         if do_clouds==0:
             return {}
         
         else:
 
-            if cloudname=='grey cloud deck':
+            if cloud_type_name=='grey cloud deck':
 
                 dictionary["patch"]={
-                    'cloudnum': 99,
+                    # 'cloudnum': 99,
+                    # 'cloud_name': cloud_type_name,
                     'cloudtype':2,
                     'params':{'logp_gcd':
                                {'initialization':None,
@@ -818,10 +823,11 @@ class Retrieval_params:
                                 'prior':None}
                              }}
 
-            elif cloudname=='grey cloud slab':
+            elif cloud_type_name=='grey cloud slab':
 
                 dictionary["patch"]={
-                    'cloudnum': 99,
+                    # 'cloudnum': 99,
+                    # 'cloud_name': cloud_type_name,
                     'cloudtype':1,
 
                     'params':{'tau_gcs':
@@ -846,10 +852,12 @@ class Retrieval_params:
                                 'prior':None}
                              }}
 
-            elif cloudname=='powerlaw cloud deck':
+            elif cloud_type_name=='powerlaw cloud deck':
 
                 dictionary["patch"]={
-                    'cloudnum': 89,
+                    # 'cloudnum': 89,
+                    # 'cloud_name': cloud_type_name,
+                    'cloud_type_name': cloud_type_name,
                     'cloudtype':2,
 
                     'params':{'logp_pcd':
@@ -874,17 +882,18 @@ class Retrieval_params:
                                 'prior':None}
                              }}
 
-            elif 'Mie scattering cloud deck' in cloudname:
+            elif 'Mie scattering cloud deck' in cloud_type_name:
                 
-                cloudspecies=cloudname.split('--')[1].strip()
-                cloudnum=cloud_dic.get(cloudspecies,None)
+                cloudspecies=cloud_type_name.split('--')[1].split('.mieff')[0]
+                # cloudnum=50
 
 
-                if particle_dis=="hansan":
+                if particle_dis=="hansen":
                     dictionary["patch"]={
-                        'cloudnum': cloudnum,
+                        # 'cloudnum': cloudnum,
+                        # 'cloud_name': cloud_type_name,
                         'cloudtype':2,
-                        "particle_dis":"hansan",
+                        "particle_dis":"hansen",
                         'params':{'logp_mcd_%s'%cloudspecies:
                                     {'initialization':None,
                                     'distribution':['normal',1,0.1],
@@ -895,21 +904,22 @@ class Retrieval_params:
                                     'distribution':['customized',dp_customized_distribution], #lambda x: np.abs(0.1 * np.random.randn(x))
                                     'range':None, 
                                     'prior':None},
-                                    'hansan_a_mcd_%s'%cloudspecies:
+                                    'hansen_a_mcd_%s'%cloudspecies:
                                     {'initialization':None,
                                     'distribution':['normal',-1.4,0.1],
                                     'range':None,
                                     'prior':None},
-                                    'hansan_b_mcd_%s'%cloudspecies:
+                                    'hansen_b_mcd_%s'%cloudspecies:
                                     {'initialization':None,
-                                    'distribution':['customized',hansan_b_customized_distribution], #lambda x: np.abs(0.2+0.05 * np.random.randn(x))
+                                    'distribution':['customized',hansen_b_customized_distribution], #lambda x: np.abs(0.2+0.05 * np.random.randn(x))
                                     'range':None,
                                     'prior':None}
                                         }}
                                 
                 if particle_dis=="log_normal":
                     dictionary["patch"]={
-                        'cloudnum': cloudnum,
+                        # 'cloudnum': cloudnum,
+                        # 'cloud_name': cloud_type_name,
                         'cloudtype':1,
                         "particle_dis":"log_normal",
                         'params':{'logp_mcd_%s'%cloudspecies:
@@ -934,10 +944,11 @@ class Retrieval_params:
                                     'prior':None}
                                         }}
 
-            elif cloudname=='power law cloud slab':
+            elif cloud_type_name=='powerlaw cloud slab':
 
                 dictionary["patch"]={
-                    'cloudnum': 89,
+                    # 'cloudnum': 89,
+                    # 'cloud_name': cloud_type_name,
                     'cloudtype':1,
 
                     'params':{'tau_pcs':
@@ -968,15 +979,16 @@ class Retrieval_params:
                              }}
 
 
-            elif 'Mie scattering cloud slab' in cloudname:
-                cloudspecies=cloudname.split('--')[1].strip()
-                cloudnum=cloud_dic.get(cloudspecies,None)
+            elif 'Mie scattering cloud slab' in cloud_type_name:
+                cloudspecies=cloud_type_name.split('--')[1].split('.mieff')[0]
+                # cloudnum=50
 
-                if particle_dis=="hansan":
+                if particle_dis=="hansen":
                     dictionary["patch"]={
-                        'cloudnum': cloudnum,
+                        # 'cloudnum': cloudnum,
+                        # 'cloud_name': cloud_type_name,
                         'cloudtype':1,
-                        'particle_dis':"hansan",
+                        'particle_dis':"hansen",
                         'params':{'tau_mcs_%s'%cloudspecies:
                                    {'initialization':None,
                                     'distribution':['normal',10,1],
@@ -992,21 +1004,22 @@ class Retrieval_params:
                                    'distribution':['customized',dp_customized_distribution], # lambda x: np.abs(0.1 * np.random.randn(x))
                                    'range':None,
                                     'prior':None},
-                                  'hansan_a_mcs_%s'%cloudspecies:
+                                  'hansen_a_mcs_%s'%cloudspecies:
                                   {'initialization':None,
                                    'distribution':['normal',-1.4,0.1],
                                    'range':None,
                                     'prior':None},
-                                  'hansan_b_mcs_%s'%cloudspecies:
+                                  'hansen_b_mcs_%s'%cloudspecies:
                                   {'initialization':None,
-                                   'distribution':['customized',hansan_b_customized_distribution], #lambda x: np.abs(0.2+0.05 * np.random.randn(x))
+                                   'distribution':['customized',hansen_b_customized_distribution], #lambda x: np.abs(0.2+0.05 * np.random.randn(x))
                                    'range':None,
                                    'prior':None}
                                      }}
 
                 if particle_dis=="log_normal":
                     dictionary["patch"]={
-                        'cloudnum': cloudnum,
+                        # 'cloudnum': cloudnum,
+                        # 'cloud_name': cloud_type_name,
                         'cloudtype':1,
                         'particle_dis':"log_normal",
                         'params':{'tau_mcs_%s'%cloudspecies:
@@ -1036,7 +1049,7 @@ class Retrieval_params:
                                     'prior':None}
                                      }}
 
-            elif cloudname=='clear':
+            elif cloud_type_name=='clear':
                 dictionary["patch"]={'params':{}}
 
 
@@ -1243,9 +1256,27 @@ class Retrieval_params:
 
         return gas_dic
     
-    
-    
-    def cloud_allparams_gen(self,do_clouds,npatches,cloudname,cloudpatch_index,particle_dis):
+
+    def cloud_type_name_gen(self,cloud_name,cloud_type):
+        cloud_type_name=[]
+        for i in range(len(cloud_name)):
+            if cloud_name[i].lower()=='clear':
+                cloud_type_name.append('clear')
+            elif cloud_name[i].lower()=='powerlaw':
+                
+                cloud_type_name.append('powerlaw cloud '+cloud_type[i].lower())
+                
+            elif cloud_name[i].lower()=='grey':
+                cloud_type_name.append('grey cloud '+cloud_type[i].lower())
+                
+            else:
+                cloud_type_name.append('Mie scattering cloud '+cloud_type[i].lower()+'--'+cloud_name[i])
+                    
+        return cloud_type_name
+        
+  
+
+    def cloud_allparams_gen(self,do_clouds,npatches,cloud_type_name,cloudpatch_index,particle_dis):
         cloud_dic = {}
 
         if do_clouds > 0:
@@ -1260,13 +1291,14 @@ class Retrieval_params:
             for i in range(npatches):
                 for j in range(len(cloudpatch_index)):
                     if i + 1 in cloudpatch_index[j]:
-                        dic = self.cloud_dic_gen(do_clouds, cloudname[j], particle_dis[j])
+                        dic = self.cloud_dic_gen(do_clouds, cloud_type_name[j], particle_dis[j])
+
                         patch_key = f"patch {i + 1}"
 
                         if patch_key not in cloud_dic:
                             cloud_dic[patch_key] = {}
 
-                        cloud_dic[patch_key][cloudname[j]] = dic["patch"]
+                        cloud_dic[patch_key][cloud_type_name[j]] = dic["patch"]
 
                 # if i+1 > len(cloudpatch_index):
                 #     patch_key = f"patch {i + 1}"
@@ -1288,12 +1320,13 @@ class Retrieval_params:
 
     
     
-    def retrieval_para_dic_gen(self,chemeq,gaslist,gastype_list,fwhm,do_fudge,ptype,do_clouds,npatches,cloudname,cloudpacth_index,particle_dis):
+    def retrieval_para_dic_gen(self,chemeq,gaslist,gastype_list,fwhm,do_fudge,ptype,do_clouds,npatches,cloud_name,cloud_type,cloudpatch_index,particle_dis):
         retrieval_param={}
         gas_dic=self.gas_allparams_gen(chemeq,gaslist,gastype_list)
         refinement_dic=self.refinement_params_dic_gen()
         pt_dic=self.pt_dic_gen(ptype)
-        cloud_dic=self.cloud_allparams_gen(do_clouds,npatches,cloudname,cloudpacth_index,particle_dis) 
+        cloud_type_name=self.cloud_type_name_gen(cloud_name,cloud_type)
+        cloud_dic=self.cloud_allparams_gen(do_clouds,npatches,cloud_type_name,cloudpatch_index,particle_dis) 
         retrieval_param["gas"]=gas_dic
         retrieval_param["refinement_params"]=refinement_dic
         retrieval_param["pt"]=pt_dic
@@ -1534,114 +1567,59 @@ def MC_P0_gen(updated_dic,model_config_instance,args_instance):
 def cloud_para_gen(dic):
 
 
+
     # Determine number of patches and clouds
-    npatches = 1
-    nclouds = 1
-
-
     if 'cloud' not in dic or not dic['cloud']:
-        return np.zeros([npatches, nclouds], dtype='i'), np.zeros([npatches, nclouds], dtype='i'), np.zeros([npatches], dtype='i')
 
-    if 'patch 1' in dic['cloud']:
-        # Determine if there is more than one patch
-        if 'patch 2' in dic['cloud'] and dic['cloud']['patch 2']:
-            npatches = 2
-            
-        cloudnum_list=[]
-        for cloud_type, cloud_info in dic['cloud']['patch 1'].items():
-            if 'cloudnum' in cloud_info:
-                cloudnum_list.append(cloud_info['cloudnum'])
-            
-        # if len(cloudnum_list) ==2: #and len(set(cloudnum_list)) == len(cloudnum_list):
-        #     nclouds = 2
-        nclouds= len(cloudnum_list)
+        npatches = 1
+        nclouds = 1
 
-    # Initialize arrays
-    do_clouds = np.zeros([npatches], dtype='i')
-    cloudnum = np.zeros([npatches, nclouds], dtype='i')
-    cloudtype = np.zeros([npatches, nclouds], dtype='i')
-
-    # Populate arrays
-    patch_index = 0
-    for patch_key in dic['cloud'].keys():
-        if patch_key.startswith('patch 1'):            
-            for i in range(nclouds):
-                cloudkey=list(dic['cloud'][patch_key].keys())
-                cloud_info = dic['cloud'][patch_key][cloudkey[i]]
-                if 'cloudnum' in cloud_info and 'cloudtype' in cloud_info:
-                    cloudnum[patch_index, i] = cloud_info['cloudnum']
-                    cloudtype[patch_index, i] = cloud_info['cloudtype']
-                    do_clouds[patch_index] = 1
-
-            
-    if npatches==2:
-        cloudkey=list(dic['cloud']['patch 2'].keys())
-        cloud_info = dic['cloud']['patch 2'][cloudkey[0]]
-        if 'cloudnum' in cloud_info and 'cloudtype' in cloud_info:
-            cloudnum[1, 0] = cloud_info['cloudnum']
-            cloudnum[1, 1] = cloud_info['cloudnum']
-            cloudtype[1, 1] = cloud_info['cloudtype']
-            do_clouds[1] = 1
-        
-                    
-    return cloudnum, cloudtype, do_clouds
-
-
-
-# def args_gen(re_params,model,instrument,obspec):
-
-#     # set up pressure grids in log(bar) cos its intuitive
-#     logcoarsePress = np.arange(-4.0, 2.5, 0.53)
-#     logfinePress = np.arange(-4.0, 2.4, 0.1)
-
-#     # but forward model wants pressure in bar
-#     coarsePress = pow(10,logcoarsePress)
-#     press = pow(10,logfinePress)        
+        return np.zeros([nclouds]), np.zeros([nclouds]),np.zeros((npatches, nclouds)),np.zeros([nclouds])
     
-#     dist=model.dist
-#     use_disort=model.use_disort
-#     xpath=model.xpath
-#     xlist=model.xlist
-#     malk=model.malk
-#     do_fudge=model.do_fudge
-#     pfile=model.pfile
-#     do_bff=model.do_bff
-#     gaslist=list(re_params.dictionary['gas'].keys())
-#     gaslist_lower = [gas.lower() for gas in gaslist]
+    else:
+    
+        # Determine number of patches and clouds
+        patch_numbers = [
+        int(k.split(' ')[1])
+        for k in list(dic['cloud'].keys())
+        if k.startswith('patch') and k.split(' ')[1].isdigit()
+    ]
+        npatches = max(patch_numbers)
 
-#     chemeq=re_params.chemeq
-    
-#     if gaslist_lower[-1] == 'k_na':
-#         gaslist=list(gaslist[0:-1])+['k', 'na']
+        cloudname_set = [] #Used a set (cloudname_set) to automatically remove duplicates.
+        cloudsize =[]
+        for i in range(npatches):
+            for key in dic['cloud'][f'patch {i+1}']:
+                if 'clear' not in key and key not in cloudname_set:
+                    cloudname_set.append(key) 
+                    particle_dis=dic['cloud'][f'patch {i+1}'][key].get("particle_dis", 0)
+                    if particle_dis=='log_normal':
+                        cloudsize.append(2)
+                    elif particle_dis=='hansen':
+                        cloudsize.append(1)
+                    else:
+                        cloudsize.append(0)
 
-#     elif gaslist_lower[-1] == 'k_na_cs':
-#         gaslist=list(gaslist[0:-1])+['k','na','cs']
 
-    
-#     fwhm=instrument.fwhm
-#     w1,w2=instrument.wavelength_range[:]
-#     proftype=re_params.ptype
+        nclouds = len(cloudname_set)
+        cloud_opaname= np.zeros([nclouds], dtype=object, order='F')
 
-#     cloudnum, cloudtype, do_clouds=cloud_para_gen(re_params.dictionary)
-    
-#     prof = np.full(13, 100.)
-#     if proftype == 9:
-#         modP, modT = np.loadtxt(pfile, skiprows=1, usecols=(1, 2), unpack=True)
-#         tfit = InterpolatedUnivariateSpline(np.log10(modP), modT, k=1)
-#         prof = tfit(logcoarsePress)
-        
-        
-#     inlinetemps,inwavenum,linelist,gasnum,nwave = get_opacities(gaslist,w1,w2,press,xpath,xlist,malk)
-#     tmpcia, ciatemps = ciamod.read_cia("CIA_DS_aug_2015.dat",inwavenum)
-#     cia = np.asfortranarray(np.empty((4,ciatemps.size,nwave)),dtype='float32')
-#     cia[:,:,:] = tmpcia[:,:,:nwave] 
-#     ciatemps = np.asfortranarray(ciatemps, dtype='float32')
-    
-    
-#     # grab BFF and Chemical grids
-#     bff_raw,ceTgrid,metscale,coscale,gases_myP = sort_bff_and_CE(chemeq,"chem_eq_tables_P3K.pic",press,gaslist)
-    
-#     return gases_myP,chemeq,dist,cloudtype,do_clouds,gasnum,cloudnum,inlinetemps,coarsePress,press,inwavenum,linelist,cia,ciatemps,use_disort,fwhm,obspec,proftype,do_fudge, prof,do_bff,bff_raw,ceTgrid,metscale,coscale
+        for i in range(nclouds):
+            if 'Mie'in cloudname_set[i]:
+                cloud_opaname[i] = cloudname_set[i].split('--')[1]
+            else:
+                cloud_opaname[i] = cloudname_set[i].split(' ')[0]
+
+
+        cloudmap = np.zeros((npatches, nclouds), dtype=int,order='F')
+        # Populate arrays
+        for idx, cloud in enumerate(cloudname_set):
+            for i in range(npatches):
+                if cloud in list(dic['cloud'][f'patch {i+1}'].keys()):
+                    cloudmap[i,idx]= 1
+
+         
+        return cloudname_set,cloud_opaname,cloudmap,np.array(cloudsize) 
 
 
 
@@ -1811,6 +1789,112 @@ def sort_bff_and_CE(chemeq,ce_table,press,gaslist):
 
 
 
+def get_clouddata(cloudname,cloudpath = "../Clouds/"):
+
+    """
+    A function to get the clouddata from the cloud path, and put into memory. 
+    The result should be a array like cloudnum (update name) with npatch, nclouda and each of these having miewave, mierad, qext, qscat, cos_qscat
+
+    """
+
+    with open(cloudpath + f'{cloudname}.pic', 'rb') as f:
+        miewave, mierad, qext, qscat, cos_qscat = pickle.load(f)
+
+    # Convert to Fortran order and float64
+
+    miewave_f = np.asfortranarray(miewave, dtype=np.float64)
+    mierad_f = np.asfortranarray(mierad, dtype=np.float64)
+    qext_f = np.asfortranarray(qext, dtype=np.float64)
+    qscat_f = np.asfortranarray(qscat, dtype=np.float64)
+    cos_qscat_f = np.asfortranarray(cos_qscat, dtype=np.float64)
+
+    # Flatten all arrays (column-major order for Fortran)
+    # cloud = np.concatenate([
+    #     miewave_f.ravel(order='F'),          # size: nwave
+    #     mierad_f.ravel(order='F'),           # size: nrad
+    #     qext_f.ravel(order='F'),             # size: nwave * nrad
+    #     qscat_f.ravel(order='F'),
+    #     cos_qscat_f.ravel(order='F')
+    # ])
+
+        # Flatten all arrays (column-major order for Fortran)
+    cloud =[qext_f,qscat_f,cos_qscat_f]
+
+    return cloud,miewave_f,mierad_f
+
+
+    
+def shared_memory_array(rank, comm, shape,datatype='d'):
+    ''' 
+    Creates a numpy array shared in memory across multiple cores.
+    Taken from Ryan MacDonald's Poseidon. Adapted for multiple nodes by 
+    Ben Burningham using github: rcthomas/example-allocate-shared.py
+
+    Adapted from :
+    https://stackoverflow.com/questions/32485122/shared-memory-in-mpi4py
+    
+    '''
+    
+    # Create a shared array of size given by product of each dimension
+    size = np.prod(shape)
+    itemsize = MPI.DOUBLE.Get_size() 
+
+    if (rank == 0): 
+        nbytes = size * itemsize   # Array memory allocated for first process
+    else:  
+        nbytes = 0   # No memory storage on other processes
+        
+    # On rank 0, create the shared block
+    # On other ranks, get a handle to it (known as a window in MPI speak)
+
+    
+    new_comm = MPI.Comm.Split(comm)
+    win = MPI.Win.Allocate_shared(nbytes, itemsize, comm=new_comm) 
+ 
+    # Create a numpy array whose data points to the shared memory
+    buf, itemsize = win.Shared_query(0) 
+    assert itemsize == MPI.DOUBLE.Get_size() 
+    array =  np.ndarray(buffer=buf, dtype=datatype, shape=shape,order='F')
+    
+    return array, win
+
+
+def get_gasdetails(gaslist,w1,w2,xpath='../Linelists',xlist='gaslistR10K.dat'):
+    # Now we'll get the opacity files into an array
+    ngas = len(gaslist)
+
+    totgas = 0
+    gasdata = []
+    with open(xlist) as fa:
+        for line_aa in fa.readlines():
+            if len(line_aa) == 0:
+                break
+            totgas = totgas +1 
+            line_aa = line_aa.strip()
+            gasdata.append(line_aa.split())
+
+    
+    list1 = []
+    for i in range(0,ngas):
+        for j in range(0,totgas):
+            if (gasdata[j][1].lower() == gaslist[i].lower()):
+                list1.append(gasdata[j])
+
+    gasnum = np.asfortranarray(np.array([i[0] for i in list1[0:ngas]],dtype='i'))
+    
+    lists = [xpath+i[3] for i in list1[0:ngas]]
+
+ 
+    # get the basic framework from water list
+    rawwavenum, inpress, inlinetemps, inlinelist = pickle.load(open(lists[0], "rb"))
+
+    wn1 = 10000. / w2
+    wn2 = 10000. / w1
+    inwavenum = np.asfortranarray(rawwavenum[np.where(np.logical_not(np.logical_or(rawwavenum[:] > wn2, rawwavenum[:] < wn1)))],dtype='float64')
+ 
+    nwave = inwavenum.size
+
+    return inlinetemps,inwavenum,gasnum,nwave
 
 
 
@@ -1841,12 +1925,10 @@ class ArgsGen:
         List of gasnames in fortran compatible character arrays
     gasmass: float
         List of molecular masses for gases
-    cloudtype : str
-        Type of cloud parameterization used.
     do_clouds : bool
         Whether clouds are considered.
-    cloudnum : int
-        Number of cloud layers.
+    cloudflag : int
+        powerlaw, grey, or MIE cloud 
     inlinetemps : np.array
         Inline temperatures from opacities.
     coarsePress : np.array
@@ -1939,8 +2021,32 @@ class ArgsGen:
         
         # Profile type and cloud parameters
         self.proftype = self.re_params.ptype
-        self.cloudnum, self.cloudtype, self.do_clouds = cloud_para_gen(self.re_params.dictionary)
+        # self.cloudflag, self.cloudtype, self.do_clouds,self.cloudnames = cloud_para_gen(self.re_params.dictionary)
         
+
+        if self.re_params.dictionary['cloud']:
+            self.cloudname_set,self.cloud_opaname,self.cloudmap,self.cloudsize=cloud_para_gen(self.re_params.dictionary)
+
+            cloud_demo,self.miewave,self.mierad= get_clouddata('H2O.mieff', self.model.cloudpath)
+            # Initialize clouddata as a nested list to hold arrays
+            self.cloudata = np.zeros((len(self.cloudname_set), 3, len(self.miewave), len(self.mierad)), order='F')
+
+            for i in range(len(self.cloudname_set)):
+                val = self.cloudname_set[i]
+                if isinstance(val, str) and 'Mie' in val:
+                    self.cloudata[i]= np.asfortranarray(
+                            get_clouddata(self.cloudname_set[i].split('--')[1], self.model.cloudpath)[0])
+
+        # # Initialize clouddata as a nested list to hold arrays
+        # self.cloudata = np.zeros((*self.cloudflag.shape, 3, len(self.miewave), len(self.mierad)), order='F')
+
+        # for i in range(len(self.cloudflag)):
+        #     for j in range(len(self.cloudflag[0])):
+        #         val = self.cloudflag[i][j]
+        #         if isinstance(val, str) and 'Mie' in val:
+        #             self.cloudata[i][j] = np.asfortranarray(
+        #                 get_clouddata(self.cloudnames[i][j], self.model.cloudpath)[0])
+
         # Generate temperature profile
         self.prof = np.full(13, 100.0)
         if self.proftype == 9:
@@ -1963,25 +2069,46 @@ class ArgsGen:
 
         
     def __str__(self):
-        return f"""
-        ArgsGen Model Parameters:
-        -------------------------
-        Distance: {self.dist} (Error: {self.dist_err})
-        Chemical Equilibrium: {self.chemeq}
-        FWHM: {self.fwhm}
-        Wavelength Range: {self.w1} - {self.w2}
-        DISORT Flag: {self.use_disort}
-        do_fudge {self.do_fudge}
-        do_bff: {self.do_bff}
-        Profile Type: {self.proftype}
-        Gas List: {self.gaslist}
-        do_clouds: {self.do_clouds}
-        Number of Clouds: {self.cloudnum}
-        Cloud Type: {self.cloudtype} 
-        Metallicity Scale: {self.metscale}
-        C/O Ratio Scale: {self.coscale}
-        Coarse Pressure Grid: {self.coarsePress}
-        """
+
+        if self.re_params.dictionary['cloud']:
+            return f"""
+            ArgsGen Model Parameters:
+            -------------------------
+            Distance: {self.dist} (Error: {self.dist_err})
+            Chemical Equilibrium: {self.chemeq}
+            FWHM: {self.fwhm}
+            Wavelength Range: {self.w1} - {self.w2}
+            DISORT Flag: {self.use_disort}
+            do_fudge {self.do_fudge}
+            do_bff: {self.do_bff}
+            Profile Type: {self.proftype}
+            Gas List: {self.gaslist}
+            cloudname_set: {self.cloudname_set}
+            cloud_opaname: {self.cloud_opaname}
+            cloudmap: {self.cloudmap}
+            cloudsize: {self.cloudsize}
+            cloudata: {self.cloudata}
+            Metallicity Scale: {self.metscale}
+            C/O Ratio Scale: {self.coscale}
+            Coarse Pressure Grid: {self.coarsePress}
+            """
+        else:
+            return f"""
+            ArgsGen Model Parameters:
+            -------------------------
+            Distance: {self.dist} (Error: {self.dist_err})
+            Chemical Equilibrium: {self.chemeq}
+            FWHM: {self.fwhm}
+            Wavelength Range: {self.w1} - {self.w2}
+            DISORT Flag: {self.use_disort}
+            do_fudge {self.do_fudge}
+            do_bff: {self.do_bff}
+            Profile Type: {self.proftype}
+            Gas List: {self.gaslist}
+            Metallicity Scale: {self.metscale}
+            C/O Ratio Scale: {self.coscale}
+            Coarse Pressure Grid: {self.coarsePress}
+            """
 
         # Temperature Profile: {self.prof}
         # Inlined Temperatures: {self.inlinetemps}
@@ -1991,3 +2118,6 @@ class ArgsGen:
         # BFF Raw Grid: {self.bff_raw}
         # Fine Pressure Grid: {self.press}
         # Chemical Grid T: {self.ceTgrid}
+        # cloudflag: {self.cloudflag}
+
+
