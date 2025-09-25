@@ -52,16 +52,17 @@ def NoCloud_Tdwarf(xpath,xlist):
      npatches=1
 
      cloudname = ['clear']
-     cloudpacth_index=[[1]]
+     cloudpatch_index=[[1]]
      particle_dis=[]
+     cloudpath=None
 
      # ModelConfig:
      do_fudge=0
      samplemode='mcmc'
 
-     instrument_instance = utils.Instrument(fwhm,wavelength_range,ndata)
-     re_params = utils.Retrieval_params(samplemode,chemeq,gaslist,gastype_list,fwhm,do_fudge,ptype,do_clouds,npatches,cloudname,cloudpacth_index,particle_dis,instrument_instance)
-     model_config_instance = utils.ModelConfig(samplemode,do_fudge)
+     instrument_instance = utils.Instrument(fwhm,wavelength_range,ndata,wavpoints, R_file)
+     re_params = utils.Retrieval_params(samplemode,chemeq,gaslist,gastype_list,fwhm,do_fudge,ptype,do_clouds,npatches,cloudname,cloudpatch_index,particle_dis, instrument_instance)
+     model_config_instance = utils.ModelConfig(samplemode,do_fudge,cloudpath)
      io_config_instance = utils.IOConfig()
 
 
@@ -133,14 +134,15 @@ def MieClouds_Ldwarf(xpath,xlist):
      npatches=1
      cloudname = ['Mie scattering cloud slab--MgSiO3Cry','Mie scattering cloud deck--Fe2O3_WS15']
      cloudpacth_index=[[1],[1]]
-     particle_dis=['hansan','hansan']
+     particle_dis=['hansen','hansen']
+     cloudpath=None
      # ModelConfig:
 
      do_fudge = 1
      samplemode='mcmc'
      instrument_instance = utils.Instrument(fwhm,wavelength_range,ndata)
-     re_params = utils.Retrieval_params(samplemode,chemeq,gaslist,gastype_list,fwhm,do_fudge,ptype,do_clouds,npatches,cloudname,cloudpacth_index,particle_dis)
-     model_config_instance = utils.ModelConfig(samplemode,do_fudge)
+     re_params = utils.Retrieval_params(samplemode,chemeq,gaslist,gastype_list,fwhm,do_fudge,ptype,do_clouds,npatches,cloudname,cloudpacth_index,particle_dis,instrument_instance)
+     model_config_instance = utils.ModelConfig(samplemode,do_fudge,cloudpath)
      io_config_instance = utils.IOConfig()
 
 

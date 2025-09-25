@@ -521,7 +521,7 @@ class Retrieval_params:
         String representation of the class instance.
     """
     
-    def __init__(self, samplemode,chemeq=None, gaslist=None, gastype_list=None,fwhm=None,do_fudge=1,ptype=None,do_clouds=1,npatches=None,cloud_name=None,cloud_type=None,cloudpatch_index=None,particle_dis=None):
+    def __init__(self, samplemode,chemeq=None, gaslist=None, gastype_list=None,fwhm=None,do_fudge=1,ptype=None,do_clouds=1,npatches=None,cloud_name=None,cloud_type=None,cloudpatch_index=None,particle_dis=None, instrument=None):
         self.samplemode = samplemode
         self.chemeq = chemeq
         self.gaslist = gaslist
@@ -1100,14 +1100,15 @@ class Retrieval_params:
                         'prior': None
                     }
                 }
-               scales_parameter_max = int(np.max(self.instrument.scales))
-               if scales_parameter_max > 0:
-                  for i in range(1, scales_parameter_max + 1):
-                      dictionary['params'][f'scale{i}'] = {
+               if getattr(self, "instrument", None) is not None and getattr(self.instrument, "scales", None) is not None:
+                   scales_parameter_max = int(np.max(self.instrument.scales))
+                   if scales_parameter_max > 0:
+                       for i in range(1, scales_parameter_max + 1):
+                           dictionary['params'][f'scale{i}'] = {
                             'initialization': None,
                             'distribution': ['normal', 1, 0.001],
                             'prior': None
-                      }
+                          }
                       
                   #for i in range(1, scales_parameter_max+1):
                   #    dictionary['params'][f'scale{i}']['initialization'] =1.0 +1e3*np.random.randn()
@@ -1154,8 +1155,8 @@ class Retrieval_params:
     
         if (self.fwhm >=0 and self.fwhm <=500) or (self.fwhm in [-5,-6]):
 
-            del dictionary['params']['scale1']
-            del dictionary['params']['scale2']
+            #del dictionary['params']['scale1']
+            #del dictionary['params']['scale2']
             if self.samplemode.lower() == 'mcmc':
                 del dictionary['params']['frac_param']
             if self.do_fudge==1:
@@ -1695,6 +1696,102 @@ def get_opacities(gaslist,w1,w2,press,xpath='../Linelists',xlist='gaslistR10K.da
     gasnames = np.asfortranarray(gasnames,dtype='c')
 
     return inlinetemps,inwavenum,linelist,gasnames,gasmass,nwave
+    
+    
+    
+def get_k_opacities(gaslist,w1,w2,press,xpath='../K_tables',xlist='gaslist_ck.dat'):
+    #import exo_k as xk
+    import h5py
+    #from scipy.interpolate import interp1d
+    # Now we'll get the opacity files into an array
+    ngas = len(gaslist)
+
+    totgas = 0
+    gasdata = []
+    with open(xlist) as fa:
+        for line_aa in fa.readlines():
+            if len(line_aa) == 0:
+                break
+            totgas = totgas +1 
+            line_aa = line_aa.strip()
+            gasdata.append(line_aa.split())
+
+
+    list1 = []
+    for i in range(0,ngas):
+        for j in range(0,totgas):
+            if (gasdata[j][1].lower() == gaslist[i].lower()):
+                list1.append(gasdata[j])
+
+    lists = [xpath+i[3] for i in list1[0:ngas]]
+    gasmass = np.asfortranarray(np.array([i[2] for i in list1[0:ngas]],dtype='float32'))
+
+
+    # c-k part
+    
+    with h5py.File(lists[0], "r") as f:
+        inlinetemps = f['t'][:]             # temp grid
+        inpress = f['p'][:]                 # press grid
+        wn_all = f['bin_centers'][:]        # central points of wnumber bins in cm^-1
+        ngauss = f['kcoeff'].shape[-1]      # number of g-points
+        gpoints = f['samples'][:]           # abscissa of the g grid 
+        weights = f['weights'][:]           #quadrature weights corresponding to the g points
+    
+    #kt0 = xk.Ktable(filename=lists[0])
+    #inlinetemps = kt0.tgrid #temp grid, in the h5py the key is t
+    #inpress = kt0.pgrid  #press grid, in the h5py the key is p
+    #wn_all = kt0.wns #central points of wnumber bins in cm^-1, in the h5py the key is  bin_centers
+    #ngauss = kt0.Ng  #number of g points, in the h5py we can retrieve is as ['kcoeff'].shape[-1]
+    #gpoints = kt0.ggrid  #abscissa of the g grid , in the h5py the key is  samples             
+    #weights = kt0.weights #quadrature weights corresponding to the g points, in the h5py the key is  weights
+    
+
+    #convert micron to cm^-1
+    wn1 = 10000. / w2
+    wn2 = 10000. / w1
+    mask = (wn_all >= wn1) & (wn_all <= wn2)
+    #inwavenum = np.asfortranarray(rawwavenum[np.where(np.logical_not(np.logical_or(rawwavenum[:] > wn2, rawwavenum[:] < wn1)))],dtype='float64')
+    inwavenum = np.asfortranarray(wn_all[mask],dtype='float64')
+    
+    ntemps = inlinetemps.size
+    npress= press.size
+    nwave = inwavenum.size
+    #r1 = np.amin(np.where(np.logical_not(np.logical_or(rawwavenum[:] > wn2, rawwavenum[:] < wn1))))
+    #r2 = np.amax(np.where(np.logical_not(np.logical_or(rawwavenum[:] > wn2, rawwavenum[:] < wn1))))
+
+    # Here we are interpolating the linelist onto our fine pressure scale.
+    linelist = (np.zeros([ngas,ngauss,npress,ntemps,nwave],order='F')).astype('float64', order='F')
+
+    for g, fname in enumerate(lists):     #loop over gases (e.g. 0=h2o, 1=ch4)
+        #kt = xk.Ktable(filename=fname)    
+        with h5py.File(fname, "r") as f:
+            kcoeff = f['kcoeff'][:]
+            pgrid = f['p'][:]
+            
+            for i in range(ntemps):           # loop over T
+                for j, w in enumerate(np.where(mask)[0]):  # loop over selected wavelengths, 
+                                                       # j is the index of the selected wavenumber bin within the masked range 
+                                                       # w the actual index in the full wavenumber grid (kt.wns)
+                    for gg in range(ngauss):  # loop over g-points (g-point indexing)
+                
+                        kslice = kcoeff[:, i, w, gg]   #[npress, ntemp, nwave, ngauss], opacity cross-section at all pressures, at temperature i, at wavenumber bin w, and at g-point gg
+            
+                        # interpolate onto retrieval pressure grid
+                        pfit = interp1d(np.log10(pgrid), np.log10(kslice),
+                                        bounds_error=False, fill_value=-50.0)
+                        linelist[g, gg, :, i, j] = np.asfortranarray(pfit(np.log10(press))) #[gas, gg point, P, T, masked wave]
+    
+    # convert gaslist into fortran array of ascii strings for fortran code 
+    gasnames = np.empty((len(gaslist), 10), dtype='c')
+    for i, g in enumerate(gaslist):
+        gasnames[i, 0:len(g)] = list(g)
+
+    gasnames = np.asfortranarray(gasnames,dtype='c')
+    gpoints = np.asfortranarray(gpoints, dtype='float32')
+    weights = np.asfortranarray(weights, dtype='float32')
+    
+    return inlinetemps,inwavenum,linelist,gasnames,gasmass,nwave, gpoints, weights #these 2 needs to be float 32
+    #also use pickle instead of h5
 
 
 

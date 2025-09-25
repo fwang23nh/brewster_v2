@@ -2439,7 +2439,7 @@ def modelspec(theta,re_params,args_instance,gnostics):
         args_instance.R,
         args_instance.wl,
         args_instance.logf_flag,
-        args_instance.scales
+        args_instance.scales,
         args_instance.miewave,
         args_instance.mierad,
         args_instance.cloudata,
