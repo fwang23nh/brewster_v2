@@ -2730,7 +2730,12 @@ def modelspec(theta,re_params,args_instance,gnostics):
 
 
     # now we can call the forward model
-    
+    #use_disort = int(use_disort)
+    if use_disort is None:
+        use_disort = 0   
+    else:
+        use_disort = int(use_disort)
+    #print('use_disort',use_disort)
     outspec,tmpclphotspec,tmpophotspec,cf = forwardmodel.marv(temp,logg,R2D2,gasnames,gasmass,logVMR,pcover,cloudmap,cloud_opaname,cloudsize,cloudata,miewave,mierad, cloudrad,cloudsig,cloudprof,inlinetemps,press,inwavenum,linelist,cia,ciatemps,use_disort,clphot,ophot,make_cf,do_bff,bff)
 
     # Trim to length where it is defined.

@@ -1260,7 +1260,24 @@ class Retrieval_params:
 
     def cloud_type_name_gen(self,cloud_name,cloud_type):
         cloud_type_name=[]
+        
+        
+        
+        #for i in range(len(cloud_name)):
+        
+        
+        if not cloud_name:  # No clouds at all
+            return ['clear']  # or return empty list if code can handle it
+    
         for i in range(len(cloud_name)):
+            name = cloud_name[i]
+            ctype = cloud_type[i]
+
+            if isinstance(name, list):
+                name = name[0]
+            if isinstance(ctype, list):
+                ctype = ctype[0]
+        
             if cloud_name[i].lower()=='clear':
                 cloud_type_name.append('clear')
             elif cloud_name[i].lower()=='powerlaw':
@@ -2133,6 +2150,15 @@ class ArgsGen:
                 if isinstance(val, str) and 'Mie' in val:
                     self.cloudata[i]= np.asfortranarray(
                             get_clouddata(self.cloudname_set[i].split('--')[1], self.model.cloudpath)[0])
+                            
+        if not self.re_params.dictionary['cloud']:
+            self.miewave = np.array([])
+            self.mierad = np.array([])
+            #self.cloudata = None
+            self.cloudata=np.zeros((0,0), dtype=float)
+            self.cloud_opaname = []
+            self.cloudsize = []
+            self.cloudmap = np.zeros((1, 1), dtype=int)
 
         # # Initialize clouddata as a nested list to hold arrays
         # self.cloudata = np.zeros((*self.cloudflag.shape, 3, len(self.miewave), len(self.mierad)), order='F')
