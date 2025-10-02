@@ -27,148 +27,13 @@ __status__ = "Development"
 # cloudprof = np.zeros_like(cloudrad)
 # cloudmap = np.zeros((npatches, nclouds), dtype=bool)
 
-
-def cloud_unpack(re_params, params_instance):
-    #CLOUDFREE
-    if (not hasattr(re_params, 'dictionary')) or ('cloud' not in re_params.dictionary) or (not re_params.dictionary['cloud']):
-        return np.ones((5, 0), dtype='d') * 0.0
-
-    patch_numbers = [
-        int(k.split(' ')[1])
-        for k in list(re_params.dictionary['cloud'].keys())
-        if k.startswith('patch') and len(k.split(' ')) > 1 and k.split(' ')[1].isdigit()
-    ]
-    
-
-    # NO PATCH
-    #if not patch_numbers:
-    #    return np.ones((5, 0), dtype='d') * 0.0
-        
-    npatches = max(patch_numbers)
-
-    # names of all clouds
-    cloudname_set = []
-    for patch_key in re_params.dictionary['cloud']:
-        for key in re_params.dictionary['cloud'][patch_key]:
-            if 'clear' not in key and key not in cloudname_set:
-                cloudname_set.append(key)
-
-    #NO CLOUD   
-    nclouds = len(cloudname_set)
-    if nclouds == 0:
-        return np.ones((5, 0), dtype='d') * 0.0
-
-    
-    pattern_dis = re.compile(r'\b(deck|slab)\b', re.IGNORECASE)
-    cloud_distype = [
-        (pattern_dis.search(name).group(1).lower() if pattern_dis.search(name) else 'unknown')
-        for name in cloudname_set
-    ]
-
-    pattern_opa = re.compile(r'\b(powerlaw|grey|Mie)\b', re.IGNORECASE)
-    cloud_opatype = [
-        (pattern_opa.search(name).group(1).lower() if pattern_opa.search(name) else 'unknown')
-        for name in cloudname_set
-    ]
-
-    # defaults
-    cloudparams = np.ones([5, nclouds], dtype='d')
-    cloudparams[0, :] = 0.0
-    cloudparams[1, :] = 0.0
-    cloudparams[2, :] = 0.1
-    cloudparams[3, :] = 0.0
-    cloudparams[4, :] = 0.5
+   
 
 
-    
-    cloudmap = np.zeros((npatches, nclouds), dtype=bool)
-    for icloud, patches in enumerate(re_params.cloudpatch_index):
-        for ipatch in patches:
-            cloudmap[ipatch - 1, icloud] = True
-
-    for idx, cloud in enumerate(cloudname_set):
-        for i in range(npatches):
-            if cloud in list(re_params.dictionary['cloud'][f'patch {i+1}'].keys()):
-                cloud_rawparams_key = list(re_params.dictionary['cloud'][f'patch {i+1}'][cloud]['params'].keys())
-                cloud_rawparams=np.array([getattr(params_instance, key) for key in cloud_rawparams_key])
-                # cloudmap[i,idx]= 1
-
-        if ((cloud_distype[idx] == "deck") and (cloud_opatype[idx] == 'grey')):
-            cloudparams[1:4,idx] = cloud_rawparams[:]
-            cloudparams[4,idx] = 0.0
-        elif ((cloud_distype[idx] == "slab") and (cloud_opatype[idx] == 'grey')):
-            cloudparams[0:4,idx] = cloud_rawparams[:]
-            cloudparams[4,idx] = 0.0
-        elif (cloud_distype[idx] == "deck") and (cloud_opatype[idx] == 'powerlaw' or cloud_opatype[idx]== 'mie'):
-            cloudparams[1:5,idx] = cloud_rawparams[:]
-        else:
-            cloudparams[:,idx] = cloud_rawparams[:]
-
-
-
-    return cloudparams
-    
-    
-    
-    '''
-    for idx, cloud in enumerate(cloudname_set):
-        # pick first patch for this cloud
-        patches = re_params.cloudpatch_index[idx]
-        patch_key = f'patch {patches[0]}'
-        cloud_rawparams_key = list(re_params.dictionary['cloud'][patch_key][cloud]['params'].keys())
-        cloud_rawparams = np.array([getattr(params_instance, key) for key in cloud_rawparams_key])
-
-        if (cloud_distype[idx] == "deck") and (cloud_opatype[idx] == 'grey'):
-            cloudparams[1:4, idx] = cloud_rawparams
-            cloudparams[4, idx] = 0.0
-        elif (cloud_distype[idx] == "slab") and (cloud_opatype[idx] == 'grey'):
-            cloudparams[0:4, idx] = cloud_rawparams
-            cloudparams[4, idx] = 0.0
-        elif (cloud_distype[idx] == "deck") and (cloud_opatype[idx] in ('powerlaw', 'mie')):
-            if len(cloud_rawparams) == 5:
-                cloudparams[:, idx] = cloud_rawparams
-            else:
-                cloudparams[1:5, idx] = cloud_rawparams
-        else:
-            cloudparams[:, idx] = cloud_rawparams
-
-    return cloudparams#, cloudmap
-    '''
-
-    
-    
-    
-    '''
-    for icloud, cloud in enumerate(cloudname_set):
-        patches = re_params.cloudpatch_index[icloud]  # take the patches for this cloud
-        patch_key = f'patch {patches[0]}'
-        cloud_rawparams_key = list(re_params.dictionary['cloud'][patch_key][cloud]['params'].keys())
-        cloud_rawparams = np.array([getattr(params_instance,key) for key in cloud_rawparams_key])
-
-        if (cloud_distype[icloud]=="deck") and (cloud_opatype[icloud]=='grey'):
-            cloudparams[1:4,icloud] = cloud_rawparams
-            cloudparams[4,icloud] = 0.
-        elif (cloud_distype[icloud]=="slab") and (cloud_opatype[icloud]=='grey'):
-            cloudparams[0:4,icloud] = cloud_rawparams
-            cloudparams[4,icloud] = 0.
-        elif (cloud_distype[icloud]=="deck") and (cloud_opatype[icloud] in ('powerlaw','mie')):
-            if len(cloud_rawparams)==5:
-                cloudparams[:,icloud] = cloud_rawparams
-            else:
-                cloudparams[1:5,icloud] = cloud_rawparams
-        else:
-            cloudparams[:,icloud] = cloud_rawparams
-
-
-    return cloudparams#, cloudmap
-    
-    
-    '''    
-    
-
-'''
 def cloud_unpack(re_params,params_instance):
 
+    if (not hasattr(re_params, 'dictionary')) or ('cloud' not in re_params.dictionary) or (not re_params.dictionary['cloud']):
+        return np.ones((5, 0), dtype='d') * 0.0
     patch_numbers = [
     int(k.split(' ')[1])
     for k in list(re_params.dictionary['cloud'].keys())
@@ -233,7 +98,7 @@ def cloud_unpack(re_params,params_instance):
 
     return cloudparams
 
-'''
+
 
 def atlev(l0,press):
     nlayers = press.size
