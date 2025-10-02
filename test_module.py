@@ -96,7 +96,9 @@ def lnprior(theta,re_params):
         R,
         wl,
         logf_flag,
-        scales
+        scales,
+        gpoints,
+        weights
     ) = (
         args_instance.gases_myP,
         args_instance.chemeq,
@@ -127,7 +129,9 @@ def lnprior(theta,re_params):
         args_instance.R,
         args_instance.wl,
         args_instance.logf_flag,
-        args_instance.scales
+        args_instance.scales,
+        args_instance.gpoints,
+        args_instance.weights
     )
 
     
@@ -1247,7 +1251,9 @@ def priormap_dic(theta,re_params):
         R,
         wl,
         logf_flag,
-        scales
+        scales,
+        gpoints,
+        weights
     ) = (
         args_instance.gases_myP,
         args_instance.chemeq,
@@ -1279,7 +1285,9 @@ def priormap_dic(theta,re_params):
         args_instance.R,
         args_instance.wl,
         args_instance.logf_flag,
-        args_instance.scales
+        args_instance.scales,
+        args_instance.gpoints,
+        args_instance.weights
     )
 
     phi = np.zeros_like(theta)
@@ -1823,7 +1831,9 @@ def lnlike(theta,re_params):
         R,
         wl,
         logf_flag,
-        scales     
+        scales,
+        gpoints,
+        weights     
     ) = (
         args_instance.gases_myP,
         args_instance.chemeq,
@@ -1855,7 +1865,9 @@ def lnlike(theta,re_params):
         args_instance.R,
         args_instance.wl,
         args_instance.logf_flag,
-        args_instance.scales
+        args_instance.scales,
+        args_instance.gpoints,
+        args_instance.weights
     )
 
     # get the spectrum
@@ -2410,7 +2422,9 @@ def modelspec(theta,re_params,args_instance,gnostics):
         cloudata,
         cloud_opaname,
         cloudsize,
-        cloudmap
+        cloudmap,
+        gpoints,
+        weights
     ) = (
         args_instance.gases_myP,
         args_instance.chemeq,
@@ -2445,7 +2459,9 @@ def modelspec(theta,re_params,args_instance,gnostics):
         args_instance.cloudata,
         args_instance.cloud_opaname,
         args_instance.cloudsize,
-        args_instance.cloudmap
+        args_instance.cloudmap,
+        args_instance.gpoints,
+        args_instance.weights
     )
         
     nlayers = press.size

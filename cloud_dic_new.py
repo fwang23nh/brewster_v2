@@ -27,8 +27,6 @@ __status__ = "Development"
 # cloudprof = np.zeros_like(cloudrad)
 # cloudmap = np.zeros((npatches, nclouds), dtype=bool)
 
-   
-
 
 def cloud_unpack(re_params,params_instance):
 
