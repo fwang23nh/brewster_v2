@@ -2116,6 +2116,7 @@ class ArgsGen:
         self.pfile = self.model.pfile
         self.do_bff = self.model.do_bff
         self.chemeq = self.re_params.chemeq
+        
         # Process gas list
         self.gaslist = list(self.re_params.dictionary['gas'].keys())
         gaslist_lower = [gas.lower() for gas in self.gaslist]
