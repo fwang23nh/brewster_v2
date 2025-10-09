@@ -38,7 +38,11 @@ contains
     ! get the distribution from do_clouds
     ! 2 = log normal, 1 = hansen
 
-
+    ! clouddata is (cloud,3,nwave,nrad)
+    ! the 3 columns for data are qscat, qext and cosqs.
+    ! this is the same order that mie code from EGP outputs the mie coefficients
+    ! into .mieff files.
+    ! kept to be consistent with other codes using the same heritage
 
     nmiewave = size(miewave)
     nrad = size(mierad)
