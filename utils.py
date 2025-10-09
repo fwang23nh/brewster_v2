@@ -1912,7 +1912,7 @@ def get_clouddata(cloudname,cloudpath = "../Clouds/"):
     """
 
     with open(cloudpath + f'{cloudname}.pic', 'rb') as f:
-        miewave, mierad, qext, qscat, cos_qscat = pickle.load(f)
+        miewave, mierad, qscat, qext, cos_qscat = pickle.load(f)
 
     # Convert to Fortran order and float64
 
@@ -1932,7 +1932,7 @@ def get_clouddata(cloudname,cloudpath = "../Clouds/"):
     # ])
 
         # Flatten all arrays (column-major order for Fortran)
-    cloud =[qext_f,qscat_f,cos_qscat_f]
+    cloud =[qscat_f,qext_f,cos_qscat_f]
 
     return cloud,miewave_f,mierad_f
 

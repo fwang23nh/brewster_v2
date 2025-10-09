@@ -75,7 +75,7 @@ subroutine marv(temp,logg,R2D2,ingasname,molmass,logVMR,pcover,&
   cloudname = cloud_opaname
   
   call forward(temp,logg,R2D2,gasname,molmass,logVMR,pcover,&
-       cloudmap,cloudsize,cloudname,clouddata,miewave,mierad,&
+       cloudmap,cloudname,cloudsize,clouddata,miewave,mierad,&
        cloudrad,cloudsig,cloudprof,&
        inlinetemps,inpress,inwavenum,inlinelist,cia,ciatemps,use_disort,&
        clphot,othphot,do_cf,do_bff,bff,out_spec,clphotspec,othphotspec,cf)
