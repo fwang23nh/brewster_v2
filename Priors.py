@@ -9,6 +9,8 @@ import utils
 import settings
 import numpy as np
 import math
+import cloud_dic_new
+import re
 
 
 
@@ -216,8 +218,132 @@ class Priors:
         #         )
         #         priors_tolerance_params = priors_tolerance_params and statement
 
+
+        # 5.cloud 
+        prior_cloud = True
+        if self.re_params.dictionary['cloud']:
+
+            cloudparams = cloud_dic_new.cloud_unpack(self.re_params,self.params_instance) 
+
+            patch_numbers = [
+            int(k.split(' ')[1])
+            for k in list(self.re_params.dictionary['cloud'].keys())
+            if k.startswith('patch') and k.split(' ')[1].isdigit()
+        ]
+            npatches = max(patch_numbers)
+
+            cloudname_set = [] #Used a set (cloudname_set) to automatically remove duplicates.
+            for i in range(npatches):
+                for key in self.re_params.dictionary['cloud'][f'patch {i+1}']:
+                    if 'clear' not in key and key not in cloudname_set:
+                        cloudname_set.append(key)
+
+            nclouds = len(cloudname_set)
+
+
+            pattern_dis = re.compile(r'\b(deck|slab)\b', re.IGNORECASE)
+
+            cloud_distype=[]
+            for idx, name in enumerate(cloudname_set, start=1):
+                match = pattern_dis.search(name)
+                cloud_distype.append(match.group(1).lower() if match else 'unknown')
+
+
+            pattern_opa = re.compile(r'\b(powerlaw|grey|Mie)\b', re.IGNORECASE)
+            cloud_opatype=[]
+            for idx, name in enumerate(cloudname_set, start=1):
+                match = pattern_opa.search(name)
+                cloud_opatype.append(match.group(1).lower() if match else 'unknown')
+
+            
+            cloud_tau0 = np.empty([nclouds])
+            cloud_top = np.empty_like(cloud_tau0)
+            cloud_bot = np.empty_like(cloud_tau0)
+            cloud_height  = np.empty_like(cloud_tau0)
+            w0 = np.empty_like(cloud_tau0)
+            taupow =  np.empty_like(cloud_tau0)
+            loga = np.empty_like(cloud_tau0)
+            b = np.empty_like(cloud_tau0)
+
+            for idx, name in enumerate(cloudname_set):
+                if  cloud_opatype[idx] == 'grey':
+                    if cloud_distype[idx] == "slab":
+                            cloud_tau0= cloudparams[0,idx]
+                            cloud_top= cloudparams[1,idx]
+                            cloud_height= cloudparams[2,idx]
+                            cloud_bot = cloud_top[idx] + cloud_height[idx]
+                            w0 = cloudparams[3,idx]
+                            taupow= 0.0
+                            loga[idx] = 0.0
+                            b[idx] = 0.5
+                    elif cloud_distype[idx] == "deck":
+                            cloud_tau0[idx] = 1.0
+                            cloud_bot[idx] = np.log10(self.args_instance.press[-1])
+                            cloud_top[idx] = cloudparams[1,idx]
+                            cloud_height[idx] = cloudparams[2,idx]
+                            w0[idx] = cloudparams[3,idx]
+                            taupow[idx] = 0.0
+                            loga[idx] = 0.0
+                            b[idx] = 0.5
+                elif  cloud_opatype[idx] == 'powerlaw':
+                    if cloud_distype[idx] == "slab":
+                            cloud_tau0[idx] = cloudparams[0,idx]
+                            cloud_top[idx] = cloudparams[1,idx]
+                            cloud_height[idx] = cloudparams[2,idx]
+                            cloud_bot[idx] = cloud_top[idx] + cloud_height[idx]
+                            w0[idx] = cloudparams[3,idx]
+                            taupow[idx] = cloudparams[4,idx]
+                            loga[idx] = 0.0
+                            b[idx] = 0.5
+                    elif cloud_distype[idx] == "deck":
+                            cloud_tau0[idx] = 1.0
+                            cloud_bot[idx] = np.log10(self.args_instance.press[-1])
+                            cloud_top[idx] = cloudparams[1,idx]
+                            cloud_height[idx] = cloudparams[2,idx]
+                            w0[idx] = cloudparams[3,idx]
+                            taupow[idx] = cloudparams[4,idx]
+                            loga[idx] = 0.0
+                            b[idx] = 0.5
+                elif  cloud_opatype[idx] == 'Mie':
+                     if cloud_distype[idx] == "slab":
+                        cloud_tau0[idx] =  cloudparams[0,idx]
+                        cloud_top[idx] = cloudparams[1,idx]
+                        cloud_height[idx] = cloudparams[2,idx]
+                        cloud_bot[idx] = cloud_top[idx] + cloud_height[idx]
+                        w0[idx] = 0.5
+                        taupow[idx] = 0.0
+                        loga[idx] = cloudparams[3,idx]
+                        b[idx] = cloudparams[4,idx]
+                     elif cloud_distype[idx] == "deck":
+                        cloud_tau0[idx] = 1.0
+                        cloud_bot[idx] = np.log10(self.args_instance.press[self.args_instance.press.size-1])
+                        cloud_top[idx] = cloudparams[1,idx]
+                        cloud_height[idx] = cloudparams[2,idx]
+                        w0[idx] = +0.5
+                        taupow[idx] =0.0
+                        loga[idx] =  cloudparams[3,idx]
+                        b[idx] =  cloudparams[4,idx]
+
+            prior_cloud  = prior_cloud and ((np.all(cloud_tau0 >= 0.0))
+                        and (np.all(cloud_tau0 <= 100.0))
+                        and np.all(cloud_top < cloud_bot)
+                        and np.all(cloud_bot <= np.log10(self.args_instance.press[-1]))
+                        and np.all(np.log10(self.args_instance.press[0]) <= cloud_top)
+                        and np.all(cloud_top < cloud_bot)
+                        and np.all(0. < cloud_height)
+                        and np.all(cloud_height < 7.0)
+                        and np.all(0.0 < w0)
+                        and np.all(w0 <= 1.0)
+                        and np.all(-10.0 < taupow)
+                        and np.all(taupow < +10.0)
+                        and np.all( -3.0 < loga)
+                        and np.all (loga < 3.0)
+                        and np.all(b < 1.0)
+                        and np.all(b > 0.0))
+
+
         # Combine all priors
-        post_prior = prior_T and prior_gas and prior_MR and priors_tolerance_params
+        post_prior = prior_T and prior_gas and prior_MR and priors_tolerance_params and prior_cloud
         return post_prior,diff,pp
     
 
@@ -230,7 +356,6 @@ class Priors:
         if self.statement == True:
 
             if self.args_instance.proftype == 1 or self.args_instance.proftype==77:
-
                 logbeta = -5.0
                 beta=10.**logbeta
                 alpha=1.0
@@ -269,13 +394,12 @@ class Priors:
             f"{param_prior_text}\n"
             "--------------------\n"
             "- Post-processing Priors:\n"
-            "  * T-profile check: (min(T) > 1.0) and (max(T) < 6000.)\n"
+            "  * T-profile check: (min(T) > 1.0) and (max(T) < 6000.)\n" 
             "  * Gas profile check: (np.sum(10.**(invmr)) < 1.0) and valid gas profiles\n"
             "  * Mass and Radius check: (1.0 < M < 80 and 0.5 < Rj < 2.0)\n"
             "  * Tolerance parameters: ((0.01*np.min(obspec[2,:]**2)) < 10.**tolerance_parameter < (100.*np.max(obspec[2,:]**2)))\n"
+            "  *all cloud parameters should be within range\n"
         )
-
-
 
 
 
@@ -333,11 +457,523 @@ class Priors:
 
 
 
+def priormap_dic(theta,re_params):
+
+    all_params,all_params_values =utils.get_all_parametres(re_params.dictionary) 
+    params_master = namedtuple('params',all_params)
+    params_instance = params_master(*theta)
+
+    args_instance=settings.runargs
+
+    # Unpack all necessary parameters into local variables
+    press=args_instance.press
+    fwhm=args_instance.fwhm
+    obspec=args_instance.obspec
+    proftype=args_instance.proftype
+    do_fudge=args_instance.do_fudge
+
+    phi = np.zeros_like(theta)
+    gaslist=list(re_params.dictionary["gas"].keys())
+    gastype_values = [info['gastype'] for key, info in re_params.dictionary['gas'].items() if 'gastype' in info]
+
+    gaspara=[]
+    for i in range(len(gaslist)):
+        gaspara.append(gaslist[i])
+        if  gastype_values[i]=='N':
+            gaspara.append("p_ref_%s"%gaslist[i])
+            gaspara.append("alpha_%s"%gaslist[i])
+
+        if  gastype_values[i]=='H':
+            gaspara.append("p_ref_%s"%gaslist[i])
+             
+    ng=len(gaspara)
+    
+
+    if ng==2:
+        phi[0] = (theta[0] * (args_instance.metscale[-1] - args_instance.metscale[0])) + args_instance.metscale[0]
+        phi[1] = (theta[1] * (args_instance.coscale[-1] -  args_instance.coscale[0])) +  args_instance.coscale[0]
+        
+    else:
+        rem = 1
+        for i in range(0, ng):
+            if gaspara[i] in gaslist:
+                phi[i] = np.log10(rem) -  (theta[i] * 12.)
+                rem = rem - (10**phi[i])
+            elif gaspara[i].startswith('p_ref'):
+                phi[i]= (theta[i]* \
+                             (np.log10(press[-1]) - np.log10(press[0]))) + np.log10(press[0])
+
+            elif gaspara[i].startswith('alpha'):
+                phi[i]= theta[i]
+
+    max_mass = 80. # jupiters
+    min_mass = 1.0 # jupiters
+    min_rad = 0.5 # jupiters
+    max_rad = 2.5 # jupiters
+    
+    
+    mass_index=params_instance._fields.index('M')
+    
+    # this is a simple uniform prior on mass
+    # we want to use the radius, to set a mass prior. 
+    # this will correlate these parameters??? Yes. which is fine.
+    phi[mass_index] = (theta[mass_index] * (max_mass - min_mass)) + min_mass
+
+    # this is if we want log g prior: phi[ng] = theta[ng] * 5.5
+    # now we retrieve radius in R_jup 
+    R_index=params_instance._fields.index('R')
+    R_j = ((max_rad - min_rad)*theta[R_index]) + min_rad
+    phi[R_index] = R_j
+    
+    if (fwhm == 555):
+        log_f_param = args_instance.logf_flag
+        log_f_param_max = int(np.max(log_f_param))
+        
+        scales_param = args_instance.scales
+        nonzero_scales = sorted(set(scales_param) - {0})  
+
+        if nonzero_scales:  
+            for i in nonzero_scales:
+                pname = f"scale{i}"
+                p_index = params_instance._fields.index(pname)
+                phi[p_index] = (theta[p_index] * 1.5) + 0.5
+ 
+        # now dlam
+        dlam_index=params_instance._fields.index('dlambda')
+        phi[dlam_index] = (theta[dlam_index] * 0.02) - 0.01
+
+        if (do_fudge == 1):
+            for i in range(1, log_f_param_max + 1):
+                s_indices = np.where(log_f_param == float(i))
+                minerr = np.log10((0.01 * np.min(obspec[2, s_indices]))**2.)
+                maxerr = np.log10((100 * np.max(obspec[2, s_indices]))**2.)
+
+                tol_param_name=f'tolerance_parameter_{i}'
+                tol_param_index=params_instance._fields.index(tol_param_name)
+                phi[tol_param_index] = (theta[tol_param_index] * (maxerr-minerr)) + minerr
+
+       # if (do_fudge == 1):
+       #     minerr1 = np.log10((0.01 * np.min(obspec[2, s2]))**2.)
+       #     maxerr1 = np.log10((100 * np.max(obspec[2, s2]))**2.)
+       #     tolerance_parameter_1_index = params_instance._fields.index('tolerance_parameter_1')
+       #     phi[tolerance_parameter_1_index] = (theta[tolerance_parameter_1_index] * (maxerr1 - minerr1)) + minerr1
 
 
+       #     if s3[0].size > 0:
+       #         minerr2 = np.log10((0.01 * np.min(obspec[2, s3]))**2.)
+       #         maxerr2 = np.log10((100 * np.max(obspec[2, s3]))**2.)
+       #         tolerance_parameter_2_index = params_instance._fields.index('tolerance_parameter_2')
+       #         phi[tolerance_parameter_2_index] = (theta[tolerance_parameter_2_index] * (maxerr2 - minerr2)) + minerr2
+
+            
+        
+    elif (fwhm < 0.0):
+        if (fwhm == -1 or fwhm == -3 or fwhm == -4 or fwhm == -8):
+            s1  = np.where(obspec[0,:] < 2.5)
+            s2  = np.where(np.logical_and(obspec[0,:] > 2.5,obspec[0,:] < 5.0))
+            s3 =  np.where(obspec[0,:] > 5.)
+            # scale parameters here - generous factor 2 either side??
+            scale1_index=params_instance._fields.index('scale1')
+            scale2_index=params_instance._fields.index('scale2')
+            phi[scale1_index] = (theta[scale1_index] * 1.5) + 0.5
+            phi[scale2_index] = (theta[scale2_index] * 1.5) + 0.5
+            # now dlam
+            dlam_index=params_instance._fields.index('dlambda')
+            phi[dlam_index] = (theta[dlam_index] * 0.02) - 0.01
+            if (do_fudge == 1):
+                # These are tolerances for each band due to difference SNRs
+                minerr_s1 =np.log10((0.01 *  np.min(obspec[2,s1]))**2.)
+                maxerr_s1 =np.log10((100.*np.max(obspec[2,s1]))**2.)
+                tolerance_parameter_1_index=params_instance._fields.index('tolerance_parameter_1')
+                phi[tolerance_parameter_1_index] = (theta[tolerance_parameter_1_index] * (maxerr_s1 - minerr_s1)) + minerr_s1
+                
+                minerr_s2 =np.log10((0.01 *  np.min(obspec[2,s2]))**2.)
+                maxerr_s2 =np.log10((100.*np.max(obspec[2,s2]))**2.)
+                tolerance_parameter_2_index=params_instance._fields.index('tolerance_parameter_2')
+                phi[tolerance_parameter_2_index] = (theta[tolerance_parameter_2_index] * (maxerr_s2 - minerr_s2)) + minerr_s2
+                
+                minerr_s3 =np.log10((0.01 *  np.min(obspec[2,s3]))**2.)
+                maxerr_s3 = np.log10((100.*np.max(obspec[2,s3]))**2.)
+                tolerance_parameter_3_index=params_instance._fields.index('tolerance_parameter_3')
+                phi[tolerance_parameter_3_index] = (theta[tolerance_parameter_3_index] * (maxerr_s3 - minerr_s3)) + minerr_s3
+
+        elif (fwhm == -2):
+            s1  = np.where(obspec[0,:] < 2.5)
+            s3 =  np.where(obspec[0,:] > 5.)
+            # scale parameter
+            scale1_index=params_instance._fields.index('scale1')
+            phi[scale1_index] = (theta[scale1_index] * 1.5) + 0.5
+            # dlam now:
+            dlam_index=params_instance._fields.index('dlambda')
+            phi[dlam_index] = (theta[dlam_index] * 0.02) - 0.01
+            if (do_fudge == 1):
+                # These are tolerances for each band due to difference SNR
+                minerr_s1 = np.log10((0.01 *  np.min(obspec[2,s1]))**2.)
+                maxerr_s1 = np.log10((100.*np.max(obspec[2,s1]))**2.)
+                tolerance_parameter_1_index=params_instance._fields.index('tolerance_parameter_1')
+                phi[tolerance_parameter_1_index] = (theta[tolerance_parameter_1_index] * (maxerr_s1 - minerr_s1)) + minerr_s1
+                
+                minerr_s3 = np.log10((0.01 *  np.min(obspec[2,s3]))**2.)
+                maxerr_s3 = np.log10((100.*np.max(obspec[2,s3]))**2.)
+                tolerance_parameter_2_index=params_instance._fields.index('tolerance_parameter_2')
+                phi[tolerance_parameter_2_index] = (theta[tolerance_parameter_2_index] * (maxerr_s3 - minerr_s3)) + minerr_s3
+
+        elif (fwhm == -6):
+            ##Geballe NIR CGS4 data
+            s1  = np.where(obspec[0,:] < 1.585)
+            s3  = np.where(obspec[0,:] > 1.585)
+            #not including relative scale factor since data is calibrated to the same photometry
+            #dlam:
+            dlam_index=params_instance._fields.index('dlambda')
+            phi[dlam_index] = (theta[dlam_index] * 0.02) - 0.01
+            #Tolerance parameter (only one):
+            if (do_fudge==1):
+                minerr = np.log10((0.01 *  np.min(obspec[2,:]))**2.)
+                maxerr = np.log10((100.*np.max(obspec[2,:]))**2.)
+                tolerance_parameter_1_index=params_instance._fields.index('tolerance_parameter_1')
+                phi[tolerance_parameter_1_index] = (theta[tolerance_parameter_1_index] * (maxerr - minerr)) + minerr
+
+        elif (fwhm == -7): #Geballe NIR + NIRC + CGS4 MIR
+            s1 = np.where(obspec[0, :] < 1.585)
+            s2 = np.where(obspec[0, :] > 1.585)
+            s3 = np.where(np.logical_and(obspec[0, :] > 2.52, obspec[0, :] < 4.2))  #NIRC
+            s4 = np.where(obspec[0, :] > 4.2) #CGS4
+            # scale parameter
+            scale1_index=params_instance._fields.index('scale1')
+            scale2_index=params_instance._fields.index('scale2')
+            phi[scale1_index] = (theta[scale1_index] * 1.5) + 0.5
+            phi[scale2_index] = (theta[scale2_index] * 1.5) + 0.5
+            #dlam
+            dlam_index=params_instance._fields.index('dlambda')
+            phi[dlam_index] = (theta[dlam_index] * 0.02) - 0.01
+            if (do_fudge == 1):
+                # These are tolerances for each band due to difference SNRs
+                minerr_s1 =np.log10((0.01 *  np.min(obspec[2,s1]))**2.)
+                maxerr_s1 =np.log10((100.*np.max(obspec[2,s1]))**2.)
+                tolerance_parameter_1_index=params_instance._fields.index('tolerance_parameter_1')
+                phi[tolerance_parameter_1_index] = (theta[tolerance_parameter_1_index] * (maxerr_s1 - minerr_s1)) + minerr_s1
+                
+                minerr_s2 =np.log10((0.01 *  np.min(obspec[2,s2]))**2.)
+                maxerr_s2 =np.log10((100.*np.max(obspec[2,s2]))**2.)
+                tolerance_parameter_2_index=params_instance._fields.index('tolerance_parameter_2')
+                phi[tolerance_parameter_2_index] = (theta[tolerance_parameter_2_index] * (maxerr_s2 - minerr_s2)) + minerr_s2
+                
+                minerr_s3 =np.log10((0.01 *  np.min(obspec[2,s3]))**2.)
+                maxerr_s3 = np.log10((100.*np.max(obspec[2,s3]))**2.)
+                tolerance_parameter_3_index=params_instance._fields.index('tolerance_parameter_3')
+                phi[tolerance_parameter_3_index] = (theta[tolerance_parameter_3_index] * (maxerr_s3 - minerr_s3)) + minerr_s3
 
 
+    else:
+        # this just copes with normal, single instrument data
+        # so do dlam next
+        dlam_index=params_instance._fields.index('dlambda')
+        phi[dlam_index] = (theta[dlam_index] * 0.02) - 0.01
+        # now fudge
+        if (do_fudge == 1):
+            # logf here
+            minerr =np.log10((0.01 *  np.min(obspec[2,:]))**2.)
+            maxerr = np.log10((100.*np.max(obspec[2,:]))**2.)
+            tolerance_parameter_1_index=params_instance._fields.index('tolerance_parameter_1')
+            phi[tolerance_parameter_1_index] = (theta[tolerance_parameter_1_index] * (maxerr - minerr)) + minerr
 
+ 
+    if (proftype == 1):
+
+        intemp_keys = list(re_params.dictionary['pt']['params'].keys())
+        gam_index=params_instance._fields.index(intemp_keys[0])   
+        phi[gam_index] = theta[gam_index] *5000
+
+        tempkeys=intemp_keys[1:]
+        for i in range(len(tempkeys)):
+            index=params_instance._fields.index(tempkeys[i])                                            
+            phi[index] = theta[index] *3999  + 1
+
+    if (proftype == 2):
+                   
+        alpha1_index=params_instance._fields.index('alpha1')
+        alpha2_index=params_instance._fields.index('alpha2')
+        logP1_index=params_instance._fields.index('logP1')
+        logP3_index=params_instance._fields.index('logP3')
+        T3_index=params_instance._fields.index('T3')
+                                                                  
+        # a1
+        phi[alpha1_index] = 0.25 + (theta[alpha1_index]*0.25)
+        # a2
+        phi[alpha2_index] = 0.1 + (theta[alpha2_index] * 0.1)
+        #P1
+        phi[logP1_index] = (theta[logP1_index]* \
+                             (np.log10(press[-1]) - np.log10(press[0]))) + np.log10(press[0])
+        #P3
+        #P3 must be greater than P1
+        phi[logP3_index] = (theta[logP3_index] * \
+                             (np.log10(press[-1]) - phi[logP1_index])) + phi[logP1_index]
+        #T3
+        phi[T3_index] = (theta[T3_index] * 3000.) + 1500.0
+
+
+    elif (proftype == 3):
+                                               
+                                               
+        alpha1_index=params_instance._fields.index('alpha1')
+        alpha2_index=params_instance._fields.index('alpha2')
+        logP1_index=params_instance._fields.index('logP1')
+        logP2_index=params_instance._fields.index('logP2')
+        logP3_index=params_instance._fields.index('logP3')
+        T3_index=params_instance._fields.index('T3')
+                                               
+
+        # a1
+        phi[alpha1_index] = 0.25 + (theta[alpha1_index]*0.25)
+        # a2
+        phi[alpha2_index] = 0.1 * (theta[alpha2_index] * 0.1)
+        #P3 in press[0]--press[-1]
+        phi[logP3_index] = (theta[logP3_index] * (np.log10(press[-1]) - np.log10(press[0]))) + np.log10(press[0])                                        
+                                               
+        # press[0]<P1<P3
+        phi[logP1_index] = (theta[logP1_index]* (phi[logP3_index] - np.log10(press[0]))) + np.log10(press[0])
+        ## press[0]<P2<P3
+        phi[logP2_index] = (theta[logP2_index]* (phi[logP3_index] - np.log10(press[0]))) + np.log10(press[0])
+       
+        #T3
+        phi[T3_index] = (theta[T3_index] * 3000.) + 1500.
+
+    
+    elif (proftype == 7):
+                                                   
+        Tint_index=params_instance._fields.index('Tint')
+        alpha_index=params_instance._fields.index('alpha')
+        lndelta_index=params_instance._fields.index('lndelta')
+        T1_index=params_instance._fields.index('T1')
+        T2_index=params_instance._fields.index('T2')
+        T3_index=params_instance._fields.index('T3')
+                                                                   
+                                               
+       # Tint - prior following Molliere+2020
+      #  phi[Tint_index] = 300 + (theta[Tint_index] * 2000)  #UNCOMMENT IN CASE OF INVERSION
+        # alpha, between 1 and 2
+        phi[alpha_index] = theta[alpha_index] + 1. 
+        # lndlelta
+        plen = np.log10(press[-1]) - np.log10(press[0])
+        pmax=phi[alpha_index]*plen 
+        p_diff=np.log(0.1)-phi[alpha_index]*np.log10(press[-1])
+        phi[lndelta_index] = theta[lndelta_index]*pmax+p_diff                                           
+
+        # T1
+       # phi[T1_index] = 10. + (theta[T1_index] * 4000)
+        # T2
+       # phi[T2_index] = 10. + (theta[T2_index] * 4000)
+        # T3
+       # phi[T3_index] = 10.+ (theta[T3_index] * 4000)
+
+        # IN CASE OF NO INVERSION UNCOMMENT THESE: T3 = T1 + d_T2 + d_T3,   T2 = T1 + d_T2 --> T3 > T2 > T1
+
+        phi[T1_index] = 10. + (theta[T1_index] *4000)
+
+       #T2 > T1 
+        delta_T2 = theta[T2_index] * 1000
+        phi[T2_index] = phi[T1_index] + delta_T2
+
+       # T3 > T2 
+        delta_T3 = theta[T3_index] * 1000
+        phi[T3_index] = phi[T2_index] + delta_T3
+
+       # Tint > T3
+        delta_Tint = theta[Tint_index] * 1000
+        phi[Tint_index] = phi[T3_index] + delta_Tint
+
+    elif (proftype == 77):
+                                                   
+        Tint_index=params_instance._fields.index('Tint')
+        alpha_index=params_instance._fields.index('alpha')
+        lndelta_index=params_instance._fields.index('lndelta')
+        T1_index=params_instance._fields.index('T1')
+        T2_index=params_instance._fields.index('T2')
+        T3_index=params_instance._fields.index('T3')
+                                                                   
+                                               
+       # Tint - prior following Molliere+2020
+        phi[Tint_index] = 300 + (theta[Tint_index] * 2000)
+        # alpha, between 1 and 2
+        phi[alpha_index] = theta[alpha_index] + 1. 
+        # lndlelta
+        plen = np.log10(press[-1]) - np.log10(press[0])
+        pmax=phi[alpha_index]*plen 
+        p_diff=np.log(0.1)-phi[alpha_index]*np.log10(press[-1])
+        phi[lndelta_index] = theta[lndelta_index]*pmax+p_diff                                           
+
+        # T1
+        phi[T1_index] = 10. + (theta[T1_index] * 4000)
+        # T2
+        phi[T2_index] = 10. + (theta[T2_index] * 4000)
+        # T3
+        phi[T3_index] = 10.+ (theta[T3_index] * 4000)
+
+        intemp_keys = list(re_params.dictionary['pt']['params'].keys())
+        gam_index=params_instance._fields.index(intemp_keys[0])   
+        phi[gam_index] = theta[gam_index] *5000
+
+
+    npatches = args_instance.cloudmap.shape[0]
+    # only really ready for 2 patches here
+    if (npatches > 1):
+        fcld_index=params_instance._fields.index('fcld')
+        phi[fcld_index] = theta[fcld_index]
+
+    
+
+    if np.all(args_instance.cloudmap!= 0):
+        cloudlist=[]
+        for i in range(1, npatches+1):
+            for key in re_params.dictionary['cloud']['patch %s' % i].keys():
+                if 'clear' not in key:
+                    cloudlist.append(key)
+
+        for cloud in cloudlist:
+            if cloud=='grey cloud deck':
+            # 'cloudnum': 99,'cloudtype':2,
+                logp_gcd_index=params_instance._fields.index('logp_gcd')
+                dp_gcd_index=params_instance._fields.index('dp_gcd')
+                #cloud top
+                phi[logp_gcd_index] = \
+                    (theta[logp_gcd_index] *(np.log10(press[-1]) \
+                                    - np.log10(press[0])))\
+                                    + np.log10(press[0])
+                # cloud height
+                phi[dp_gcd_index] = theta[dp_gcd_index] * 7.
+                        
+            elif cloud=='grey cloud slab':
+            # 'cloudnum': 99,'cloudtype':1,
+                tau_gcs_index=params_instance._fields.index('tau_gcs')
+                logp_gcs_index=params_instance._fields.index('logp_gcs')
+                dp_gcs_index=params_instance._fields.index('dp_gcs')
+                # cloud tau
+                phi[tau_gcs_index] = theta[tau_gcs_index]*100.
+                #cloud base
+                phi[logp_gcs_index] = \
+                    (theta[logp_gcs_index] *(np.log10(press[-1]) \
+                                        - np.log10(press[0]))) \
+                                        + np.log10(press[0])
+                # cloud height
+                phi[dp_gcs_index] = theta[dp_gcs_index] *\
+                    (phi[logp_gcs_index] - np.log10(press[0]))
+                                    
+        
+            elif cloud=='powerlaw cloud deck':
+            # 'cloudnum': 89,'cloudtype':2,
+                logp_pcd_index=params_instance._fields.index('logp_pcd')
+                dp_pcd_index=params_instance._fields.index('dp_pcd')
+                alpha_pcd_index=params_instance._fields.index('alpha_pcd') 
+                #cloud top
+                phi[logp_pcd_index] = \
+                            (theta[logp_pcd_index] *(np.log10(press[-1]) \
+                                            - np.log10(press[0]))) \
+                                            + np.log10(press[0])
+                # cloud height
+                phi[dp_pcd_index] = theta[dp_pcd_index] * 7.
+                # power law
+                phi[alpha_pcd_index] = (theta[alpha_pcd_index] * 20.) - 10.
+
+
+            elif 'Mie scattering cloud deck' in cloud:
+            #   'cloudnum': cloudnum,'cloudtype':2,
+
+                cloudspecies=cloud.split('--')[1].strip()
+                logp_pcd_index=params_instance._fields.index('logp_mcd_%s'%cloudspecies)
+                dp_pcd_index=params_instance._fields.index('dp_mcd_%s'%cloudspecies)
+                #cloud base
+                phi[logp_pcd_index] = \
+                    (theta[logp_pcd_index] *(np.log10(press[-1]) \
+                                    - np.log10(press[0])))\
+                                    + np.log10(press[0])
+
+                
+                # cloud height
+                phi[dp_pcd_index] = theta[dp_pcd_index] * 7.
+
+                for patch, clouds in re_params.dictionary['cloud'].items():
+                    for name, cloud_info in clouds.items():
+                        if cloudspecies in name:
+                            particle_dis = cloud_info.get('particle_dis', None)
+   
+                if  particle_dis=="hansen": 
+                    hansen_a_mcd_index=params_instance._fields.index('hansen_a_mcd_%s'%cloudspecies)
+                    hansen_b_mcd_index=params_instance._fields.index('hansen_b_mcd_%s'%cloudspecies)                                               
+                    # particle effective radius
+                    phi[hansen_a_mcd_index] = (theta[hansen_a_mcd_index] * 6.) - 3.
+                    # particle spread
+                    phi[hansen_b_mcd_index] = theta[hansen_b_mcd_index]
+                elif particle_dis=="log_normal":
+                    mu_mcd_index=params_instance._fields.index('mu_mcd_%s'%cloudspecies)
+                    sigma_mcd_index=params_instance._fields.index('sigma_mcd_%s'%cloudspecies)
+                    # particle effective radius
+                    phi[mu_mcd_index] = (theta[mu_mcd_index] * 6.) - 3.
+                    # particle spread
+                    phi[mu_mcd_index] = theta[mu_mcd_index]                                                 
+
+            elif cloud=='power law cloud slab':
+                    # 'cloudnum': 89, 'cloudtype':1,
+                    tau_pcs_index=params_instance._fields.index('tau_pcs')
+                    logp_pcs_index=params_instance._fields.index('logp_pcs')
+                    dp_pcs_index=params_instance._fields.index('dp_pcs')
+                    alpha_pcs_index=params_instance._fields.index('alpha_pcs')
+
+                    # cloud tau
+                    phi[tau_pcs_index] = theta[tau_pcs_index]*100.
+                    #cloud base
+                    phi[logp_pcs_index] = \
+                        (theta[logp_pcs_index]*\
+                            (np.log10(press[-1]) - np.log10(press[0]))) \
+                            + np.log10(press[0])
+                    # cloud height
+                    phi[dp_pcs_index] = \
+                        theta[dp_pcs_index] * (phi[logp_pcs_index] \
+                                            - np.log10(press[0]))
+                    # power law
+                    phi[alpha_pcs_index] = (theta[alpha_pcs_index] * 20.) - 10.
+
+
+            elif 'Mie scattering cloud slab' in cloud:
+
+                cloudspecies=cloud.split('--')[1].strip()
+
+                tau_mcs_index=params_instance._fields.index('tau_mcs_%s'%cloudspecies)
+                logp_mcs_index=params_instance._fields.index('logp_mcs_%s'%cloudspecies)
+                dp_mcs_index=params_instance._fields.index('dp_mcs_%s'%cloudspecies)
+                # cloud tau
+                phi[tau_mcs_index] = theta[tau_mcs_index]*100.
+                #cloud base
+                phi[logp_mcs_index] = \
+                    (theta[logp_mcs_index] *(np.log10(press[-1]) \
+                                        - np.log10(press[0]))) \
+                                        + np.log10(press[0])
+                # cloud height
+                phi[dp_mcs_index] = theta[dp_mcs_index] * \
+                    (phi[logp_mcs_index] - np.log10(press[0]))
+
+                for patch, clouds in re_params.dictionary['cloud'].items():
+                    for name, cloud_info in clouds.items():
+                        if cloudspecies in name:
+                            particle_dis = cloud_info.get('particle_dis', None)
+                                                                        
+                if particle_dis=="hansen": 
+                    hansen_a_mcs_index=params_instance._fields.index('hansen_a_mcs_%s'%cloudspecies)
+                    hansen_b_mcs_index=params_instance._fields.index('hansen_b_mcs_%s'%cloudspecies)                                               
+                    # particle effective radius
+                    phi[hansen_a_mcs_index] = (theta[hansen_a_mcs_index] * 6.) - 3.
+                    # particle spread
+                    phi[hansen_b_mcs_index] = theta[hansen_b_mcs_index]
+                elif particle_dis=="log_normal":
+                    mu_mcs_index=params_instance._fields.index('mu_mcs_%s'%cloudspecies)
+                    sigma_mcs_index=params_instance._fields.index('sigma_mcs_%s'%cloudspecies)
+                    # particle effective radius
+                    phi[mu_mcs_index] = (theta[mu_mcs_index] * 6.) - 3.
+                    # particle spread
+                    phi[mu_mcs_index] = theta[mu_mcs_index]
+
+
+    return phi
+                                                                     
 
 
 
