@@ -71,12 +71,14 @@ def brewster_reterieval_run(re_params,model_config_instance,io_config_instance):
         settings.linelist[:,:,:,:] = args_instance.linelist
     delattr(args_instance, 'linelist')
 
-
     # set up shared memory array for clouddata
-    ncloud = len(args_instance.cloudname_set)
-    nmiewave= args_instance.miewave.size
-    nmierad= args_instance.mierad.size
-    settings.cloudata, _ = utils.shared_memory_array(rank, node_comm, (ncloud,3,nmiewave,nmierad))
+    if hasattr(args_instance, "cloudata"):
+        cloudata = args_instance.cloudata
+
+        ncloud = len(args_instance.cloudname_set)
+        nmiewave= args_instance.miewave.size
+        nmierad= args_instance.mierad.size
+        settings.cloudata, _ = utils.shared_memory_array(rank, node_comm, (ncloud,3,nmiewave,nmierad))
 
     if (rank == 0):
     # Now we'll get the opacity files into an array
