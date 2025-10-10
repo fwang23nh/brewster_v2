@@ -16,8 +16,11 @@ import utils
 from schwimmbad import MPIPool
 # import pymultinest as mn
 import mpi4py
+from mpi4py import MPI
 import test_module
 import settings
+import Priors
+
 
 __author__ = "Fei Wang"
 __copyright__ = "Copyright 2024 - Fei Wang"
@@ -39,13 +42,61 @@ def brewster_reterieval_run(re_params,model_config_instance,io_config_instance):
     args_instance=settings.runargs
     all_params,all_params_values =utils.get_all_parametres(re_params.dictionary)
 
+
+    # Now we set up the MPI bits
+    world_comm = MPI.COMM_WORLD
+    node_comm = world_comm.Split_type(MPI.COMM_TYPE_SHARED)
+    rank = node_comm.Get_rank()
+
+    # set up shared memory array for cia
+    settings.cia, _ = utils.shared_memory_array(rank, node_comm, (4,args_instance.ciatemps.size,args_instance.nwave),'float32')
+
+    if (rank == 0):
+        # cia = np.asfortranarray(np.empty((4,ciatemps.size,nwave)),dtype='float32')
+        settings.cia[:,:,:] = args_instance.tmpcia[:,:,:args_instance.nwave].copy() 
+
+    # del(tmpcia)
+    delattr(args_instance, 'cia')
+    delattr(args_instance, 'tmpcia')
+
+
+    # set up shared memory array for linelist
+    ngas = len(args_instance.gaslist)
+    npress= args_instance.press.size
+    ntemps = args_instance.inlinetemps.size
+    settings.linelist, _ = utils.shared_memory_array(rank, node_comm, (ngas,npress,ntemps,args_instance.nwave))
+
+    if (rank == 0):
+    # Now we'll get the opacity files into an array
+        settings.linelist[:,:,:,:] = args_instance.linelist
+    delattr(args_instance, 'linelist')
+
+
+    # set up shared memory array for clouddata
+    ncloud = len(args_instance.cloudname_set)
+    nmiewave= args_instance.miewave.size
+    nmierad= args_instance.mierad.size
+    settings.cloudata, _ = utils.shared_memory_array(rank, node_comm, (ncloud,3,nmiewave,nmierad))
+
+    if (rank == 0):
+    # Now we'll get the opacity files into an array
+        settings.cloudata[:,:,:,:] = args_instance.cloudata
+    delattr(args_instance, 'cloudata')
+
+
+    # settings.init(args_instance)
+    world_comm.Barrier()
+    
+
     if not os.path.exists(f"{io_config_instance.outdir}"):
         os.makedirs(f"{io_config_instance.outdir}", exist_ok=True)
 
     
     # Write the arguments to a pickle if needed
     if (io_config_instance.make_arg_pickle > 0):
-        pickle.dump(settings.runargs,open(io_config_instance.outdir+io_config_instance.runname+"_runargs.pic","wb"))
+        pickle.dump(args_instance,open(io_config_instance.outdir+io_config_instance.runname+"_runargs.pic","wb"))
+        pickle.dump((settings.linelist,settings.cia),open(io_config_instance.outdir+io_config_instance.runname+"_opacities.pic","wb"))
+        pickle.dump((settings.cloudata),open(io_config_instance.outdir+io_config_instance.runname+"_cloudata.pic","wb"))
 
         with open(io_config_instance.outdir+io_config_instance.runname+'_configs.pkl', 'wb') as file:
             pickle.dump({
@@ -206,7 +257,7 @@ def brewster_reterieval_run(re_params,model_config_instance,io_config_instance):
         def prior_call(re_params):
             def prior(cube, ndim, nparams):
                 theta = cube[:ndim]
-                phi = test_module.priormap_dic(theta, re_params)
+                phi = Priors.priormap_dic(theta, re_params)
                 for i in range(ndim):
                     cube[i] = phi[i]  # Update cube with transformed values
             return prior

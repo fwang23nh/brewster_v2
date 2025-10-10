@@ -38,7 +38,11 @@ contains
     ! get the distribution from do_clouds
     ! 2 = log normal, 1 = hansen
 
-
+    ! clouddata is (cloud,3,nwave,nrad)
+    ! the 3 columns for data are qscat, qext and cosqs.
+    ! this is the same order that mie code from EGP outputs the mie coefficients
+    ! into .mieff files.
+    ! kept to be consistent with other codes using the same heritage
 
     nmiewave = size(miewave)
     nrad = size(mierad)
@@ -137,7 +141,7 @@ contains
                    rr = radius(irad)
                    arg1 = dr(irad) / ( sqrt(2.*PI)*rr*log(rsig) )
                    arg2 = -(log( rr/ rg ))**2 / ( 2*(log(rsig))**2 )
-                   qpir2 = PI * rr**2 * clouddata(icloud,1,loc1,irad)
+                   qpir2 = PI * rr**2 * clouddata(icloud,2,loc1,irad)
                    norm = norm + (qpir2 * arg1 * exp(arg2))
                 end do
                 
@@ -158,10 +162,10 @@ contains
                       
                       ext_cloud(ilayer,imiewave,icloud) = &
                            ext_cloud(ilayer,imiewave,icloud) + &
-                           clouddata(icloud,1,imiewave,irad)*pir2ndz      
+                           clouddata(icloud,2,imiewave,irad)*pir2ndz      
                       scat_cloud(ilayer,imiewave,icloud) =  &
                            scat_cloud(ilayer,imiewave,icloud) + & 
-                           clouddata(icloud,2,imiewave,irad)*pir2ndz
+                           clouddata(icloud,1,imiewave,irad)*pir2ndz
                       cqs_cloud(ilayer,imiewave,icloud) = &
                            cqs_cloud(ilayer,imiewave,icloud) + &
                            clouddata(icloud,3,imiewave,irad)*pir2ndz
@@ -199,7 +203,7 @@ contains
                    arg2 = ((1.- 3.*b)/b) * log(rr)
                    !write(1,*) 'here clouds 202'
                    !write(1,*) clouddata(icloud,1,loc1,irad)
-                   argext = log(clouddata(icloud,1,loc1,irad) * PI * rr**2.)
+                   argext = log(clouddata(icloud,2,loc1,irad) * PI * rr**2.)
                    !write(1,*) 'here clouds 204'   
                    bot = bot + exp(arg1 + arg2 + argext)
                       
@@ -250,8 +254,8 @@ contains
                       arg1 = (-rr/(a*b)) + log(drr)
                       !write(*,*) arg1
                       arg2 = ((1. - 3.*b)/b) * log(rr)
-                      argscat = log(clouddata(icloud,2,loc1,irad) * PI * rr**2)
-                      argext = log(clouddata(icloud,1,loc1,irad) * PI * rr**2)
+                      argscat = log(clouddata(icloud,1,loc1,irad) * PI * rr**2)
+                      argext = log(clouddata(icloud,2,loc1,irad) * PI * rr**2)
                       argcosqs = clouddata(icloud,3,loc1,irad) * PI * rr**2
                       !write(*,*) logcon, arg1, arg2, arg3, arg4 
                       scat_cloud(ilayer,imiewave,icloud) =  &

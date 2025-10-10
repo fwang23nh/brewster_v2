@@ -29,6 +29,7 @@ from collections import namedtuple
 import utils
 import settings
 import gas_nonuniform
+import Priors
 
 
 __author__ = "Fei Wang"
@@ -40,11 +41,15 @@ __maintainer__ = ""
 __email__ = ""
 __status__ = "Development"
 
+
+
+
 def lnprob(theta,re_params):
 
-
+    args_instance=settings.runargs
+    Priors_instance =Priors.Priors(theta,re_params,args_instance.instrument)
     # now check against the priors, if not beyond them, run the likelihood
-    lp = lnprior(theta,re_params)
+    lp = Priors_instance.priors
     if not np.isfinite(lp):
         return -np.inf
     # run the likelihood
@@ -57,1162 +62,6 @@ def lnprob(theta,re_params):
 
 
 
-def lnprior(theta,re_params):
-
-
-    all_params,all_params_values =utils.get_all_parametres(re_params.dictionary) 
-    params_master = namedtuple('params',all_params)
-    params_instance = params_master(*theta)
-
-    args_instance=settings.runargs
-
-# Unpack all necessary parameters into local variables
-    (   gases_myP,
-        chemeq,
-        dist,
-        cloudtype,
-        gaslist,
-        gasnames,
-        gasmass,
-        cloudflag,
-        inlinetemps,
-        coarsePress,
-        press,
-        inwavenum,
-        linelist,
-        cia,
-        ciatemps,
-        use_disort,
-        fwhm,
-        obspec,
-        proftype,
-        do_fudge,
-        prof,
-        do_bff,
-        bff_raw,
-        ceTgrid,
-        metscale,
-        coscale,
-        R,
-        wl,
-        logf_flag,
-        scales#,
-        #gpoints,
-        #weights
-    ) = (
-        args_instance.gases_myP,
-        args_instance.chemeq,
-        args_instance.dist,
-        args_instance.cloudtype,
-        args_instance.gaslist,
-        args_instance.gasnames,
-        args_instance.gasmass,
-        args_instance.cloudflag,
-        args_instance.inlinetemps,
-        args_instance.coarsePress,
-        args_instance.press,
-        args_instance.inwavenum,
-        args_instance.linelist,
-        args_instance.cia,
-        args_instance.ciatemps,
-        args_instance.use_disort,
-        args_instance.fwhm,
-        args_instance.obspec,
-        args_instance.proftype,
-        args_instance.do_fudge,
-        args_instance.prof,
-        args_instance.do_bff,
-        args_instance.bff_raw,
-        args_instance.ceTgrid,
-        args_instance.metscale,
-        args_instance.coscale,
-        args_instance.R,
-        args_instance.wl,
-        args_instance.logf_flag,
-        args_instance.scales#,
-        #args_instance.gpoints,
-        #args_instance.weights
-    )
-
-    
-    knots = len(coarsePress)
-    ndim = len(theta)
-
-    def matching_params(params_instance,param):
-        matching_params = [
-            (name, getattr(params_instance, name))
-            for name in dir(params_instance)
-            if param in name
-        ]
-        return matching_params[0][0],matching_params[0][1]
-
-    # set up the priors here
-    if (chemeq != 0):
-        invmr = np.array([-3.,-3.])
-        mh = params_instance.mh
-        co = params_instance.co
-
-    else:
-        gas_keys = re_params.dictionary['gas'].keys()
-        gas_keys=list(gas_keys)
-        invmr=np.array([getattr(params_instance, key) for key in gas_keys])
-        mh = 0.0
-        co = 1.0
-    
-    logg = params_instance.logg
-
-    if (fwhm < 0.0):
-        if (fwhm == -1 or fwhm == -3 or fwhm == -4):
-            s1  = np.where(obspec[0,:] < 2.5)
-            s2  = np.where(np.logical_and(obspec[0,:] > 2.5,obspec[0,:] < 5.0))
-            s3 =  np.where(obspec[0,:] > 5.)
-            r2d2 = params_instance.r2d2
-            scale1 = params_instance.scale1
-            scale2 = params_instance.scale2
-            dlam = params_instance.dlambda
-            if (do_fudge == 1):
-                logf1 = params_instance.tolerance_parameter_1
-                logf2 = params_instance.tolerance_parameter_2
-                logf3 = params_instance.tolerance_parameter_3
-                logf = np.log10(0.1*(max(obspec[2,10::3]))**2)
-            else:
-                # This is a place holder value so the code doesn't break
-                logf = np.log10(0.1*(max(obspec[2,:]))**2)
-                logf1 = np.log10(0.1*(max(obspec[2,:]))**2)
-                logf2 = np.log10(0.1*(max(obspec[2,:]))**2)
-                logf3 = np.log10(0.1*(max(obspec[2,:]))**2)
-
-        elif (fwhm == -2):
-            s1  = np.where(obspec[0,:] < 2.5)
-            s2 = s1
-            s3 =  np.where(obspec[0,:] > 5.)
-            r2d2 = params_instance.r2d2
-            scale1 = 1.0 # dummy value
-            scale2 = params_instance.scale2
-            dlam = params_instance.dlambda
-            if (do_fudge == 1):
-                logf1 = params_instance.tolerance_parameter_1
-                logf2 = np.log10(0.1*(max(obspec[2,10::3]))**2) # dummy
-                logf3 = params_instance.tolerance_parameter_2
-                logf = np.log10(0.1*(max(obspec[2,10::3]))**2)
-            else:
-                # This is a place holder value so the code doesn't break
-                logf = np.log10(0.1*(max(obspec[2,:]))**2)
-                logf1 = np.log10(0.1*(max(obspec[2,:]))**2)
-                logf2 = np.log10(0.1*(max(obspec[2,:]))**2)
-                logf3 = np.log10(0.1*(max(obspec[2,:]))**2)
-        elif (fwhm == -5):
-            # this is for JWST NIRSpec prism + MIRI MRS
-            # we assume that this is all scaled well
-            # as is currently just simulated data anyhow
-            # so this unpack is the same as a single instrument
-            s1 = np.where(obspec[0,:] > 0.0)
-            s2 = s1
-            s3 = s1
-            r2d2 = params_instance.r2d2
-            dlam = params_instance.dlambda
-            if (do_fudge == 1):
-                logf =  params_instance.tolerance_parameter_1
-                logf1 = np.log10(0.1*(max(obspec[2,:]))**2)
-                logf2 = np.log10(0.1*(max(obspec[2,:]))**2)
-                logf3 = np.log10(0.1*(max(obspec[2,:]))**2)
-                scale1 = 1.0
-                scale2 = 1.0
-            else:
-                # This is a place holder value so the code doesn't break
-                logf = np.log10(0.1*(max(obspec[2,10::3]))**2)
-                logf1 = np.log10(0.1*(max(obspec[2,:]))**2)
-                logf2 = np.log10(0.1*(max(obspec[2,:]))**2)
-                logf3 = np.log10(0.1*(max(obspec[2,:]))**2)
-                scale1 = 1.0
-                scale2 = 1.0
-
-        elif (fwhm == -6):  ### UKIRT first and second order (Geballe cuts)
-            s1  = np.where(obspec[0,:] < 1.585) ### wavelength less than 1.585um (second order)
-            s2 = s1
-            s3 =  np.where(obspec[0,:] > 1.585) ### wavelength greater than 1.585um (first order)
-            r2d2 = params_instance.r2d2
-            dlam = params_instance.dlambda
-            scale1 = 1.0
-            scale2 = 1.0
-            if (do_fudge == 1):
-                logf =  params_instance.tolerance_parameter_1
-                logf1 = np.log10(0.1*(max(obspec[2,:]))**2)
-                logf2 = np.log10(0.1*(max(obspec[2,:]))**2)
-                logf3 = np.log10(0.1*(max(obspec[2,:]))**2)
-            else:
-                # This is a place holder value so the code doesn't break
-                logf = np.log10(0.1*(max(obspec[2,10::3]))**2)
-                logf1 = np.log10(0.1*(max(obspec[2,:]))**2)
-                logf2 = np.log10(0.1*(max(obspec[2,:]))**2)
-                logf3 = np.log10(0.1*(max(obspec[2,:]))**2)
-                
-    elif (fwhm == 555):
-        r2d2 = params_instance.r2d2
-        dlam = params_instance.dlambda
-        #scale1 = 1.0
-        #scale2 = 1.0
-        
-        scale_param = args_instance.scales
-        scale_param_max = int(np.max(scale_param))
-        scales=[]
-        
-        for i in range(1, scale_param_max + 1):
-            scales.append(getattr(params_instance,f"scale{i}"))
-            #scale_name = f"scale{i}"
-            #if scale_name in params_instance._fields:
-            #   scale_index = params_instance._fields.index(scale_name)
-            #   phi[scale_index] = (theta[scale_index] * 1.5) + 0.5
-        
-        log_f_param = args_instance.logf_flag
-        log_f_param_max = int(np.max(log_f_param))
-        flag = 1.0 #starting as valid?
-
-        #dummy value
-        dummy_value = np.log10(0.1 * (np.max(obspec[2, :]))**2)
-        fail_value = 0.0 # something that will fail the prior
-
-        logf_list = []
-
-        if (do_fudge == 1):
-            for i in range(1, log_f_param_max +1):
-                s_indices = np.where(log_f_param == float(i))
-
-               # print(f"log_f_param.shape: {log_f_param.shape}")
-                #print(f"i={i}, log_f_param_max={log_f_param_max}")
-               #print(f"s_indices: {s_indices}")
-               # print(f"s_indices.shape: {s_indices.shape}")
-               #print(f"obspec.shape: {obspec.shape}")
-
-                minerr = np.log10((0.01 * np.min(obspec[2, s_indices]))**2.)
-                maxerr = np.log10((100. * np.max(obspec[2, s_indices]))**2.)
-                tol_param_name = f'tolerance_parameter_{i}'
-                tol_value = getattr(params_instance, tol_param_name)
-
-                #checking boundaries and if outside then failed --> 0.0
-                if not (minerr < tol_value < maxerr):
-                    flag = 0.0
-
-                logf_list.append(tol_value)
-
-            #choosing values based on flag
-            if flag == 1.0:
-                logf = logf_list
-            else:
-                logf= [fail_value] * log_f_param_max
-                
-        else:
-            logf = [dummy_value] * log_f_param_max
-
-        
-       # s2 = obspec[0,:]
-       # s2 = np.where(log_f_param == 1.0)
-       # s3 = obspec[0,:]
-       # s3 = np.where(log_f_param == 2.0)
-       # r2d2 = params_instance.r2d2
-       # dlam = params_instance.dlambda
-       # scale1 = 1.0
-       # scale2 = 1.0
-       # if (do_fudge == 1):
-       #         logf1 = params_instance.tolerance_parameter_1
-       #         logf2 = np.log10(0.1*(max(obspec[2,10::3]))**2) # dummy
-       #         logf3 = params_instance.tolerance_parameter_2
-       #         logf = np.log10(0.1*(max(obspec[2,10::3]))**2)
-       # else:
-       #         # This is a place holder value so the code doesn't break
-       #         logf = np.log10(0.1*(max(obspec[2,:]))**2)
-       #         logf1 = np.log10(0.1*(max(obspec[2,:]))**2)
-       #         logf2 = np.log10(0.1*(max(obspec[2,:]))**2)
-       #         logf3 = np.log10(0.1*(max(obspec[2,:]))**2)
-
-                
-    elif (fwhm == 888):
-        log_f_param = args_instance.logf_flag
-        s2 = obspec[0,:]
-        s2 = np.where(log_f_param == 1.0)
-        s3 = obspec[0,:]
-        s3 = np.where(log_f_param == 2.0)
-        r2d2 = params_instance.r2d2
-        dlam = params_instance.dlambda
-        scale1 = 1.0
-        scale2 = 1.0
-        if (do_fudge == 1):
-                logf1 = params_instance.tolerance_parameter_1
-                logf2 = np.log10(0.1*(max(obspec[2,10::3]))**2) # dummy
-                logf3 = params_instance.tolerance_parameter_2
-                logf = np.log10(0.1*(max(obspec[2,10::3]))**2)
-        else:
-                # This is a place holder value so the code doesn't break
-                logf = np.log10(0.1*(max(obspec[2,:]))**2)
-                logf1 = np.log10(0.1*(max(obspec[2,:]))**2)
-                logf2 = np.log10(0.1*(max(obspec[2,:]))**2)
-                logf3 = np.log10(0.1*(max(obspec[2,:]))**2)
-                
-    elif (fwhm == 777): #STILL NEEDS TO BE TESTED
-        
-        s1 = np.where(obspec[0,:] > 0.0)
-        s2 = s1
-        s3 = s1
-        
-        r2d2 = params_instance.r2d2
-        dlam = params_instance.dlambda
-        if (do_fudge == 1):
-            logf =  params_instance.frac_param
-            logf1 = np.log10(0.1*(max(obspec[2,:]))**2)
-            logf2 = np.log10(0.1*(max(obspec[2,:]))**2)
-            logf3 = np.log10(0.1*(max(obspec[2,:]))**2)
-            scale1 = 1.0
-            scale2 = 1.0
-
-        else:
-            # This is a place holder value so the code doesn't break
-            logf = np.log10(0.1*(max(obspec[2,10::3]))**2)
-            logf1 = np.log10(0.1*(max(obspec[2,:]))**2)
-            logf2 = np.log10(0.1*(max(obspec[2,:]))**2)
-            logf3 = np.log10(0.1*(max(obspec[2,:]))**2)
-            scale1 = 1.0
-            scale2 = 1.0
-        
-    
-    else:
-        # this just copes with normal, single instrument data
-        s1 = np.where(obspec[0,:] > 0.0)
-        s2 = s1
-        s3 = s1
-        
-        r2d2 = params_instance.r2d2
-        dlam = params_instance.dlambda
-        if (do_fudge == 1):
-            logf =  params_instance.tolerance_parameter_1
-            logf1 = np.log10(0.1*(max(obspec[2,:]))**2)
-            logf2 = np.log10(0.1*(max(obspec[2,:]))**2)
-            logf3 = np.log10(0.1*(max(obspec[2,:]))**2)
-            scale1 = 1.0
-            scale2 = 1.0
-
-        else:
-            # This is a place holder value so the code doesn't break
-            logf = np.log10(0.1*(max(obspec[2,10::3]))**2)
-            logf1 = np.log10(0.1*(max(obspec[2,:]))**2)
-            logf2 = np.log10(0.1*(max(obspec[2,:]))**2)
-            logf3 = np.log10(0.1*(max(obspec[2,:]))**2)
-            scale1 = 1.0
-            scale2 = 1.0
-
-
-
-    npatches = args_instance.cloudmap.shape[0]
-    # npatches = do_clouds.size
-    if (npatches > 1):
-        prat = params_instance.fcld
-        pcover = np.array([prat,(1.-prat)])
-    else:
-        pcover = np.array([0.5,0.5])
-
-    # use correct unpack method depending on situation
-
-
-    # attribute_names = list(params_instance._fields)
-    # first_cloud_para=list(re_params.dictionary['cloud']['patch 1']['params'].keys())[0]
-    # # Find the index of pc
-    # pc = attribute_names.index(first_cloud_para)
-
-    # if ((npatches > 1) and np.all(do_clouds != 0)):
-    #     cloudparams = cloud_dic.unpack_patchy(re_params,params_instance,cloudtype,cloudflag,do_clouds)
-    # else:
-    #     cloudparams = cloud_dic.unpack_default(re_params,params_instance,cloudtype,cloudflag,do_clouds)
-
-    cloudparams,cloudmap=cloud_dic_new.cloud_unpack(re_params,params_instance)
-
-
-    if (cloudtype.size > cloudtype.shape[1]):
-        nclouds = cloudtype.shape[1]
-    else:
-        nclouds = cloudtype.size
-
-    cloud_tau0 = np.empty([npatches,nclouds])
-    cloud_top = np.empty_like(cloud_tau0)
-    cloud_bot = np.empty_like(cloud_tau0)
-    cloud_height  = np.empty_like(cloud_tau0)
-    w0 = np.empty_like(cloud_tau0)
-    taupow =  np.empty_like(cloud_tau0)
-    loga = np.empty_like(cloud_tau0)
-    b = np.empty_like(cloud_tau0)
-
-    npatches = args_instance.cloudmap.shape[0]
-
-    if np.any(cloudmap == 1):
-        for i in range(0,npatches):
-            if (cloudmap[i] == 1):
-                for j in range (0, nclouds):
-                    if (cloudflag[i,j] == 'grey'):
-                        if (cloudtype[i,j] == 1):
-                            cloud_tau0[i,j] = cloudparams[0,i,j]
-                            cloud_top[i,j] = cloudparams[1,i,j]
-                            cloud_height[i,j] = cloudparams[2,i,j]
-                            cloud_bot[i,j] = cloud_top[i,j] + cloud_height[i,j]
-                            w0[i,j] = cloudparams[3,i,j]
-                            taupow[i,j] = 0.0
-                            loga[i,j] = 0.0
-                            b[i,j] = 0.5
-                        elif (cloudtype[i,j] == 2):
-                            cloud_tau0[i,j] = 1.0
-                            cloud_bot[i,j] = np.log10(press[-1])
-                            cloud_top[i,j] = cloudparams[1,i,j]
-                            cloud_height[i,j] = cloudparams[2,i,j]
-                            w0[i,j] = cloudparams[3,i,j]
-                            taupow[i,j] = 0.0
-                            loga[i,j] = 0.0
-                            b[i,j] = 0.5
-                        elif (cloudtype[i,j] == 3):
-                            cloud_tau0[i,j] = cloudparams[0,i,j]
-                            cloud_top[i,j] = cloudparams[1,i,j]
-                            cloud_height[i,j] = 0.005
-                            cloud_bot[i,j] = cloud_top[i,j] + cloud_height[i,j]
-                            w0[i,j] = cloudparams[3,i,j]
-                            taupow[i,j] = 0.0
-                            loga[i,j] = 0.0
-                            b[i,j] = 0.5
-                        elif (cloudtype[i,j] == 4):
-                            cloud_tau0[i,j] = 1.0
-                            cloud_bot[i,j] = np.log10(press[-1])
-                            cloud_top[i,j] = cloudparams[1,i,j]
-                            cloud_height[i,j] = 0.005
-                            w0[i,j] = cloudparams[3,i,j]
-                            taupow[i,j] = 0.0
-                            loga[i,j] = 0.0
-                            b[i,j] = 0.5
-                        elif (cloudtype[i,j] == 0):
-                            cloud_tau0[i,j] = 1.0
-                            cloud_bot[i,j] = np.log10(press[press.size-1])
-                            cloud_top[i,j] = np.log10(press[0])
-                            cloud_height[i,j] = 0.1
-                            w0[i,j] = +0.5
-                            taupow[i,j] = 0.0
-                            loga[i,j] =  0.0
-                            b[i,j] = 0.5
-                    elif (cloudflag[i,j] == 'powerlaw'):
-                        if (cloudtype[i,j] == 1):
-                            cloud_tau0[i,j] = cloudparams[0,i,j]
-                            cloud_top[i,j] = cloudparams[1,i,j]
-                            cloud_height[i,j] = cloudparams[2,i,j]
-                            cloud_bot[i,j] = cloud_top[i,j] + cloud_height[i,j]
-                            w0[i,j] = cloudparams[3,i,j]
-                            taupow[i,j] = cloudparams[4,i,j]
-                            loga[i,j] = 0.0
-                            b[i,j] = 0.5
-                        elif (cloudtype[i,j] == 2):
-                            cloud_tau0[i,j] = 1.0
-                            cloud_bot[i,j] = np.log10(press[-1])
-                            cloud_top[i,j] = cloudparams[1,i,j]
-                            cloud_height[i,j] = cloudparams[2,i,j]
-                            w0[i,j] = cloudparams[3,i,j]
-                            taupow[i,j] = cloudparams[4,i,j]
-                            loga[i,j] = 0.0
-                            b[i,j] = 0.5
-                        elif (cloudtype[i,j] == 3):
-                            cloud_tau0[i,j] = cloudparams[0,i,j]
-                            cloud_top[i,j] = cloudparams[1,i,j]
-                            cloud_height[i,j] = 0.005
-                            cloud_bot[i,j] = cloud_top[i,j] + cloud_height[i,j]
-                            w0[i,j] = cloudparams[3,i,j]
-                            taupow[i,j] = cloudparams[4,i,j]
-                            loga[i,j] = 0.0
-                            b[i,j] = 0.5
-                        elif (cloudtype[i,j] == 4):
-                            cloud_tau0[i,j] = 1.0
-                            cloud_bot[i,j] = np.log10(press[-1])
-                            cloud_top[i,j] = cloudparams[1,i,j]
-                            cloud_height[i,j] = 0.005
-                            w0[i,j] = cloudparams[3,i,j]
-                            taupow[i,j] = cloudparams[4,i,j]
-                            loga[i,j] = 0.0
-                            b[i,j] = 0.5
-                        elif (cloudtype[i,j] == 0):
-                            cloud_tau0[i,j] = 1.0
-                            cloud_bot[i,j] = np.log10(press[press.size-1])
-                            cloud_top[i,j] = np.log10(press[0])
-                            cloud_height[i,j] = 0.1
-                            w0[i,j] = +0.5
-                            taupow[i,j] = 0.0
-                            loga[i,j] =  0.0
-                            b[i,j] = 0.5
-                    else:
-                        if (cloudtype[i,j] == 1):
-                            cloud_tau0[i,j] =  cloudparams[0,i,j]
-                            cloud_top[i,j] = cloudparams[1,i,j]
-                            cloud_height[i,j] = cloudparams[2,i,j]
-                            cloud_bot[i,j] = cloud_top[i,j] + cloud_height[i,j]
-                            w0[i,j] = 0.5
-                            taupow[i,j] = 0.0
-                            loga[i,j] = cloudparams[3,i,j]
-                            b[i,j] = cloudparams[4,i,j]
-                        elif (cloudtype[i,j] == 2):
-                            cloud_tau0[i,j] = 1.0
-                            cloud_bot[i,j] = np.log10(press[press.size-1])
-                            cloud_top[i,j] = cloudparams[1,i,j]
-                            cloud_height[i,j] = cloudparams[2,i,j]
-                            w0[i,j] = +0.5
-                            taupow[i,j] =0.0
-                            loga[i,j] =  cloudparams[3,i,j]
-                            b[i,j] =  cloudparams[4,i,j]
-                        elif (cloudtype[i,j] == 3):
-                            cloud_tau0[i,j] = cloudparams[0,i,j]
-                            cloud_top[i,j] = cloudparams[1,i,j]
-                            cloud_height[i,j] = 0.005
-                            cloud_bot[i,j] = cloud_top[i,j] + cloud_height[i,j]
-                            w0[i,j] = 0.5
-                            taupow[i,j] = 0.0
-                            loga[i,j] = cloudparams[3,i,j]
-                            b[i,j] = cloudparams[4,i,j]
-                        elif (cloudtype[i,j] == 4):
-                            cloud_tau0[i,j] = 1.0
-                            cloud_bot[i,j] = np.log10(press[-1])
-                            cloud_top[i,j] = cloudparams[1,i,j]
-                            cloud_height[i,j] = 0.005
-                            w0[i,j] = +0.5
-                            taupow[i,j] =0.0
-                            loga[i,j] =  cloudparams[3,i,j]
-                            b[i,j] =  cloudparams[4,i,j]
-                        elif (cloudtype[i,j] == 0):
-                            cloud_tau0[i,j] = 1.0
-                            cloud_bot[i,j] = np.log10(press[-1])
-                            cloud_top[i,j] = np.log10(press[0])
-                            cloud_height[i,j] = 0.1
-                            w0[i,j] = +0.5
-                            taupow[i,j] = 0.0
-                            loga[i,j] =  0.0
-                            b[i,j] = 0.5
-            else:
-                cloud_tau0[i,:] = 1.0
-                cloud_bot[i,:] = np.log10(press[-1])
-                cloud_top[i,:] = np.log10(press[0])
-                cloud_height[i,:] = 0.1
-                w0[i,:] = +0.5
-                taupow[i,:] = 0.0
-                loga[i,:] =  0.0
-                b[i,:] = 0.5
-
-                
-                    
-    else:
-        cloud_tau0[:,:] = 1.0
-        cloud_bot[:,:] = np.log10(press[-1])
-        cloud_top[:,:] = np.log10(press[0])
-        cloud_height[:,:] = 0.1
-        w0[:,:] = +0.5
-        taupow[:,:] = 0.0
-        loga[:,:] =  0.0
-        b[:,:] = 0.5
-
-    junkP = np.ones([13])
-
-
-    intemp_keys = list(re_params.dictionary['pt']['params'].keys())
-    intemp = np.array([getattr(params_instance, key) for key in intemp_keys])
-
-    gastype_values = [info['gastype'] for key, info in re_params.dictionary['gas'].items() if 'gastype' in info]
-    count_N = gastype_values.count('N')
-
-    if (proftype == 1):
-        gam = params_instance.gamma
-        T = intemp[1:]  #theta[:-2]  the pressure  deck  of  nonuniform gas
-        diff=np.roll(T,-1)-2.*T+np.roll(T,1)
-        pp=len(T)
-
-        gas_profile=-1
-        P_hgas=0
-        if count_N>0:
-            gas_profile = np.full((count_N, press.size), -1.0)
-            gas_profile_index =0
-            for i in range(len(gastype_values)):
-                if  gastype_values[i]=="N":
-                    P_gas= getattr(params_instance, "p_ref_%s"%gas_keys[i])
-                    gas_alpha= getattr(params_instance, "alpha_%s"%gas_keys[i])
-                    t_gas= getattr(params_instance, gas_keys[i])
-                    if (0. < gas_alpha < 1. and -12.0 < t_gas < 0.0  and np.log10(press[0]) <= P_gas <= 2.4):
-                        gas_profile[gas_profile_index,:]=gas_nonuniform.non_uniform_gas(press,P_gas,t_gas,gas_alpha)
-                    else:
-                        gas_profile[gas_profile_index,:]=-30
-                    gas_profile_index+=1
-
-                if  gastype_values[i]=="H":
-                      P_hgas= getattr(params_instance, "p_ref_%s"%gas_keys[i])
-
-
-        #for mass prior
-        D = 3.086e+16 * dist
-        R = -1.0
-        if (r2d2 > 0.):
-            R = np.sqrt(r2d2) * D
-        g = (10.**logg)/100.
-        M = (R**2 * g/(6.67E-11))/1.898E27
-        Rj = R / 69911.e3
-        #         and  and (-5. < logbeta < 0))
-
-        if (all(invmr > -12.0) and all(invmr < 0.0) and (np.sum(10.**(invmr)) < 1.0)
-            and np.all(gas_profile > -25.0) and np.all(gas_profile < 0.0)
-            and np.log10(press[0]) <= P_hgas <= 2.4
-            and all(pcover > 0.) and (np.sum(pcover) == 1.0)
-            and  metscale[0] <= mh <= metscale[-1]
-            and  coscale[0] <= co <= coscale[-1]
-            and  0.0 < logg < 6.0
-            and  1.0 < M < 80
-            and  0. < r2d2 < 1.
-            and 0.1 < scale1 < 10.0
-            and 0.1 < scale2 < 10.0
-            and  0.5 < Rj < 2.0
-            and -0.01 < dlam < 0.01
-            and (min(T) > 1.0) and (max(T) < 6000.)
-            and (0 < gam < 5000)
-            and ((0.01*np.min(obspec[2,:]**2)) < 10.**logf
-                 < (100.*np.max(obspec[2,:]**2)))
-           # and ((0.01*np.min(obspec[2,s1]**2)) < 10.**logf1
-           #      < (100.*np.max(obspec[2,s1]**2)))
-            and ((0.01*np.min(obspec[2,s2]**2)) < 10.**logf2
-                 < (100.*np.max(obspec[2,s2]**2)))
-           # and ((0.01*np.min(obspec[2,s3]**2)) < 10.**logf3
-           #      < (100.*np.max(obspec[2,s3]**2)))
-            and (np.all(cloud_tau0 >= 0.0))
-            and (np.all(cloud_tau0 <= 100.0))
-            and np.all(cloud_top < cloud_bot)
-            and np.all(cloud_bot <= np.log10(press[-1]))
-            and np.all(np.log10(press[0]) <= cloud_top)
-            and np.all(cloud_top < cloud_bot)
-            and np.all(0. < cloud_height)
-            and np.all(cloud_height < 7.0)
-            and np.all(0.0 < w0)
-            and np.all(w0 <= 1.0)
-            and np.all(-10.0 < taupow)
-            and np.all(taupow < +10.0)
-            and np.all( -3.0 < loga)
-            and np.all (loga < 3.0)
-            and np.all(b < 1.0)
-            and np.all(b > 0.0)):
-
-            logbeta = -5.0
-            beta=10.**logbeta
-            alpha=1.0
-            x=gam
-            invgamma=((beta**alpha)/math.gamma(alpha)) * (x**(-alpha-1)) * np.exp(-beta/x)
-            prprob = (-0.5/gam)*np.sum(diff[1:-1]**2) - 0.5*pp*np.log(gam) + np.log(invgamma)
-            return prprob
-
-        return -np.inf
-
-    elif (proftype == 2):
-        a1,a2,P1,P3,T3=intemp[:]
-        T = np.empty([press.size])
-        T[:] = -100.
-
-        gas_profile=-1
-        P_hgas=0
-        if count_N>0:
-            gas_profile = np.full((count_N, press.size), -1.0)
-            gas_profile_index =0
-            for i in range(len(gastype_values)):
-                if  gastype_values[i]=="N":
-                    P_gas= getattr(params_instance, "p_ref_%s"%gas_keys[i])
-                    gas_alpha= getattr(params_instance, "alpha_%s"%gas_keys[i])
-                    t_gas= getattr(params_instance, gas_keys[i])
-                    if (0. < gas_alpha < 1. and -12.0 < t_gas < 0.0  and np.log10(press[0]) <= P_gas <= 2.4):
-                        gas_profile[gas_profile_index,:]=gas_nonuniform.non_uniform_gas(press,P_gas,t_gas,gas_alpha)
-                    else:
-                        gas_profile[gas_profile_index,:]=-30
-                    gas_profile_index+=1
-
-                if  gastype_values[i]=="H":
-                      P_hgas= getattr(params_instance, "p_ref_%s"%gas_keys[i])
-    
-
-        if (0. < a1 < 1. and 0. < a2 < 1.0
-            and T3 > 0.0 and P3 >= P1 and P1 >= np.log10(press[0])
-            and P3 <= 5):
-            T = TPmod.set_prof(proftype,junkP,press,intemp) #theta[:-2]  the pressure  deck  of  nonuniform gas
-        #for mass prior
-        D = 3.086e+16 * dist
-        R = -1.0
-        if (r2d2 > 0.):
-            R = np.sqrt(r2d2) * D
-        g = (10.**logg)/100.
-        M = (R**2 * g/(6.67E-11))/1.898E27
-        Rj = R / 69911.e3
-        #         and  and (-5. < logbeta < 0))
-        
-        #prior on deck cloud dp
-        dp_mcd_index=params_instance._fields.index(matching_params(params_instance,"dp_mcd")[0])
-        dp_mcd= params_instance[dp_mcd_index]
-        
-        if (all(invmr > -12.0) and all(invmr < 0.0) and (np.sum(10.**(invmr)) < 1.0)
-            and 0 < dp_mcd <= 0.44
-            and np.all(gas_profile > -25.0) and np.all(gas_profile < 0.0)
-            and np.log10(press[0]) <= P_hgas <= 2.4
-            and  all(pcover > 0.) and (np.sum(pcover) == 1.0)
-            and  metscale[0] <= mh <= metscale[-1]
-            and  coscale[0] <= co <= coscale[-1]
-            and  0.0 < logg < 6.0
-            and 1.0 < M < 80.
-            and  0. < r2d2 < 1.
-            and 0.1 < scale1 < 10.0
-            and 0.1 < scale2 < 10.0
-            and  0.5 < Rj < 2.0
-            and -0.01 < dlam < 0.01
-            and ((0.01*np.min(obspec[2,:]**2)) < 10.**logf
-                 < (100.*np.max(obspec[2,:]**2)))
-          #  and ((0.01*np.min(obspec[2,s1]**2)) < 10.**logf1
-          #       < (100.*np.max(obspec[2,s1]**2)))
-            and ((0.01*np.min(obspec[2,s2]**2)) < 10.**logf2
-                 < (100.*np.max(obspec[2,s2]**2)))
-            and ((0.01*np.min(obspec[2,s3]**2)) < 10.**logf3
-                 < (100.*np.max(obspec[2,s3]**2)))
-            and (np.all(cloud_tau0 >= 0.0))
-            and (np.all(cloud_tau0 <= 100.0))
-            and np.all(cloud_top < cloud_bot)
-            and np.all(cloud_bot <= np.log10(press[-1]))
-            and np.all(np.log10(press[0]) <= cloud_top)
-            and np.all(cloud_top < cloud_bot)
-            and np.all(0. < cloud_height)
-            and np.all(cloud_height < 7.0)
-            and np.all(0.0 < w0)
-            and np.all(w0 <= 1.0)
-            and np.all(-10.0 < taupow)
-            and np.all(taupow < +10.0)
-            and np.all( -3.0 < loga)
-            and np.all (loga < 3.0)
-            and np.all(b < 1.0)
-            and np.all(b > 0.0)
-            and  (min(T) > 1.0)
-            and (max(T) < 6000.)):
-            return 0.0
-        return -np.inf
-
-    elif (proftype == 3):
-        a1,a2,P1,P2,P3,T3=intemp[:]
-
-        gas_profile=-1
-        P_hgas=0
-        if count_N>0:
-            gas_profile = np.full((count_N, press.size), -1.0)
-            gas_profile_index =0
-            for i in range(len(gastype_values)):
-                if  gastype_values[i]=="N":
-                    P_gas= getattr(params_instance, "p_ref_%s"%gas_keys[i])
-                    gas_alpha= getattr(params_instance, "alpha_%s"%gas_keys[i])
-                    t_gas= getattr(params_instance, gas_keys[i])
-                    if (0. < gas_alpha < 1. and -12.0 < t_gas < 0.0  and np.log10(press[0]) <= P_gas <= 2.4):
-                        gas_profile[gas_profile_index,:]=gas_nonuniform.non_uniform_gas(press,P_gas,t_gas,gas_alpha)
-                    else:
-                        gas_profile[gas_profile_index,:]=-30
-                    gas_profile_index+=1
-
-                if  gastype_values[i]=="H":
-                      P_hgas= getattr(params_instance, "p_ref_%s"%gas_keys[i])
-    
-
-        T = np.empty([press.size])
-        T[:] = -100.
-        if  (0. < a1 < 1. and 0. < a2 < 1.0
-            and T3 > 0.0 and P3 >= P2 and P3 >= P1 and P2 >= np.log10(press[0]) and P1 >= np.log10(press[0])
-             and P3 <= 5):
-            T = TPmod.set_prof(proftype,junkP,press,intemp) #theta[:-2]  the pressure  deck  of  nonuniform gas ? and P2 >= P1 
-
-
-        #for mass prior
-        D = 3.086e+16 * dist
-        R = -1.0
-        if (r2d2 > 0.):
-            R = np.sqrt(r2d2) * D
-        g = (10.**logg)/100.
-        M = (R**2 * g/(6.67E-11))/1.898E27
-        Rj = R / 69911.e3
-        #         and  and (-5. < logbeta < 0))
-        if (all(invmr > -12.0) and all(invmr < 0.0) and (np.sum(10.**(invmr)) < 1.0)
-            and np.all(gas_profile > -25.0) and np.all(gas_profile < 0.0)
-            and np.log10(press[0]) <= P_hgas <= 2.4
-            and  all(pcover > 0.) and (np.sum(pcover) == 1.0)
-            and  metscale[0] <=  mh <= metscale[-1]
-            and  coscale[0] <= co <= coscale[-1]
-            and  0.0 < logg < 6.0
-            and 1.0 < M < 80.
-            and  0. < r2d2 < 1.
-            and 0.1 < scale1 < 10.0
-            and 0.1 < scale2 < 10.0
-            and  0.5 < Rj < 2.0
-            and -0.01 < dlam < 0.01
-            and ((0.01*np.min(obspec[2,:]**2)) < 10.**logf
-                 < (100.*np.max(obspec[2,:]**2)))
-           # and ((0.01*np.min(obspec[2,s1]**2)) < 10.**logf1
-           #      < (100.*np.max(obspec[2,s1]**2)))
-            and ((0.01*np.min(obspec[2,s2]**2)) < 10.**logf2
-                 < (100.*np.max(obspec[2,s2]**2)))
-            and ((0.01*np.min(obspec[2,s3]**2)) < 10.**logf3
-                 < (100.*np.max(obspec[2,s3]**2)))
-            and (np.all(cloud_tau0 >= 0.0))
-            and (np.all(cloud_tau0 <= 100.0))
-            and np.all(cloud_top < cloud_bot)
-            and np.all(cloud_bot <= np.log10(press[-1]))
-            and np.all(np.log10(press[0]) <= cloud_top)
-            and np.all(cloud_top < cloud_bot)
-            and np.all(0. < cloud_height)
-            and np.all(cloud_height < 7.0)
-            and np.all(0.0 < w0)
-            and np.all(w0 <= 1.0)
-            and np.all(-10.0 < taupow)
-            and np.all(taupow < +10.0)
-            and np.all( -3.0 < loga)
-            and np.all (loga < 3.0)
-            and np.all(b < 1.0)
-            and np.all(b > 0.0)
-            and  (min(T) > 1.0) and (max(T) < 6000.)):
-            return 0.0
-        return -np.inf
-
-    elif (proftype == 7):
-        Tint,alpha,lndelta,T1,T2,T3=intemp[:] #kappa/grav replaced by delta   kth ～(10^-2,10^-3) [cm^2g-1] g [cm s^-2] 1e4
-
-        gas_profile=-1
-        P_hgas=0
-        if count_N>0:
-            gas_profile = np.full((count_N, press.size), -1.0)
-            gas_profile_index =0
-            for i in range(len(gastype_values)):
-                if  gastype_values[i]=="N":
-                    P_gas= getattr(params_instance, "p_ref_%s"%gas_keys[i])
-                    gas_alpha= getattr(params_instance, "alpha_%s"%gas_keys[i])
-                    t_gas= getattr(params_instance, gas_keys[i])
-                    if (0. < gas_alpha < 1. and -12.0 < t_gas < 0.0  and np.log10(press[0]) <= P_gas <= 2.4):
-                        gas_profile[gas_profile_index,:]=gas_nonuniform.non_uniform_gas(press,P_gas,t_gas,gas_alpha)
-                    else:
-                        gas_profile[gas_profile_index,:]=-30
-                    gas_profile_index+=1
-
-                if  gastype_values[i]=="H":
-                      P_hgas= getattr(params_instance, "p_ref_%s"%gas_keys[i])
-
-
-                      
-        #print(f"lndelta = {lndelta}, exp(lndelta) = {np.exp(lndelta)}")
-
-        if np.isnan(lndelta) or np.isinf(lndelta):
-            #print(f"Invalid lndelta detected: {lndelta}")
-            return -np.inf
-        
-        delta=np.exp(lndelta)
-        #if delta < 0:
-        #    return -np.inf
-        #print(f"before: delta = {delta}, alpha = {alpha}")
-        if (delta <= 0 or alpha <= 0 or np.isnan(alpha) or np.isnan(delta) or np.isinf(alpha) or np.isinf(delta)):
-            return -np.inf
-        #print(f"delta = {delta}, alpha = {alpha}")
-        Tconnect = (((3/4) * Tint**4) * ((2/3) + (0.1)))**(1/4)
-        T = np.empty([press.size])
-        T[:] = -100.
-        #if  (1. < alpha  < 2. and 0. < delta < 0.1
-        #    and T1 > 0.0 and T1 < T2 and T2 < T3 and T3 < Tconnect and Tint >0.0):
-        #    T = TPmod.set_prof(proftype,junkP,press,theta[pc+nc:-2]) #inversion not allowed, theta[:-2]  the pressure  deck  of  nonuniform gas
-        # put prior on P1 to put it shallower than 100 bar 
-        P1 = ((1/delta)**(1/alpha))
-        # if  (1 < alpha  < 2. and P1 < 100 and P1 > press[0]
-        #     and T1 > 0.0 and T2 > 0.0 and T3 > 0.0 and Tint >0.0):
-        #     T = TPmod.set_prof(proftype,junkP,press,intemp) #allow inversion theta[:-2]  the pressure  deck  of  nonuniform gas
-
-        cp = 0.84*14.32 + 0.16*5.19
-        cv = 0.84*10.16 + 0.16*3.12
-        gamma=cp/cv
-
-        tau=delta*(press)**alpha
-        T_edd=(((3/4)*Tint**4)*((2/3)+(tau)))**(1/4)
-        nabla_ad=(gamma-1)/gamma
-        nabla_rad = np.diff(np.log(T_edd))/np.diff(np.log(press))
-        convtest = np.any(np.where(nabla_rad >= nabla_ad))
-        # Now get temperatures on the adiabat from RC boundary downwards
-        if convtest:
-            RCbound = np.where(nabla_rad >= nabla_ad)[0][0]
-            P_RC = press[RCbound]
-        else:
-            P_RC = 1000.
-
-        # put prior on P_RC to put it shallower than 100 bar
-        if  (1 < alpha  < 2. and P_RC < 100 and P1 < P_RC
-             and P_RC > press[0] and  P1 > press[0]
-             and T1 > 0.0 and T2 > 0.0 and T3 > 0.0 and Tint >0.0):
-            T = TPmod.set_prof(proftype,junkP,press,intemp) # allow inversion
-
-        #for mass prior
-        D = 3.086e+16 * dist
-        R = -1.0
-        if (r2d2 > 0.):
-            R = np.sqrt(r2d2) * D
-        g = (10.**logg)/100.
-        M = (R**2 * g/(6.67E-11))/1.898E27
-        Rj = R / 69911.e3
-        #         and  and (-5. < logbeta < 0))
-
-        def matching_params(params_instance,param):
-            matching_params = [
-                (name, getattr(params_instance, name))
-                for name in dir(params_instance)
-                if param in name
-            ]       
-            return matching_params[0][0],matching_params[0][1]
-
-        #prior on deck cloud dp (Mie)
-        dp_mcd_index=params_instance._fields.index(matching_params(params_instance,"dp_mcd")[0])
-        dp_mcd= params_instance[dp_mcd_index]
-        
-        #prior on deck cloud dp (gray)
-        #dp_gcd_index=params_instance._fields.index(matching_params(params_instance,"dp_gcd")[0])
-        #dp_gcd= params_instance[dp_gcd_index]
-        
-
-        if (all(invmr > -12.0) and all(invmr < 0.0) and (np.sum(10.**(invmr)) < 1.0)
-            and 0 < dp_mcd <= 0.44
-            #and 0 < dp_gcd <= 0.44
-            and np.all(gas_profile > -25.0) and np.all(gas_profile < 0.0)
-            and np.log10(press[0]) <= P_hgas <= 2.4
-            and  all(pcover > 0.) and (np.sum(pcover) == 1.0)
-            and  metscale[0] <=  mh <= metscale[-1]
-            and  coscale[0] <= co <= coscale[-1]
-            and  0.0 < logg < 6.0
-            and 1.0 < M < 80.
-            and  0. < r2d2 < 1.
-            #and 0.1 < scale1 < 10.0
-            #and 0.1 < scale2 < 10.0
-            and all(
-                0.1 < getattr(params_instance, f"scale{i}") < 10.0
-                for i in range(1, scale_param_max+1)
-                if f"scale{i}" in params_instance._fields
-            )
-            and alpha > 0.0
-            and delta > 0.0
-            and lndelta > -4.0
-            and  0.5 < Rj < 2.0
-            and -0.01 < dlam < 0.01
-            and all(
-                (0.01 * np.min(obspec[2, np.where(log_f_param == float(i+1))]**2))
-                < 10.**logf[i]
-                < (100. * np.max(obspec[2, np.where(log_f_param == float(i+1))]**2))
-                for i in range(len(logf))
-            )
-            #and ((0.01*np.min(obspec[2,:]**2)) < 10.**logf
-            #     < (100.*np.max(obspec[2,:]**2)))
-            ##and ((0.01*np.min(obspec[2,s1]**2)) < 10.**logf1   #!!!!!!
-            #     < (100.*np.max(obspec[2,s1]**2)))
-            #and ((0.01*np.min(obspec[2,s2]**2)) < 10.**logf2
-            #     < (100.*np.max(obspec[2,s2]**2)))
-            #and ((0.01*np.min(obspec[2,s3]**2)) < 10.**logf3
-            #     < (100.*np.max(obspec[2,s3]**2)))
-            and (np.all(cloud_tau0 >= 0.0))
-            and (np.all(cloud_tau0 <= 100.0))
-            and np.all(cloud_top < cloud_bot)
-            and np.all(cloud_bot <= np.log10(press[-1]))
-            and np.all(np.log10(press[0]) <= cloud_top)
-            and np.all(cloud_top < cloud_bot)
-            and np.all(0. < cloud_height)
-            and np.all(cloud_height < 7.0)
-            and np.all(0.0 < w0)
-            and np.all(w0 <= 1.0)
-            and np.all(-10.0 < taupow)
-            and np.all(taupow < +10.0)
-            and np.all( -3.0 < loga)
-            and np.all (loga < 3.0)
-            and np.all(b < 1.0)
-            and np.all(b > 0.0)
-            and  (min(T) > 1.0) and (max(T) < 6000.)):
-            return 0.0
-        return -np.inf
-
-    elif (proftype == 77):
-        Tint,alpha,lndelta,T1,T2,T3=intemp[1:] #kappa/grav replaced by delta   kth ～(10^-2,10^-3) [cm^2g-1] g [cm s^-2] 1e4
-
-        gas_profile=-1
-        P_hgas=0
-        if count_N>0:
-            gas_profile = np.full((count_N, press.size), -1.0)
-            gas_profile_index =0
-            for i in range(len(gastype_values)):
-                if  gastype_values[i]=="N":
-                    P_gas= getattr(params_instance, "p_ref_%s"%gas_keys[i])
-                    gas_alpha= getattr(params_instance, "alpha_%s"%gas_keys[i])
-                    t_gas= getattr(params_instance, gas_keys[i])
-                    if (0. < gas_alpha < 1. and -12.0 < t_gas < 0.0  and np.log10(press[0]) <= P_gas <= 2.4):
-                        gas_profile[gas_profile_index,:]=gas_nonuniform.non_uniform_gas(press,P_gas,t_gas,gas_alpha)
-                    else:
-                        gas_profile[gas_profile_index,:]=-30
-                    gas_profile_index+=1
-
-                if  gastype_values[i]=="H":
-                      P_hgas= getattr(params_instance, "p_ref_%s"%gas_keys[i])
-    
-
-        delta= np.exp(lndelta)
-        Tconnect = (((3/4) * Tint**4) * ((2/3) + (0.1)))**(1/4)
-
-        T = np.empty([press.size])
-        T[:] = -100.
-
-        #if  (1 < alpha  < 2. and 0. < delta < 0.1
-        #     and T1 > 0.0 and T1 < T2 and T2 < T3 and T3 < Tconnect and Tint >0.0):
-        #     T = TPmod.set_prof(proftype,junkP,press,theta[pc+nc:])  # no inversion (here)
-        P1 = ((1/delta)**(1/alpha))
-        # put prior on P1 to put it shallower than 100 bar   
-        if  (1 < alpha  < 2. and P1 < 100. and P1 > press[0]
-             and T1 > 0.0 and T2 > 0.0 and T3 > 0.0 and Tint >0.0):
-            T = TPmod.set_prof(proftype,junkP,press,intemp) # allow inversion 
-
-        # bits for smoothing in prior
-        gam = params_instance.gamma
-        diff=np.roll(T,-1)-2.*T+np.roll(T,1)
-        pp=len(T)
-
-        #for mass prior
-        D = 3.086e+16 * dist
-        R = -1.0
-        if (r2d2 > 0.):
-            R = np.sqrt(r2d2) * D
-        g = (10.**logg)/100.
-        M = (R**2 * g/(6.67E-11))/1.898E27
-        Rj = R / 69911.e3
-        #         and  and (-5. < logbeta < 0))
-
-        if (all(invmr > -12.0) and all(invmr < 0.0) and (np.sum(10.**(invmr)) < 1.0)
-            and  np.all(gas_profile > -25.0) and np.all(gas_profile < 0.0)
-            and np.log10(press[0]) <= P_hgas <= 2.4
-            and  all(pcover > 0.) and (np.sum(pcover) == 1.0)
-            and  metscale[0] <=  mh <= metscale[-1]
-            and  coscale[0] <= co <= coscale[-1]
-            and  0.0 < logg < 6.0
-            and 1.0 < M < 80.
-            and  0. < r2d2 < 1.
-            and 0.1 < scale1 < 10.0
-            and 0.1 < scale2 < 10.0
-            and  0.5 < Rj < 2.0
-            # and -250 < vrad < 250
-            # and 0. < vsini < 100.0
-            and ((0.01*np.min(obspec[2,:]**2)) < 10.**logf
-                 < (100.*np.max(obspec[2,:]**2)))
-            and ((0.01*np.min(obspec[2,s1]**2)) < 10.**logf1
-                 < (100.*np.max(obspec[2,s1]**2)))
-            and ((0.01*np.min(obspec[2,s2]**2)) < 10.**logf2
-                 < (100.*np.max(obspec[2,s2]**2)))
-            and ((0.01*np.min(obspec[2,s3]**2)) < 10.**logf3
-                 < (100.*np.max(obspec[2,s3]**2)))
-            and (np.all(cloud_tau0 >= 0.0))
-            and (np.all(cloud_tau0 <= 100.0))
-            and np.all(cloud_top < cloud_bot)
-            and np.all(cloud_bot <= np.log10(press[-1]))
-            and np.all(np.log10(press[0]) <= cloud_top)
-            and np.all(cloud_top < cloud_bot)
-            and np.all(0. < cloud_height)
-            and np.all(cloud_height < 7.0)
-            and np.all(0.0 < w0)
-            and np.all(w0 <= 1.0)
-            and np.all(-10.0 < taupow)
-            and np.all(taupow < +10.0)
-            and np.all( -3.0 < loga)
-            and np.all (loga < 3.0)
-            and np.all(b < 1.0)
-            and np.all(b > 0.0)
-            and (gam > 0.)
-            and  (min(T) > 1.0) and (max(T) < 6000.)):
-            logbeta = -5.0
-            beta=10.**logbeta
-            alpha=1.0
-            x=gam
-            invgamma=((beta**alpha)/math.gamma(alpha)) * (x**(-alpha-1)) * np.exp(-beta/x)
-            prprob = (-0.5/gam)*np.sum(diff[1:-1]**2) - 0.5*pp*np.log(gam) + np.log(invgamma)
-    
-            return prprob
-        return -np.inf
-    
-
-    elif (proftype == 9):
-        #for mass prior
-        D = 3.086e+16 * dist
-        R = -1.0
-        if (r2d2 > 0.):
-            R = np.sqrt(r2d2) * D
-        g = (10.**logg)/100.
-        M = (R**2 * g/(6.67E-11))/1.898E27
-        Rj = R / 69911.e3
-        #         and  and (-5. < logbeta < 0))
-        print("Rj = ", Rj)
-        print("M = ", M)
-        print("[M/H] = ",mh)
-        print("[C/O] = ", co)
-        print("logg = ", logg)
-        print("R2D2 = ", r2d2)
-        print("scale1 = ",scale1)
-        print("scale2 = ",scale1)
-        print("Rj = ", Rj)
-        print("dlam = ", dlam)
-        print("logf = ", logf)
-        print("logf1 = ", logf1)
-        print("logf2 = ", logf2)
-        print("logf3 = ", logf3)
-        print(((0.01*np.min(obspec[2,:]**2))))
-        print((100.*np.max(obspec[2,:]**2)))
-        print("VMRs = ", invmr)
-        print("sum VMRs = ", np.sum(10.**(invmr)))
-        print("cloud_top = ", cloud_top)
-        print("cloud_bot = ", cloud_bot)
-        print("cloud_height = ", cloud_height)
-        print("loga = ", loga)
-        print("b = ", b)
-        print("cloud_tau0 = ", cloud_tau0)
-        print("w0 = ", w0)
-        print("taupow = ", taupow)
-        print("pcover = ", pcover)
-        print("sum(pcover) = ", np.sum(pcover))
-        print("metscale = ", metscale)
-        print("coscale = ", coscale)
-        print("press[press.size-1]  = ", press[press.size-1])
-        print("press[0] = ",press[0])
-        if (all(invmr> -12.0)
-            and all(invmr < 0.0)
-            and (np.sum(10.**(invmr)) < 1.0)
-            and all(pcover > 0.) and (np.sum(pcover) == 1.0)
-            and (metscale[0] <= mh <= metscale[-1])
-            and (coscale[0] <= co <= coscale[-1])
-            and (0.0 < logg < 6.0)
-            and (1.0 < M < 80.)
-            and (0. < r2d2 < 1.)
-            and (0. < frac_param < 1.)
-            and (0.1 < scale1 < 10.0)
-            and (0.1 < scale2 < 10.0)
-            and (0.5 < Rj < 2.0)
-            and (-0.01 < dlam < 0.01)
-            and ((0.01*np.min(obspec[2,:]**2)) < 10.**logf
-                 < (100.*np.max(obspec[2,:]**2)))
-            and ((0.01*np.min(obspec[2,s1]**2)) < 10.**logf1
-                 < (100.*np.max(obspec[2,s1]**2)))
-            and ((0.01*np.min(obspec[2,s2]**2)) < 10.**logf2
-                 < (100.*np.max(obspec[2,s2]**2)))
-            and ((0.01*np.min(obspec[2,s3]**2)) < 10.**logf3
-                 < (100.*np.max(obspec[2,s3]**2)))
-            and (np.all(cloud_tau0 >= 0.0))
-            and (np.all(cloud_tau0 <= 100.0))
-            and np.all(cloud_top < cloud_bot)
-            and np.all(cloud_bot <= np.log10(press[press.size-1]))
-            and np.all(np.log10(press[0]) <= cloud_top)
-            and np.all(cloud_top < cloud_bot)
-            and np.all(0. < cloud_height)
-            and np.all(cloud_height < 7.0)
-            and np.all(0.0 < w0)
-            and np.all(w0 <= 1.0)
-            and np.all(-10.0 < taupow)
-            and np.all(taupow < +10.0)
-            and np.all( -3.0 < loga)
-            and np.all (loga < 3.0)
-            and np.all(b < 1.0)
-            and np.all(b > 0.0)):
-            return 0.0
-
-        return -np.inf
-
-
-
-
 def priormap_dic(theta,re_params):
 
     all_params,all_params_values =utils.get_all_parametres(re_params.dictionary) 
@@ -1220,75 +69,13 @@ def priormap_dic(theta,re_params):
     params_instance = params_master(*theta)
 
     args_instance=settings.runargs
-# Unpack all necessary parameters into local variables
-    (   gases_myP,
-        chemeq,
-        dist,
-        cloudtype,
-        do_clouds,
-        gaslist,
-        gasnames,
-        gasmass,
-        cloudflag,
-        inlinetemps,
-        coarsePress,
-        press,
-        inwavenum,
-        linelist,
-        cia,
-        ciatemps,
-        use_disort,
-        fwhm,
-        obspec,
-        proftype,
-        do_fudge,
-        prof,
-        do_bff,
-        bff_raw,
-        ceTgrid,
-        metscale,
-        coscale,
-        R,
-        wl,
-        logf_flag,
-        scales#,
-        #gpoints,
-        #weights
-    ) = (
-        args_instance.gases_myP,
-        args_instance.chemeq,
-        args_instance.dist,
-        args_instance.cloudtype,
-        args_instance.do_clouds,
-        args_instance.gaslist,
-        args_instance.gasnames,
-        args_instance.gasmass,
-        args_instance.cloudflag,
-        args_instance.inlinetemps,
-        args_instance.coarsePress,
-        args_instance.press,
-        args_instance.inwavenum,
-        args_instance.linelist,
-        args_instance.cia,
-        args_instance.ciatemps,
-        args_instance.use_disort,
-        args_instance.fwhm,
-        args_instance.obspec,
-        args_instance.proftype,
-        args_instance.do_fudge,
-        args_instance.prof,
-        args_instance.do_bff,
-        args_instance.bff_raw,
-        args_instance.ceTgrid,
-        args_instance.metscale,
-        args_instance.coscale,
-        args_instance.R,
-        args_instance.wl,
-        args_instance.logf_flag,
-        args_instance.scales#,
-        #args_instance.gpoints,
-        #args_instance.weights
-    )
+
+    # Unpack all necessary parameters into local variables
+    press=args_instance.press
+    fwhm=args_instance.fwhm
+    obspec=args_instance.obspec
+    proftype=args_instance.proftype
+    do_fudge=args_instance.do_fudge
 
     phi = np.zeros_like(theta)
     gaslist=list(re_params.dictionary["gas"].keys())
@@ -1308,8 +95,8 @@ def priormap_dic(theta,re_params):
     
 
     if ng==2:
-        phi[0] = (theta[0] * (metscale[-1] - metscale[0])) + metscale[0]
-        phi[1] = (theta[1] * (coscale[-1] - coscale[0])) + coscale[0]
+        phi[0] = (theta[0] * (args_instance.metscale[-1] - args_instance.metscale[0])) + args_instance.metscale[0]
+        phi[1] = (theta[1] * (args_instance.coscale[-1] -  args_instance.coscale[0])) +  args_instance.coscale[0]
         
     else:
         rem = 1
@@ -1632,20 +419,17 @@ def priormap_dic(theta,re_params):
         phi[gam_index] = theta[gam_index] *5000
 
 
-    npatches = do_clouds.size
+    npatches = args_instance.cloudmap.shape[0]
     # only really ready for 2 patches here
     if (npatches > 1):
         fcld_index=params_instance._fields.index('fcld')
         phi[fcld_index] = theta[fcld_index]
 
-    if (cloudtype.size > cloudtype.shape[1]):
-        nclouds = cloudtype.shape[1]
-    else:
-        nclouds = cloudtype.size
+    
 
-    if np.all(do_clouds!= 0):
+    if np.all(args_instance.cloudmap!= 0):
         cloudlist=[]
-        for i in range(1, 3):
+        for i in range(1, npatches+1):
             for key in re_params.dictionary['cloud']['patch %s' % i].keys():
                 if 'clear' not in key:
                     cloudlist.append(key)
@@ -1712,14 +496,18 @@ def priormap_dic(theta,re_params):
                 # cloud height
                 phi[dp_pcd_index] = theta[dp_pcd_index] * 7.
 
-                particle_dis=re_params.dictionary["cloud"]["patch 1"][cloudname]["particle_dis"]
-                if  particle_dis=="hansan": 
-                    hansan_a_mcd_index=params_instance._fields.index('hansan_a_mcd_%s'%cloudspecies)
-                    hansan_b_mcd_index=params_instance._fields.index('hansan_b_mcd_%s'%cloudspecies)                                               
+                for patch, clouds in re_params.dictionary['cloud'].items():
+                    for name, cloud_info in clouds.items():
+                        if cloudspecies in name:
+                            particle_dis = cloud_info.get('particle_dis', None)
+   
+                if  particle_dis=="hansen": 
+                    hansen_a_mcd_index=params_instance._fields.index('hansen_a_mcd_%s'%cloudspecies)
+                    hansen_b_mcd_index=params_instance._fields.index('hansen_b_mcd_%s'%cloudspecies)                                               
                     # particle effective radius
-                    phi[hansan_a_mcd_index] = (theta[hansan_a_mcd_index] * 6.) - 3.
+                    phi[hansen_a_mcd_index] = (theta[hansen_a_mcd_index] * 6.) - 3.
                     # particle spread
-                    phi[hansan_b_mcd_index] = theta[hansan_b_mcd_index]
+                    phi[hansen_b_mcd_index] = theta[hansen_b_mcd_index]
                 elif particle_dis=="log_normal":
                     mu_mcd_index=params_instance._fields.index('mu_mcd_%s'%cloudspecies)
                     sigma_mcd_index=params_instance._fields.index('sigma_mcd_%s'%cloudspecies)
@@ -1768,15 +556,18 @@ def priormap_dic(theta,re_params):
                 phi[dp_mcs_index] = theta[dp_mcs_index] * \
                     (phi[logp_mcs_index] - np.log10(press[0]))
 
-                particle_dis=re_params.dictionary["cloud"]["patch 1"][cloudname]["particle_dis"]
+                for patch, clouds in re_params.dictionary['cloud'].items():
+                    for name, cloud_info in clouds.items():
+                        if cloudspecies in name:
+                            particle_dis = cloud_info.get('particle_dis', None)
                                                                         
-                if particle_dis=="hansan": 
-                    hansan_a_mcs_index=params_instance._fields.index('hansan_a_mcs_%s'%cloudspecies)
-                    hansan_b_mcs_index=params_instance._fields.index('hansan_b_mcs_%s'%cloudspecies)                                               
+                if particle_dis=="hansen": 
+                    hansen_a_mcs_index=params_instance._fields.index('hansen_a_mcs_%s'%cloudspecies)
+                    hansen_b_mcs_index=params_instance._fields.index('hansen_b_mcs_%s'%cloudspecies)                                               
                     # particle effective radius
-                    phi[hansan_a_mcs_index] = (theta[hansan_a_mcs_index] * 6.) - 3.
+                    phi[hansen_a_mcs_index] = (theta[hansen_a_mcs_index] * 6.) - 3.
                     # particle spread
-                    phi[hansan_b_mcs_index] = theta[hansan_b_mcs_index]
+                    phi[hansen_b_mcs_index] = theta[hansen_b_mcs_index]
                 elif particle_dis=="log_normal":
                     mu_mcs_index=params_instance._fields.index('mu_mcs_%s'%cloudspecies)
                     sigma_mcs_index=params_instance._fields.index('sigma_mcs_%s'%cloudspecies)
@@ -1800,75 +591,11 @@ def lnlike(theta,re_params):
     params_instance = params_master(*theta)
     args_instance=settings.runargs
 
-# Unpack all necessary parameters into local variables
-    (   gases_myP,
-        chemeq,
-        dist,
-        cloudtype,
-        do_clouds,
-        gaslist,
-        gasnames,
-        gasmass,
-        cloudflag,
-        inlinetemps,
-        coarsePress,
-        press,
-        inwavenum,
-        linelist,
-        cia,
-        ciatemps,
-        use_disort,
-        fwhm,
-        obspec,
-        proftype,
-        do_fudge,
-        prof,
-        do_bff,
-        bff_raw,
-        ceTgrid,
-        metscale,
-        coscale,
-        R,
-        wl,
-        logf_flag,
-        scales#,
-        #gpoints,
-        #weights     
-    ) = (
-        args_instance.gases_myP,
-        args_instance.chemeq,
-        args_instance.dist,
-        args_instance.cloudtype,
-        args_instance.do_clouds,
-        args_instance.gaslist,
-        args_instance.gasnames,
-        args_instance.gasmass,
-        args_instance.cloudflag,
-        args_instance.inlinetemps,
-        args_instance.coarsePress,
-        args_instance.press,
-        args_instance.inwavenum,
-        args_instance.linelist,
-        args_instance.cia,
-        args_instance.ciatemps,
-        args_instance.use_disort,
-        args_instance.fwhm,
-        args_instance.obspec,
-        args_instance.proftype,
-        args_instance.do_fudge,
-        args_instance.prof,
-        args_instance.do_bff,
-        args_instance.bff_raw,
-        args_instance.ceTgrid,
-        args_instance.metscale,
-        args_instance.coscale,
-        args_instance.R,
-        args_instance.wl,
-        args_instance.logf_flag,
-        args_instance.scales#,
-        #args_instance.gpoints,
-        #args_instance.weights
-    )
+    press=args_instance.press
+    fwhm=args_instance.fwhm
+    obspec=args_instance.obspec
+    proftype=args_instance.proftype
+    do_fudge=args_instance.do_fudge
 
     # get the spectrum
     # for MCMC runs we don't want diagnostics
@@ -1927,13 +654,13 @@ def lnlike(theta,re_params):
             if hasattr(params_instance, pname): #it just checks if it exists, return True boolean
                 scales[pname] = getattr(params_instance, pname) #returns actual value
         if (do_fudge == 1):
-            if np.max(logf_flag) == 1.0:
+            if np.max(args_instance.logf_flag) == 1.0:
                 logf = [params_instance.tolerance_parameter_1]
-            elif np.max(logf_flag) == 2.0:
+            elif np.max(args_instance.logf_flag) == 2.0:
                 logf = [params_instance.tolerance_parameter_1,params_instance.tolerance_parameter_2]
-            elif np.max(logf_flag) == 3.0:
+            elif np.max(args_instance.logf_flag) == 3.0:
                 logf = [params_instance.tolerance_parameter_1, params_instance.tolerance_parameter_2, params_instance.tolerance_parameter_3]
-            elif np.max(logf_flag) == 4.0:
+            elif np.max(args_instance.logf_flag) == 4.0:
                 logf = [params_instance.tolerance_parameter_1,params_instance.tolerance_parameter_2,params_instance.tolerance_parameter_3,params_instance.tolerance_parameter_4]
         else:
             # This is a place holder value so the code doesn't break
@@ -2013,11 +740,6 @@ def lnlike(theta,re_params):
 
         lnLik=-0.5*np.sum((((obspec[1,:] - spec[:])**2) / s2) + np.log(2.*np.pi*s2))
         
-        
-        
-
- 
- 
     elif (fwhm == 888):
         #Non-uniform R, NIRSpec + MIRI, two tolerance parameters
         print(f"obspec shape: {obspec.shape}")
@@ -2388,84 +1110,19 @@ def modelspec(theta,re_params,args_instance,gnostics):
     params_master = namedtuple('params',all_params)
     params_instance = params_master(*theta)
 
+
     # Unpack all necessary parameters into local variables
-    (   gases_myP,
-        chemeq,
-        dist,
-        gaslist,
-        gasnames,
-        gasmass,
-        inlinetemps,
-        coarsePress,
-        press,
-        inwavenum,
-        linelist,
-        cia,
-        ciatemps,
-        use_disort,
-        fwhm,
-        obspec,
-        proftype,
-        do_fudge,
-        prof,
-        do_bff,
-        bff_raw,
-        ceTgrid,
-        metscale,
-        coscale,
-        R,
-        wl,
-        logf_flag,
-        scales,
-        miewave,
-        mierad,
-        cloudata,
-        cloud_opaname,
-        cloudsize,
-        cloudmap#,
-        #gpoints,
-        #weights
-    ) = (
-        args_instance.gases_myP,
-        args_instance.chemeq,
-        args_instance.dist,
-        args_instance.gaslist,
-        args_instance.gasnames,
-        args_instance.gasmass,
-        args_instance.inlinetemps,
-        args_instance.coarsePress,
-        args_instance.press,
-        args_instance.inwavenum,
-        args_instance.linelist,
-        args_instance.cia,
-        args_instance.ciatemps,
-        args_instance.use_disort,
-        args_instance.fwhm,
-        args_instance.obspec,
-        args_instance.proftype,
-        args_instance.do_fudge,
-        args_instance.prof,
-        args_instance.do_bff,
-        args_instance.bff_raw,
-        args_instance.ceTgrid,
-        args_instance.metscale,
-        args_instance.coscale,
-        args_instance.R,
-        args_instance.wl,
-        args_instance.logf_flag,
-        args_instance.scales,
-        args_instance.miewave,
-        args_instance.mierad,
-        args_instance.cloudata,
-        args_instance.cloud_opaname,
-        args_instance.cloudsize,
-        args_instance.cloudmap#,
-        #args_instance.gpoints,
-        #args_instance.weights
-    )
+    press=args_instance.press
+    fwhm=args_instance.fwhm
+    obspec=args_instance.obspec
+    proftype=args_instance.proftype
+    do_fudge=args_instance.do_fudge
+    #gpoints=args_instance.gpoints
+    #weights=rgs_instance.weights
+ 
         
     nlayers = press.size
-    if chemeq == 0:
+    if args_instance.chemeq == 0:
         gas_keys = re_params.dictionary['gas'].keys()
         gas_keys=list(gas_keys)
         invmr=np.array([getattr(params_instance, key) for key in gas_keys])
@@ -2475,9 +1132,9 @@ def modelspec(theta,re_params,args_instance,gnostics):
         mh  = params_instance.mh
         co =  params_instance.co
 
-        mfit = interp1d(metscale,gases_myP,axis=0)
+        mfit = interp1d(args_instance.metscale,args_instance.gases_myP,axis=0)
         gases_myM = mfit(mh)
-        cfit = interp1d(coscale,gases_myM,axis=0)
+        cfit = interp1d(args_instance.coscale,gases_myM,axis=0)
         invmr = cfit(co)
 
 
@@ -2486,7 +1143,7 @@ def modelspec(theta,re_params,args_instance,gnostics):
         R= params_instance.R* 69911e3
         GM = (6.67E-11 * M*1.898e27)
         logg = np.log10(100.* GM / R**2.)
-        D = (dist + (np.random.randn()*args_instance.dist_err)) * 3.086e16
+        D = (args_instance.dist + (np.random.randn()*args_instance.dist_err)) * 3.086e16
         # D = dist * 3.086e16
         R2D2 = R**2. / D**2.
 
@@ -2553,18 +1210,13 @@ def modelspec(theta,re_params,args_instance,gnostics):
         pcover = 1.0
         
     # use correct unpack method depending on situation
-
     # if ((npatches > 1) and np.all(do_clouds != 0)):
     #     cloudparams = cloud_dic.unpack_patchy(re_params,params_instance,cloudtype,cloudflag,do_clouds)
     # else:
     #     cloudparams = cloud_dic.unpack_default(re_params,params_instance,cloudtype,cloudflag,do_clouds)
 
 
-    
     cloudparams=cloud_dic_new.cloud_unpack(re_params,params_instance)
-
-    
-
     ndim = len(theta)
 
     intemp_keys = list(re_params.dictionary['pt']['params'].keys())
@@ -2580,28 +1232,28 @@ def modelspec(theta,re_params,args_instance,gnostics):
     elif (proftype == 2 or proftype ==3 or proftype ==7):
         intemp=intemp
     elif (proftype == 9):
-        intemp = prof
+        intemp = args_instance.prof
 
     else:
         raise ValueError("not valid profile type %s" %proftype)
 
     # set the profile
-    temp = TPmod.set_prof(proftype,coarsePress,press,intemp)
+    temp = TPmod.set_prof(proftype,args_instance.coarsePress,press,intemp)
 
-    ngas = len(gaslist)
+    ngas = len(args_instance.gaslist)
     bff = np.zeros([3,nlayers],dtype="float64")
 
 
     # check if its a fixed VMR or a profile from chem equilibrium
     # VMR is log10(VMR) !!!
-    if chemeq == 1:
+    if args_instance.chemeq == 1:
         # this case is a profile
         ng = invmr.shape[2]
         ngas = ng - 3
         logVMR = np.zeros([ngas,nlayers],dtype='d')
         for p in range(0,nlayers):
             for g in range(0,ng):
-                tfit = InterpolatedUnivariateSpline(ceTgrid,invmr[:,p,g])
+                tfit = InterpolatedUnivariateSpline(args_instance.ceTgrid,invmr[:,p,g])
                 if (g < 3):
                     bff[g,p] = tfit(temp[p])
                 else:
@@ -2615,11 +1267,11 @@ def modelspec(theta,re_params,args_instance,gnostics):
         alkratio = 16.2 #  from Asplund et al (2009)
 
         tmpvmr = np.empty(ngas,dtype='d')
-        if (gaslist[len(gaslist)-1] == 'na' and gaslist[len(gaslist)-2] == 'k'):
+        if (args_instance.gaslist[len(args_instance.gaslist)-1] == 'na' and args_instance.gaslist[len(args_instance.gaslist)-2] == 'k'):
             tmpvmr[0:(ngas-2)] = invmr[0:-1]
             tmpvmr[ngas-2] = np.log10(10.**invmr[-1] / (alkratio+1.)) # K
             tmpvmr[ngas-1] = np.log10(10.**invmr[-1] * (alkratio / (alkratio+1.))) # Na
-        elif (gaslist[len(gaslist)-1] == 'cs'):
+        elif (args_instance.gaslist[len(args_instance.gaslist)-1] == 'cs'):
             #f values are ratios between Na and (K+Cs) and K and Cs respectively
             f1 = 1.348
             f2 = 8912.5
@@ -2664,9 +1316,6 @@ def modelspec(theta,re_params,args_instance,gnostics):
                 logVMR[i,p_gas_index:]=-100
 
 
-
-
-
     # now need to translate cloudparams in to cloud profile even
     # if do_clouds is zero..
 
@@ -2680,8 +1329,8 @@ def modelspec(theta,re_params,args_instance,gnostics):
     cloudrad = np.asfortranarray(cloudrad,dtype = 'float64')
     cloudsig = np.asfortranarray(cloudsig,dtype = 'float64')
     pcover = np.asfortranarray(pcover,dtype = 'float32')
-    cloudsize = np.asfortranarray(cloudsize,dtype = 'i')
-    cloudmap = np.asfortranarray(cloudmap,dtype = 'i')
+    cloudsize = np.asfortranarray(args_instance.cloudsize,dtype = 'i')
+    cloudmap = np.asfortranarray(args_instance.cloudmap,dtype = 'i')
 
 
     # do_clouds = np.asfortranarray(do_clouds,dtype = 'i')
@@ -2706,13 +1355,13 @@ def modelspec(theta,re_params,args_instance,gnostics):
 
 
     # Now get the BFF stuff sorted
-    if (chemeq == 0 and do_bff == 1):
+    if (args_instance.chemeq == 0 and args_instance.do_bff == 1):
         for gas in range(0,3):
             for i in range(0,nlayers):
-                tfit = InterpolatedUnivariateSpline(ceTgrid,bff_raw[:,i,gas],k=1)
+                tfit = InterpolatedUnivariateSpline(args_instance.ceTgrid,args_instance.bff_raw[:,i,gas],k=1)
                 bff[gas,i] = tfit(temp[i])
 
-        if (gaslist[len(gaslist)-1] == 'hmins'):
+        if (args_instance.gaslist[len(args_instance.gaslist)-1] == 'hmins'):
             bff[2,0:p_gas_index] = -50
 
     bff = np.asfortranarray(bff, dtype='float64')
@@ -2720,12 +1369,6 @@ def modelspec(theta,re_params,args_instance,gnostics):
     temp = np.asfortranarray(temp,dtype='float64')
     logVMR = np.asfortranarray(logVMR,dtype='float64')
     
-    
-    # print(invmr)
-    # print(cloudprof,cloudrad,cloudsig)
-    # print(temp)
-
-
     # Diagnostics below.
     # make_cf = get a contribution function
     # clphot = get pressure for cloud_tau = 1.0 as function of wavelength
@@ -2745,17 +1388,18 @@ def modelspec(theta,re_params,args_instance,gnostics):
 
 
 
-    # now we can call the forward model
-    #use_disort = int(use_disort)
-    if use_disort is None:
-        use_disort = 0   
-    else:
-        use_disort = int(use_disort)
-    #print('use_disort',use_disort)
-    outspec,tmpclphotspec,tmpophotspec,cf = forwardmodel.marv(temp,logg,R2D2,gasnames,gasmass,logVMR,pcover,cloudmap,cloud_opaname,cloudsize,cloudata,miewave,mierad, cloudrad,cloudsig,cloudprof,inlinetemps,press,inwavenum,linelist,cia,ciatemps,use_disort,clphot,ophot,make_cf,do_bff,bff)
+    # # now we can call the forward model
+    # #use_disort = int(use_disort)
+    # if use_disort is None:
+    #     use_disort = 0   
+    # else:
+    #     use_disort = int(use_disort)
+    # #print('use_disort',use_disort)
+
+    outspec,tmpclphotspec,tmpophotspec,cf = forwardmodel.marv(temp,logg,R2D2,args_instance.gasnames,args_instance.gasmass,logVMR,pcover,cloudmap,args_instance.cloud_opaname,cloudsize,args_instance.cloudata,args_instance.miewave,args_instance.mierad,cloudrad,cloudsig,cloudprof,args_instance.inlinetemps,press,args_instance.inwavenum,args_instance.linelist,args_instance.cia,args_instance.ciatemps,args_instance.use_disort,clphot,ophot,make_cf,args_instance.do_bff,bff)
 
     # Trim to length where it is defined.
-    nwave = inwavenum.size
+    nwave = args_instance.inwavenum.size
     trimspec = np.zeros([2,nwave],dtype='d')
     trimspec = outspec[:,:nwave]
     cloud_phot_press = tmpclphotspec[0:npatches,:nwave].reshape(npatches,nwave)
@@ -2767,6 +1411,15 @@ def modelspec(theta,re_params,args_instance,gnostics):
     shiftspec = np.empty_like(trimspec)
     shiftspec[0,:] =  trimspec[0,:] + dlam
     shiftspec[1,:] =  trimspec[1,:]
+
+    # print("VMR")
+    # print(logVMR)
+    # print("----------------")
+    # print("temp")
+    # print(temp)
+    # print("----------------")
+    # print("cloudrad,cloudsig,cloudprof")
+    # print(cloudrad,cloudsig,cloudprof)
 
     return shiftspec, cloud_phot_press,other_phot_press,cfunc
 

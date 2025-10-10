@@ -14,6 +14,8 @@ from scipy.interpolate import interp1d
 from scipy.interpolate import InterpolatedUnivariateSpline
 import TPmod
 from collections import namedtuple
+from mpi4py import MPI
+import h5py
 
 __author__ = "Fei Wang"
 __copyright__ = "Copyright 2024 - Fei Wang"
@@ -551,7 +553,7 @@ class Retrieval_params:
                 'params':{'log_abund':
                            {'initialization':None,
                             'distribution':['normal',-4.0,0.5],
-                            'range':None,
+                            'range':[-12,0],
                             'prior':None}
                          }}
 
@@ -562,19 +564,19 @@ class Retrieval_params:
                 'params':{'log_abund':
                            {'initialization':None,
                             'distribution':['normal',-4.0,0.5],
-                            'range':None,
+                            'range':[-12,0],
                             'prior': None},
 
                            "p_ref": 
                             {'initialization':None,
                               'distribution':['normal',-1,0.2],
-                              'range':None,
+                              'range':[-4,2.4],
                               'prior': None},
 
                            "alpha":
                             {'initialization':None,
                              'distribution':['uniform',0,1],
-                             'range':None,
+                             'range':[0,1],
                              'prior': None}    
                            }}
         elif gastype=='H':
@@ -583,13 +585,13 @@ class Retrieval_params:
                 'params':{'log_abund':
                            {'initialization':None,
                             'distribution':['normal',-4.0,0.5],
-                            'range':None,
+                            'range':[-12,0],
                             'prior': None},
                             
                            "p_ref": 
                             {'initialization':None,
                               'distribution':['normal',-1,0.2],
-                              'range':None,
+                              'range':[-4,2.4],
                               'prior': None}
 
                            }}
@@ -608,7 +610,7 @@ class Retrieval_params:
                 'params':{'gamma':
                            {'initialization':None,
                             'distribution':['normal',50,1],
-                             'range':None,
+                             'range':[0,5000],
                             'prior':None}}}
             
             for i in range(13):
@@ -628,31 +630,31 @@ class Retrieval_params:
                 'params':{'alpha1':
                            {'initialization':None,
                             'distribution':['normal',0.2,0.1],
-                            'range':None,
+                            'range':[0,1],
                             'prior':None},
 
                           'alpha2':
                            {'initialization':None,
                             'distribution':['normal',0.18,0.05],
-                            'range':None,
+                            'range':[0,1],
                             'prior':None},
 
                           'logP1':
                            {'initialization':None,
                             'distribution':['normal',-1,0.2],
-                            'range':None,
+                            'range':[-4,2.4],
                             'prior':None},
 
                           'logP3':
                            {'initialization':None,
                             'distribution':['normal',2,0.2],
-                            'range':None,
+                            'range':[-4,2.4],
                             'prior':None},
 
                           'T3':
                            {'initialization':None,
                             'distribution':['normal',3600,500],
-                            'range':None,
+                            'range':[0,5000],
                             'prior':None}
                          }}
         elif ptype==3:
@@ -662,37 +664,37 @@ class Retrieval_params:
                 'params':{'alpha1':
                            {'initialization':None,
                             'distribution':['normal',0.2,0.1],
-                            'range':None,
+                            'range':[0,1],
                             'prior':None},
 
                           'alpha2':
                            {'initialization':None,
                             'distribution':['normal',0.18,0.05],
-                            'range':None,
+                            'range':[0,1],
                             'prior':None},
 
                           'logP1':
                            {'initialization':None,
                             'distribution':['normal',-1,0.2],
-                            'range':None,
+                            'range':[-4,2.4],
                             'prior':None},
 
                           'logP2':
                            {'initialization':None,
                             'distribution':['normal',0.1,0.2],
-                            'range':None,
+                            'range':[-4,2.4],
                             'prior':None},
 
                           'logP3':
                            {'initialization':None,
                             'distribution':['normal',2,0.2],
-                            'range':None,
+                            'range':[-4,2.4],
                             'prior':None},
 
                           'T3':
                            {'initialization':None,
                             'distribution':['normal',3600,500],
-                            'range':None,
+                            'range':[0,5000],
                             'prior':None}
                          }}
 
@@ -703,37 +705,37 @@ class Retrieval_params:
                 'params':{'Tint':
                            {'initialization':None,
                             'distribution':['normal',1200,200],
-                            'range':None,
+                            'range':[0,5000],
                             'prior':None},
 
                           'alpha':
                            {'initialization':None,
                             'distribution':['uniform',1,2],
-                            'range':None,
+                            'range':[1,2],
                             'prior':None},
 
                           'lndelta':
                            {'initialization':None,
                             'distribution':['normal',0.5,0.5],
-                            'range':None,
+                            'range':[-20,0],
                             'prior':None},
 
                           'T1':
                            {'initialization':None,
                             'distribution':['normal',1200,200],
-                            'range':None,
+                            'range':[0,5000],
                             'prior':None},
 
                           'T2':
                            {'initialization':None,
                             'distribution':['normal',1200,200],
-                            'range':None,
+                            'range':[0,5000],
                             'prior':None},
 
                           'T3':
                            {'initialization':None,
                             'distribution':['normal',1200,200],
-                            'range':None,
+                            'range':[0,5000],
                             'prior':None}
                          }}
 
@@ -744,43 +746,43 @@ class Retrieval_params:
                 'params':{'gamma':
                            {'initialization':None,
                             'distribution':['normal',50,1],
-                            'range':None,
+                            'range':[0,5000],
                             'prior':None},
 
                           'Tint':
                            {'initialization':None,
                             'distribution':['normal',1200,200],
-                            'range':None,
+                            'range':[0,5000],
                             'prior':None},
 
                           'alpha':
                            {'initialization':None,
                             'distribution':['uniform',1,2],
-                            'range':None,
+                            'range':[1,2],
                             'prior':None},
                             
                           'lndelta':
                            {'initialization':None,
                             'distribution':['normal',0,1],
-                            'range':None,
+                            'range':[-20,0],
                             'prior':None},
 
                           'T1':
                            {'initialization':None,
                             'distribution':['normal',1200,200],
-                            'range':None,
+                            'range':[0,5000],
                             'prior':None},
 
                           'T2':
                            {'initialization':None,
                             'distribution':['normal',1200,200],
-                            'range':None,
+                            'range':[0,5000],
                             'prior':None},
 
                           'T3':
                            {'initialization':None,
                             'distribution':['normal',1200,200],
-                            'range':None,
+                            'range':[0,5000],
                             'prior':None}
                          }}
 
@@ -809,17 +811,17 @@ class Retrieval_params:
                     'params':{'logp_gcd':
                                {'initialization':None,
                                 'distribution':['normal',1,0.1],
-                                'range':None,
+                                'range':[-4,2.4],
                                 'prior':None},
                               'dp_gcd':
                                {'initialization':None,
                                 'distribution':['customized',dp_customized_distribution],  #lambda x: np.abs(0.1 * np.random.randn(x))
-                                'range':None,
+                                'range':[0,7],
                                 'prior':None},
                               'omega_gcd':
                               {'initialization':None,
                                'distribution':['uniform',0,1],
-                               'range':None,
+                               'range':[0,1],
                                 'prior':None}
                              }}
 
@@ -833,22 +835,22 @@ class Retrieval_params:
                     'params':{'tau_gcs':
                                {'initialization':None,
                                 'distribution':['normal',10,1],
-                                'range':None,
+                                'range':[0,100],
                                 'prior':None},
                               'logp_gcs':
                                {'initialization':None,
                                 'distribution':['normal',-0.2,0.1],
-                                'range':None,
+                                'range':[-4,2.4],
                                 'prior':None},
                               'dp_gcs':
                               {'initialization':None,
                                'distribution':['customized',dp_customized_distribution],  #lambda x: np.abs(0.5+0.01* np.random.randn(x))
-                               'range':None,
-                                'prior':None},
+                               'range':None,  #correlated with logp_gcs [0, (phi[logp_gcs_index] - np.log10(press[0]))]
+                               'prior':None},
                               'omega_gcs':
                               {'initialization':None,
                                'distribution':['uniform',0,1],
-                               'range':None,
+                               'range':[0,1],
                                 'prior':None}
                              }}
 
@@ -863,22 +865,22 @@ class Retrieval_params:
                     'params':{'logp_pcd':
                                {'initialization':None,
                                 'distribution':['normal',-0.2,0.1],
-                                'range':None,
+                                'range':[-4,2.4],
                                 'prior':None},
                               'dp_pcd':
                                {'initialization':None,
                                 'distribution':['customized',dp_customized_distribution], #lambda x: np.abs(0.1 * np.random.randn(x))
-                                'range':None,
+                                'range':[0,7],
                                 'prior':None},
                               'omega_pcd':
                               {'initialization':None,
                                'distribution':['uniform',0,1],
-                               'range':None,
+                               'range':[0,1],
                                 'prior':None},
                               'alpha_pcd':
                               {'initialization':None,
                                'distribution':['normal',0,1],
-                               'range':None,
+                               'range':[-10,10],
                                 'prior':None}
                              }}
 
@@ -897,22 +899,22 @@ class Retrieval_params:
                         'params':{'logp_mcd_%s'%cloudspecies:
                                     {'initialization':None,
                                     'distribution':['normal',1,0.1],
-                                    'range':None,
+                                    'range':[-4,2.4],
                                     'prior':None},
                                    'dp_mcd_%s'%cloudspecies:
                                     {'initialization':None,
                                     'distribution':['customized',dp_customized_distribution], #lambda x: np.abs(0.1 * np.random.randn(x))
-                                    'range':None, 
+                                    'range':[0,7], 
                                     'prior':None},
                                     'hansen_a_mcd_%s'%cloudspecies:
                                     {'initialization':None,
                                     'distribution':['normal',-1.4,0.1],
-                                    'range':None,
+                                    'range':[-3,3],
                                     'prior':None},
                                     'hansen_b_mcd_%s'%cloudspecies:
                                     {'initialization':None,
                                     'distribution':['customized',hansen_b_customized_distribution], #lambda x: np.abs(0.2+0.05 * np.random.randn(x))
-                                    'range':None,
+                                    'range':[0,1],
                                     'prior':None}
                                         }}
                                 
@@ -925,22 +927,22 @@ class Retrieval_params:
                         'params':{'logp_mcd_%s'%cloudspecies:
                                     {'initialization':None,
                                     'distribution':['normal',1,0.1],
-                                    'range':None,
+                                    'range':[-4,2.4],
                                     'prior':None},
                                     'dp_mcd_%s'%cloudspecies:
                                     {'initialization':None,
                                     'distribution':['customized',dp_customized_distribution], #lambda x: np.abs(0.1 * np.random.randn(x))
-                                    'range':None,
+                                    'range':[0,7],
                                     'prior':None},
                                     'mu_mcd_%s'%cloudspecies:
                                     {'initialization':None,
                                     'distribution':['normal',0,1],
-                                    'range':None,
+                                    'range':[-3,3],
                                     'prior':None},
                                     'sigma_mcd_%s'%cloudspecies:
                                     {'initialization':None,
                                     'distribution':['normal',0,1],
-                                    'range':None,
+                                    'range':[0,1],
                                     'prior':None}
                                         }}
 
@@ -954,27 +956,27 @@ class Retrieval_params:
                     'params':{'tau_pcs':
                                {'initialization':None,
                                 'distribution':['normal',10,1],
-                                'range':None,
+                                'range':[0,100],
                                 'prior':None},
                               'logp_pcs':
                                {'initialization':None,
                                 'distribution':['normal',-0.2,0.5],
-                                'range':None,
+                                'range':[-4,2.4],
                                 'prior':None},
                               'dp_pcs':
                               {'initialization':None,
                                'distribution':['customized', dp_customized_distribution], #lambda x: np.abs(0.1 * np.random.randn(x))
-                               'range':None,
+                               'range':None,  #correlated with logp_gcs [0, (phi[logp_gcs_index] - np.log10(press[0]))]
                                 'prior':None},
                               'omega_pcs':
                               {'initialization':None,
                                'distribution':['uniform',0,1],
-                               'range':None,
+                               'range':[0,1],
                                 'prior':None},
                               'alpha_pcs':
                               {'initialization':None,
                                'distribution':['normal',0,1],
-                               'range':None,
+                               'range':[-10,10],
                                 'prior':None}
                              }}
 
@@ -992,27 +994,27 @@ class Retrieval_params:
                         'params':{'tau_mcs_%s'%cloudspecies:
                                    {'initialization':None,
                                     'distribution':['normal',10,1],
-                                    'range':None,
+                                    'range':[0,100],
                                     'prior':None},
                                   'logp_mcs_%s'%cloudspecies:
                                    {'initialization':None,
                                     'distribution':['normal',-0.2,0.5],
-                                    'range':None,
+                                    'range':[-4,2.4],
                                     'prior':None},
                                   'dp_mcs_%s'%cloudspecies:
                                   {'initialization':None,
                                    'distribution':['customized',dp_customized_distribution], # lambda x: np.abs(0.1 * np.random.randn(x))
-                                   'range':None,
+                                   'range':None,  #correlated with logp_gcs [0, (phi[logp_gcs_index] - np.log10(press[0]))]
                                     'prior':None},
                                   'hansen_a_mcs_%s'%cloudspecies:
                                   {'initialization':None,
                                    'distribution':['normal',-1.4,0.1],
-                                   'range':None,
+                                   'range':[-3,3],
                                     'prior':None},
                                   'hansen_b_mcs_%s'%cloudspecies:
                                   {'initialization':None,
                                    'distribution':['customized',hansen_b_customized_distribution], #lambda x: np.abs(0.2+0.05 * np.random.randn(x))
-                                   'range':None,
+                                   'range':[0,1],
                                    'prior':None}
                                      }}
 
@@ -1025,27 +1027,27 @@ class Retrieval_params:
                         'params':{'tau_mcs_%s'%cloudspecies:
                                    {'initialization':None,
                                     'distribution':['normal',10,1],
-                                    'range':None,
+                                    'range':[0,100],
                                     'prior':None},
                                   'logp_mcs_%s'%cloudspecies:
                                    {'initialization':None,
                                     'distribution':['normal',-0.2,0.5],
-                                    'range':None,
+                                    'range':[-4,2.4],
                                     'prior':None},
                                   'dp_mcs_%s'%cloudspecies:
                                   {'initialization':None,
                                    'distribution':['customized',dp_customized_distribution], #lambda x: np.abs(0.1 * np.random.randn(x))
-                                   'range':None,
+                                   'range':None,   #correlated with logp_gcs [0, (phi[logp_gcs_index] - np.log10(press[0]))]
                                     'prior':None},
                                   'mu_mcs_%s'%cloudspecies:
                                   {'initialization':None,
                                    'distribution':['normal',0,1],
-                                   'range':None,
+                                   'range':[-3,3],
                                     'prior':None},
                                   'sigma_mcs_%s'%cloudspecies:
                                   {'initialization':None,
                                    'distribution':['normal',0,1],
-                                   'range':None,
+                                   'range':[0,1],
                                     'prior':None}
                                      }}
 
@@ -1067,48 +1069,51 @@ class Retrieval_params:
 
 
         if self.samplemode.lower() == 'mcmc':
-               
-               dictionary['params'] = {
-                    'logg': {
-                        'initialization': None,
-                        'distribution': ['normal', 4.5, 0.1],
-                        'prior': None
-                    },
-                    'r2d2': {
-                        'initialization': None,
-                        'distribution': ['normal', 0, 1],
-                        'prior': None
-                    },
-                    #'scale1': {
-                    #    'initialization': None,
-                    #    'distribution': ['normal', 0, 0.001],
-                    #    'prior': None
-                    #},
-                    #'scale2': {
-                    #    'initialization': None,
-                    #    'distribution': ['normal', 0, 0.001],
-                    #    'prior': None
-                    #},
-                    'frac_param': {
-                        'initialization': None,
-                        'distribution': ['normal', 0.5, 0.1],
-                        'prior': None
-                    },
-                    'dlambda': {
-                        'initialization': None,
-                        'distribution': ['normal', 0, 0.001],
-                        'prior': None
-                    }
+            dictionary['params'] = {
+                'logg': {
+                    'initialization': None,
+                    'distribution': ['normal', 4.5, 0.1],
+                    'range':[0,6],
+                    'prior': None
+                },
+                'r2d2': {
+                    'initialization': None,
+                    'distribution': ['normal', 0, 1],
+                    'range':[0,1],
+                    'prior': None
+                },
+                #'scale1': {
+                #    'initialization': None,
+                #    'distribution': ['normal', 0, 0.001],
+                #    'prior': None
+                #},
+                #'scale2': {
+                #    'initialization': None,
+                #    'distribution': ['normal', 0, 0.001],
+                #    'prior': None
+                #},
+                # 'frac_param': {
+                #     'initialization': None,
+                #     'distribution': ['normal', 0.5, 0.1],
+                #     'prior': None
+                # },
+                'dlambda': {
+                    'initialization': None,
+                    'distribution': ['normal', 0, 0.001],
+                    'range':[-0.01,0.01],
+                    'prior': None
                 }
-               if getattr(self, "instrument", None) is not None and getattr(self.instrument, "scales", None) is not None:
-                   scales_parameter_max = int(np.max(self.instrument.scales))
-                   if scales_parameter_max > 0:
-                       for i in range(1, scales_parameter_max + 1):
-                           dictionary['params'][f'scale{i}'] = {
-                            'initialization': None,
-                            'distribution': ['normal', 1, 0.001],
-                            'prior': None
-                          }
+            }
+            if getattr(self, "instrument", None) is not None and getattr(self.instrument, "scales", None) is not None:
+                scales_parameter_max = int(np.max(self.instrument.scales))
+                if scales_parameter_max > 0:
+                    for i in range(1, scales_parameter_max + 1):
+                        dictionary['params'][f'scale{i}'] = {
+                        'initialization': None,
+                        'distribution': ['normal', 1, 0.001],
+                        'range':[0.1,10],
+                        'prior': None
+                        }
                       
                   #for i in range(1, scales_parameter_max+1):
                   #    dictionary['params'][f'scale{i}']['initialization'] =1.0 +1e3*np.random.randn()
@@ -1116,38 +1121,37 @@ class Retrieval_params:
                
                 
         elif self.samplemode.lower() == 'multinest':
-                    dictionary['params'] = {
+            dictionary['params'] = {
                     'M': {
                         'initialization': None,
                         'distribution': ['normal', 4.5, 0.1],
-                        'range':None,
+                        'range': [1.0,80],
                         'prior': None
                     },
                     'R': {
                         'initialization': None,
                         'distribution': ['normal', 0, 1],
-                        'range':None,
-                        'prior': None
-                    },
-                    'scale1': {
-                        'initialization': None,
-                        'distribution': ['normal', 0, 0.001],
-                        'range':None,
-                        'prior': None
-                    },
-                    'scale2': {
-                        'initialization': None,
-                        'distribution': ['normal', 0, 0.001],
-                        'range':None,
+                        'range':[0.5,2.5],
                         'prior': None
                     },
                     'dlambda': {
                         'initialization': None,
                         'distribution': ['normal', 0, 0.001],
-                        'range':None,
+                        'range':[-0.01,0.01],
                         'prior': None
                     }
                 }
+                    
+            if getattr(self, "instrument", None) is not None and getattr(self.instrument, "scales", None) is not None:
+                    scales_parameter_max = int(np.max(self.instrument.scales))
+                    if scales_parameter_max > 0:
+                        for i in range(1, scales_parameter_max + 1):
+                            dictionary['params'][f'scale{i}'] = {
+                                'initialization': None,
+                                'distribution': ['normal', 1, 0.001],
+                                'range':[0.1,10],
+                                'prior': None
+                            }
         else:
             raise ValueError("Unsupported samplemode. Please choose 'mcmc' or 'multinest'.")
             
@@ -1157,19 +1161,15 @@ class Retrieval_params:
 
             #del dictionary['params']['scale1']
             #del dictionary['params']['scale2']
-            if self.samplemode.lower() == 'mcmc':
-                del dictionary['params']['frac_param']
             if self.do_fudge==1:
                 ndata=1
 
         if self.fwhm in [-2]:
-            del dictionary['params']['scale1']
-            del dictionary['params']['frac_param']
+            # del dictionary['params']['scale1']
             if self.do_fudge==1:
                 ndata=2
 
         if self.fwhm in [-1, -3, -4]:
-            del dictionary['params']['frac_param']
             if self.do_fudge==1:
                 ndata=3
             
@@ -1179,42 +1179,45 @@ class Retrieval_params:
             #   for k in scale_delete:
             #   # del dictionary['params'][k]
             #       del dictionary['params'][k]
-            scales_max = int(np.max(self.instrument.scales))
 
-            scale_keys = [k for k in dictionary['params'] if k.startswith('scale')]
+            # scales_max = int(np.max(self.instrument.scales))
+            # scale_keys = [k for k in dictionary['params'] if k.startswith('scale')]
 
-            if scales_max == 0:
-            # no scales remains
-                for k in scale_keys:
-                    del dictionary['params'][k]
-            else:
-            # only keep scale1 ... scale_n
-                for k in scale_keys:
-                    i = int(k.replace('scale', ''))
-                    if i > scales_max:
-                        del dictionary['params'][k]
-    
-            #del dictionary['params']['frac_param']
-            if self.samplemode.lower() == 'mcmc':
-                del dictionary['params']['frac_param']
+            # if scales_max == 0:
+            # # no scales remains
+            #     for k in scale_keys:
+            #         del dictionary['params'][k]
+            # else:
+            # # only keep scale1 ... scale_n
+            #     for k in scale_keys:
+            #         i = int(k.replace('scale', ''))
+            #         if i > scales_max:
+            #             del dictionary['params'][k]
                 
             if self.do_fudge==1:
                 ndata=int(np.max(self.instrument.logf_flag))
             
             
         if self.fwhm in [777]:
-            del dictionary['params']['scale1']
-            del dictionary['params']['scale2']
+            # del dictionary['params']['scale1']
+            # del dictionary['params']['scale2']
+
+            dictionary['params']['frac_param'] =  {
+            'initialization': None,
+            'distribution': ['normal', 0.5, 0.1],
+            'range':[0.1,1],
+            'prior': None
+        }
             if self.do_fudge==1:
                 ndata=0
-            
+
         # Add tolerance parameters after 'dlambda'
         if self.do_fudge==1:
             for i in range(ndata):
                 dictionary['params']["tolerance_parameter_%d" % (i+1)] = {
                     'initialization': None,
                     'distribution': ['customized', 0],
-                    'range':None,
+                    'range':None,  
                     'prior': None
                 }
         return dictionary
@@ -1229,12 +1232,12 @@ class Retrieval_params:
                        {'mh':
                            {'initialization':None,
                             'distribution':['normal',-1,3],
-                            'range':None,
+                            'range':[-1,2],
                             'prior':None},
                        'co':
                            {'initialization':None,
                             'distribution':['normal',0.25,2.25],
-                            'range':None,
+                            'range':[0.25,2.5],
                             'prior':None}
                       }}
 
@@ -1302,7 +1305,7 @@ class Retrieval_params:
                 cloud_dic["fcld"] = {
                     'initialization': None,
                     'distribution': ['uniform', 0, 1],
-                    'range':None,
+                    'range':[0,1],
                     'prior': None
                 }
 
@@ -1458,14 +1461,15 @@ def get_all_parametres(dic):
 
 
 def update_dictionary(dic, params_instance):
+  
+    
+    # ordered_params = {}
+    # for field in params_instance._fields:
+    #     if field in dic['refinement_params']['params']:
+    #         ordered_params[field] = dic['refinement_params']['params'][field]
+    # dic['refinement_params']['params'] = ordered_params
+
     # Update gas parameters
-    
-    ordered_params = {}
-    for field in params_instance._fields:
-        if field in dictionary['refinement_params']['params']:
-            ordered_params[field] = dictionary['refinement_params']['params'][field]
-    dictionary['refinement_params']['params'] = ordered_params
-    
     gastype_values = [info['gastype'] for key, info in dic['gas'].items() if 'gastype' in info]
     gaslist=list(dic['gas'].keys())
     for i in range(len(gaslist)):
@@ -1718,11 +1722,9 @@ def get_opacities(gaslist,w1,w2,press,xpath='../Linelists',xlist='gaslistR10K.da
     
 def get_k_opacities(gaslist,w1,w2,press,xpath='../K_tables',xlist='gaslist_ck.dat'):
     #import exo_k as xk
-    import h5py
     #from scipy.interpolate import interp1d
     # Now we'll get the opacity files into an array
     ngas = len(gaslist)
-
     totgas = 0
     gasdata = []
     with open(xlist) as fa:
@@ -1807,7 +1809,7 @@ def get_k_opacities(gaslist,w1,w2,press,xpath='../K_tables',xlist='gaslist_ck.da
     gpoints = np.asfortranarray(gpoints, dtype='float32')
     weights = np.asfortranarray(weights, dtype='float32')
     
-    return inlinetemps,inwavenum,linelist,gasnames,gasmass,nwave, gpoints, weights #these 2 needs to be float 32
+    return inlinetemps,inwavenum,linelist,gasnames,gasmass,nwave,gpoints,weights #these 2 needs to be float 32
     #also use pickle instead of h5
 
 
@@ -1912,7 +1914,7 @@ def get_clouddata(cloudname,cloudpath = "../Clouds/"):
     """
 
     with open(cloudpath + f'{cloudname}.pic', 'rb') as f:
-        miewave, mierad, qext, qscat, cos_qscat = pickle.load(f)
+        miewave, mierad, qscat, qext, cos_qscat = pickle.load(f)
 
     # Convert to Fortran order and float64
 
@@ -1932,7 +1934,7 @@ def get_clouddata(cloudname,cloudpath = "../Clouds/"):
     # ])
 
         # Flatten all arrays (column-major order for Fortran)
-    cloud =[qext_f,qscat_f,cos_qscat_f]
+    cloud =[qscat_f,qext_f,cos_qscat_f]
 
     return cloud,miewave_f,mierad_f
 
@@ -1973,42 +1975,42 @@ def shared_memory_array(rank, comm, shape,datatype='d'):
     return array, win
 
 
-def get_gasdetails(gaslist,w1,w2,xpath='../Linelists',xlist='gaslistR10K.dat'):
-    # Now we'll get the opacity files into an array
-    ngas = len(gaslist)
+# def get_gasdetails(gaslist,w1,w2,xpath='../Linelists',xlist='gaslistR10K.dat'):
+#     # Now we'll get the opacity files into an array
+#     ngas = len(gaslist)
 
-    totgas = 0
-    gasdata = []
-    with open(xlist) as fa:
-        for line_aa in fa.readlines():
-            if len(line_aa) == 0:
-                break
-            totgas = totgas +1 
-            line_aa = line_aa.strip()
-            gasdata.append(line_aa.split())
+#     totgas = 0
+#     gasdata = []
+#     with open(xlist) as fa:
+#         for line_aa in fa.readlines():
+#             if len(line_aa) == 0:
+#                 break
+#             totgas = totgas +1 
+#             line_aa = line_aa.strip()
+#             gasdata.append(line_aa.split())
 
     
-    list1 = []
-    for i in range(0,ngas):
-        for j in range(0,totgas):
-            if (gasdata[j][1].lower() == gaslist[i].lower()):
-                list1.append(gasdata[j])
+#     list1 = []
+#     for i in range(0,ngas):
+#         for j in range(0,totgas):
+#             if (gasdata[j][1].lower() == gaslist[i].lower()):
+#                 list1.append(gasdata[j])
 
-    gasnum = np.asfortranarray(np.array([i[0] for i in list1[0:ngas]],dtype='i'))
+#     gasnum = np.asfortranarray(np.array([i[0] for i in list1[0:ngas]],dtype='i'))
     
-    lists = [xpath+i[3] for i in list1[0:ngas]]
+#     lists = [xpath+i[3] for i in list1[0:ngas]]
 
  
-    # get the basic framework from water list
-    rawwavenum, inpress, inlinetemps, inlinelist = pickle.load(open(lists[0], "rb"))
+#     # get the basic framework from water list
+#     rawwavenum, inpress, inlinetemps, inlinelist = pickle.load(open(lists[0], "rb"))
 
-    wn1 = 10000. / w2
-    wn2 = 10000. / w1
-    inwavenum = np.asfortranarray(rawwavenum[np.where(np.logical_not(np.logical_or(rawwavenum[:] > wn2, rawwavenum[:] < wn1)))],dtype='float64')
+#     wn1 = 10000. / w2
+#     wn2 = 10000. / w1
+#     inwavenum = np.asfortranarray(rawwavenum[np.where(np.logical_not(np.logical_or(rawwavenum[:] > wn2, rawwavenum[:] < wn1)))],dtype='float64')
  
-    nwave = inwavenum.size
+#     nwave = inwavenum.size
 
-    return inlinetemps,inwavenum,gasnum,nwave
+#     return inlinetemps,inwavenum,gasnum,nwave
 
 
 
