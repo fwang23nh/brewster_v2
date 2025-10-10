@@ -3,11 +3,11 @@ module main
   implicit none
 
 contains 
-  subroutine forward(temp,logg,R2D2,gasname,molmass,logVMR,&
-       pcover,cloudmap,sizdist,cloudname,clouddata,miewave,mierad,&
+  subroutine forward(temp,logg,R2D2,gasname,molmass,logVMR,pcover, &
+       cloudmap,cloudname,sizdist,clouddata,miewave,mierad,&
        cloudrad,cloudsig,cloudprof,&
-       inlinetemps,inpress,inwavenum,linelist,cia,ciatemp,use_disort,clphot,&
-       othphot,do_cf,do_bff,bff,out_spec,clphotspec,othphotspec,cf)
+       inlinetemps,inpress,inwavenum,linelist,cia,ciatemp,use_disort,&
+       clphot,othphot,do_cf,do_bff,bff,out_spec,clphotspec,othphotspec,cf)
     
     use sizes
     use common_arrays
@@ -248,7 +248,7 @@ contains
        
           !write(1,*) 'here main 249'
           
-          call cloudcalcs(patch(ipatch)%atm,sizdist,miewave,mierad,clouddata(:,:,:,:))
+          call cloudcalcs(patch(ipatch)%atm,sizdist,miewave,mierad,clouddata)
           !do ilayer = 1,nlayers
           !   tau1 = tau1  + patch(1)%atm(ilayer)%cloud(1)%dtau1
           !end do
