@@ -118,7 +118,7 @@ contains
     call cpu_time(tstart)
     
     
-    !write(1,*) 'here main 123'   
+    !write(1,*) 'here main 121'   
     ! now H2 and He fractions and mu for each layer
     do ilayer = 1, nlayers
 
@@ -199,24 +199,27 @@ contains
     
     ! now put in the cloud details
     call cpu_time(cloudstart)
-    !write(1,*) 'here main 204'   
+    !write(1,*) 'here main 202'   
 
     do ipatch = 1, npatch
-       !write(1,*) 'here main 207'   
+       !write(1,*) 'here main 205'   
        
        
        patch(ipatch)%cover = pcover(ipatch)
-       !write(1,*) 'here main 211'   
+       !write(1,*) 'here main 209'   
+       !do icloud =1,nclouds
+       !   write(1,*) 'Cloud ',icloud,' patches ',cloudmap(:, icloud)
+       !end do
        
-       if (any(cloudmap(:,ipatch) .ne. 0)) then
+       if (any(cloudmap(ipatch,:) .ne. 0)) then
           do icloud = 1, nclouds
-             !write(1,*) 'here main 221'   
+             !write(1,*) 'here main 213'   
 
           
              ! in case of simple/generic/mixed cloud we won't be doing Mie coeffs
              ! we'll just use  rg, and rsig as w0 and gg
              ! for the cloud
-             if (cloudmap(icloud,ipatch) .ne. 0) then
+             if (cloudmap(ipatch,icloud) .ne. 0) then
                 if (verify('grey',trim(cloudname(icloud))) .eq. 0 &
                      .or. verify('power',trim(cloudname(icloud))) .eq. 0) then
 

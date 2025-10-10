@@ -28,7 +28,7 @@ subroutine marv(temp,logg,R2D2,ingasname,molmass,logVMR,pcover,&
   real :: R2D2,logg
   double precision,intent(inout):: bff(:,:)
   real,intent(inout) :: pcover(:),molmass(:)
-  ! cloudmap is ncloud,npatch
+  ! cloudmap is npatch,ncloud
   integer,intent(inout) ::cloudmap(:,:)
   character(len=15),intent(in) :: ingasname(:)
   character(len=50),intent(in) ::cloud_opaname(:)
@@ -53,17 +53,17 @@ subroutine marv(temp,logg,R2D2,ingasname,molmass,logVMR,pcover,&
   logical :: othphot,clphot,do_cf
 
   !open (1, file = 'log.txt', status ='new')
-  !write(1,*) 'here marv 53'
+  !write(1,*) 'here marv 56'
   call initlayers(size(inpress))
   call initwave(size(inwavenum))
   call initgas(size(molmass))
-  call initpatch(size(cloudmap(1,:)))
-  call initcloud(size(cloudmap(:,1)))
+  call initpatch(size(cloudmap(:,1)))
+  call initcloud(size(cloudmap(1,:)))
   call inittemps(size(inlinetemps))
 
   allocate(out_spec(2,nwave))
 
-  !write(1,*) 'here marv 61'
+  !write(1,*) 'here marv 66'
 
   clphot = make_cl_pspec
   othphot = make_oth_pspec
