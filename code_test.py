@@ -52,16 +52,17 @@ def NoCloud_Tdwarf(xpath,xlist):
      npatches=1
 
      cloudname = ['clear']
-     cloudpacth_index=[[1]]
+     cloudpatch_index=[[1]]
      particle_dis=[]
+     cloudpath=None
 
      # ModelConfig:
      do_fudge=0
      samplemode='mcmc'
 
-     instrument_instance = utils.Instrument(fwhm,wavelength_range,ndata)
-     re_params = utils.Retrieval_params(samplemode,chemeq,gaslist,gastype_list,fwhm,do_fudge,ptype,do_clouds,npatches,cloudname,cloudpacth_index,particle_dis)
-     model_config_instance = utils.ModelConfig(samplemode,do_fudge)
+     instrument_instance = utils.Instrument(fwhm,wavelength_range,ndata,wavpoints, R_file)
+     re_params = utils.Retrieval_params(samplemode,chemeq,gaslist,gastype_list,fwhm,do_fudge,ptype,do_clouds,npatches,cloudname,cloudpatch_index,particle_dis, instrument_instance)
+     model_config_instance = utils.ModelConfig(samplemode,do_fudge,cloudpath)
      io_config_instance = utils.IOConfig()
 
 
@@ -117,7 +118,8 @@ def NoCloud_Tdwarf(xpath,xlist):
 
 
 def MieClouds_Ldwarf(xpath,xlist):
-     fwhm=-3
+     fwhm=555
+     R_file = 'code_test_R_file.txt'
      wavelength_range=[1,15]
      ndata=1
 
@@ -131,16 +133,28 @@ def MieClouds_Ldwarf(xpath,xlist):
      ## clouds
      do_clouds=1
      npatches=1
-     cloudname = ['Mie scattering cloud slab--MgSiO3Cry','Mie scattering cloud deck--Fe2O3_WS15']
-     cloudpacth_index=[[1],[1]]
-     particle_dis=['hansan','hansan']
+     #cloudname = ['Mie scattering cloud slab--MgSiO3Cry','Mie scattering cloud deck--Fe2O3_WS15']
+     #cloud_name = ['ZnS_WS15.mieff', 'tholin_WS15.mieff']
+     #cloud_type = ['deck','deck']
+     #cloudpacth_index=[[1,2],[1]]
+     #particle_dis=['hansen','log_normal']
+     
+     cloud_name=['MgSiO3.mieff','Fe.mieff']
+     cloud_type=['slab','deck']
+     cloudpatch_index=[[1],[1]]
+     particle_dis=['hansen','hansen']
+     cloudpath='../MieCode/'
      # ModelConfig:
 
      do_fudge = 1
      samplemode='mcmc'
-     instrument_instance = utils.Instrument(fwhm,wavelength_range,ndata)
-     re_params = utils.Retrieval_params(samplemode,chemeq,gaslist,gastype_list,fwhm,do_fudge,ptype,do_clouds,npatches,cloudname,cloudpacth_index,particle_dis)
-     model_config_instance = utils.ModelConfig(samplemode,do_fudge)
+     instrument_instance = utils.Instrument(fwhm,wavelength_range,ndata,R_file)
+     rfile = np.loadtxt(R_file)
+     instrument_instance.scales = rfile[:, 3]
+     instrument_instance.logf_flag = rfile[:,2]
+     re_params = utils.Retrieval_params(samplemode,chemeq,gaslist,gastype_list,fwhm,do_fudge,ptype,do_clouds,npatches,cloud_name,cloud_type,cloudpatch_index,particle_dis, instrument_instance)
+     print('re_params: ',re_params)
+     model_config_instance = utils.ModelConfig(samplemode,do_fudge,cloudpath=cloudpath)
      io_config_instance = utils.IOConfig()
 
 
@@ -163,8 +177,34 @@ def MieClouds_Ldwarf(xpath,xlist):
      all_params,all_params_values =utils.get_all_parametres(re_params.dictionary) 
      params_master = namedtuple('params',all_params)
      theta =[-3.55278369e+00,-2.83012757e+00,-4.31062021e+00,-4.95190596e+00,-9.77059307e+00,-8.85409603e+00,-8.41539430e+00,-7.85745521e+00,-6.57250890e+00,5.46814691e+00,2.68655361e-20,1.07209671e+00,1.11922607e+00,2.83604013e-03,-3.16119701e+01,-3.32775232e+01,-3.46762823e+01,5.42024548e+00,-2.76574938e+00,4.38059949e-01,-5.73919866e-01,8.58329576e-02,8.72374998e-01,4.39392990e+00,-1.96757779e+00,6.24967679e-02,3.45025551e-01,6.78307874e-02,7.56891116e-02,1.71616709e+00,4.88646433e+03]
+     #theta =[-3.55278369e+00,-2.83012757e+00,-4.31062021e+00,-4.95190596e+00,-9.77059307e+00,-8.85409603e+00,-8.41539430e+00,-7.85745521e+00,-6.57250890e+00,5.46814691e+00,2.68655361e-20,1.07209671e+00,1.11922607e+00,2.83604013e-03,-3.16119701e+01,-3.32775232e+01,-3.46762823e+00,5.42024548e-01,-2.76574938e+00,4.38059949e-01,-5.73919866e-01,8.58329576e-02,8.72374998e-01,4.39392990e+00,-1.96757779e+00,6.24967679e-02,3.45025551e-01,6.78307874e-02,7.56891116e-02,1.71616709e+00,0.0]
      theta_master=theta[0:17]+theta[26:]+theta[17:26]
+     #print("len(theta_master):", len(theta_master))
+     #print("params_master fields:", len(params_master._fields))
+     #print("dir(re_params):", dir(re_params))
+     #all_params = re_params.retrieval_para_dic_gen()
+     all_params,all_params_values =utils.get_all_parametres(re_params.dictionary) 
+     
+     #print("len(all_params):", len(all_params))
+     #print("len(theta_master):", len(theta_master))
+
+             
+     print('all_params: ',all_params)
+     print('\n')
+     print("len of cloudpatch_index:", len(cloudpatch_index))
+
+     #npatch = npatches
+
+
      params_instance = params_master(*theta_master)
+     #params_instance = params_master(*theta_master[:len(all_params)])
+     
+     print('params_instance: ',params_instance)
+     print('\n')
+     print("npatches:", npatches)
+     print('\n')
+     print("re_params.dictionary['cloud'].keys():", re_params.dictionary['cloud'].keys())
+
      gnostics=0
      shiftspec, cloud_phot_press,other_phot_press,cfunc=test_module.modelspec(params_instance,re_params,args_instance,gnostics)
 

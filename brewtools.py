@@ -4,6 +4,8 @@ import numpy as np
 import emcee
 import os
 from rotBroadInt import rot_int_cmj as rotBroad
+from collections import namedtuple
+
 
 
 def get_endchain(runname,fin,results_path='./'):
@@ -51,14 +53,53 @@ def get_endchain(runname,fin,results_path='./'):
         stop
         
     return flatendchain, flatendprobs,ndim
+    
+def get_nchain(runname, start_iter, end_iter, results_path='./'):
+    #if fin == 0:
+    pic = results_path + runname + "_snapshot.pic"
+    chain, probs = pickle_load(pic)
+        
+    nwalkers, ntot, ndim = chain.shape
+    niter = int(np.count_nonzero(chain) / (nwalkers * ndim))
+        
+    if start_iter < 0 or end_iter > niter or start_iter >= end_iter:
+        raise ValueError("Invalid iteration range specified.")
+        
+    print(f"Extracting iterations {start_iter} to {end_iter}")
+        
+    flatprobs = probs.reshape(-1)
+    max_like = flatprobs[np.argmax(probs)]
+    print("Unfinished symphony. Number of successful iterations =", niter)
+    print("Maximum likelihood =", max_like)
+        
+    flat_chain_segment = chain[:, start_iter:end_iter, :].reshape((-1, ndim))
+        
+    if emcee.__version__ == '3.0rc2':
+        flat_probs_segment = probs[start_iter:end_iter, :].reshape((-1))
+    else:
+        flat_probs_segment = probs[:, start_iter:end_iter].reshape((-1))
+        
+    theta_max_segment = flat_chain_segment[np.argmax(flat_probs_segment)]
+    max_segment_like = np.amax(flat_probs_segment)
+    print("Maximum likelihood in selected iterations =", max_segment_like)
+    #else:
+     #   raise ValueError("File extension not recognised")
+        
+    return flat_chain_segment, flat_probs_segment, ndim
 
 
-def proc_spec(shiftspec,theta,fwhm,chemeq,gaslist,obspec):
+
+
+def proc_spec(shiftspec,theta,fwhm,chemeq,gaslist,obspec,instrument,all_params):
     import numpy as np
     import scipy as sp
     from bensconv import prism_non_uniform
     from bensconv import conv_uniform_R
     from bensconv import conv_uniform_FWHM
+    from bensconv import conv_non_uniform_R
+    
+    params_master = namedtuple("params", all_params)
+    params_instance = params_master(*theta)
 
     if chemeq == 0:
         if (gaslist[len(gaslist)-1] == 'Na'):
@@ -88,12 +129,50 @@ def proc_spec(shiftspec,theta,fwhm,chemeq,gaslist,obspec):
     modspec = np.array([shiftspec[0,::-1],shiftspec[1,::-1]])
 
     # If we've set a value for FWHM that we're using... 
-    if (fwhm > 0.00 and fwhm < 1.00):
+    
+    if (fwhm == 555.0): #this convolves with non uni R using the R file
+        spec = np.zeros_like(obspec[0,:])
+        #get the resolving power, the flag, and its maximum value, the scale, and its maximum value
+        R = instrument.R
+        #log_f_param = instrument.logf_flag
+        #log_f_param_max=int(np.max(log_f_param))
+        scales_param = instrument.scales
+        scales_param_max = int(np.max(scales_param))
+        
+        
+        scales= [getattr(params_instance, f) for f in params_instance._fields if f.startswith("scale")]
+                 
+        #looping thru their max values so we can map the spectral regions and do spec           
+        for j in range(0, scales_param_max + 1):
+            
+            or_indices = np.where(scales_param == float(j))[0]
+            
+            if or_indices.size == 0:
+                continue
+                
+            obs_wl_i = obspec[0, or_indices]
+            spec_i =conv_non_uniform_R(modspec[1,:], modspec[0,:], R[or_indices], obs_wl_i)
+            
+            
+            #if there's a scale parameter, then multiple it with spec
+            if j >0:
+                scale_value = scales[j-1]
+                #print(scale_value)
+                spec_i = scale_value * spec_i
+                
+            spec[or_indices] = spec_i
+            
+        outspec=spec
+        
+        
+        
+        
+    elif (fwhm > 0.00 and fwhm < 1.00):
         # this is a uniform FWHM in microns
         
         outspec = conv_uniform_FWHM(obspec,modspec,fwhm)
 
-    elif (fwhm > 10.00):
+    elif (fwhm > 10.00 and fwhm < 500.0):
         # this is a uniform resolving power R.
         Res = fwhm
         outspec = conv_uniform_R(obspec,modspec,Res)
@@ -362,3 +441,4 @@ def pickle_dump(obj, file_path):
 def pickle_load(file_path):
     with open(file_path, "rb") as f:
         return pickle.load(MacOSFile(f))
+        

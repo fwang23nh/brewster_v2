@@ -1,5 +1,6 @@
 subroutine marv(temp,logg,R2D2,ingasname,molmass,logVMR,pcover,&
-     do_clouds,incloudnum,cloudrad,cloudsig,cloudprof,&
+     cloudmap,cloud_opaname,cloudsize,clouddata,miewave,mierad, &
+     cloudrad,cloudsig,cloudprof,&
      inlinetemps,inpress,inwavenum,inlinelist,cia,ciatemps,&
      use_disort,make_cl_pspec,make_oth_pspec,make_cf,do_bff,bff,outspec,&
      cl_phot_press,oth_phot_press,cfunc)
@@ -9,87 +10,73 @@ subroutine marv(temp,logg,R2D2,ingasname,molmass,logVMR,pcover,&
   
 
   !f2py integer, parameter :: nlinetemps
-  !f2py intent(in) logg,R2D2,gasname
+  !f2py intent(in) logg,R2D2,ingasname,cloud_opaname
   !f2py intent(inout) temp,logVMR,inpress
   !f2py intent(in) use_disort,make_cl_pspec,make_oth_pspec,make_cf,do_bff
   !f2py intent(inout) inlinetemps
-  !f2py intent(inout) cloudrad,cloudsig,cloudprof
+  !f2py intent(inout) cloudrad,cloudsig,cloudprof,cloudsize
   !f2py intent(inout) cia, ciatemps
-  !f2py intent(inout) inlinelist, inwavenum,bff
-  !f2py intent(inout) do_clouds,pcover,molmass,incloudnum
+  !f2py intent(inout) inlinelist, inwavenum,bff,clouddata,miewave,mierad
+  !f2py intent(inout) cloudmap,pcover,molmass
   !f2py intent(out) out_spec, cl_phot_press,oth_phot_press,cfunc
 
   real,intent(inout) :: cia(:,:,:)
   real,dimension(nciatemps) :: ciatemps
   double precision,intent(inout) :: inlinelist(:,:,:,:)
   double precision,intent(inout):: temp(:)
+  integer,intent(inout):: cloudsize(:)
   real :: R2D2,logg
   double precision,intent(inout):: bff(:,:)
   real,intent(inout) :: pcover(:),molmass(:)
-  integer,intent(inout) ::do_clouds(:)
+  ! cloudmap is npatch,ncloud
+  integer,intent(inout) ::cloudmap(:,:)
   character(len=15),intent(in) :: ingasname(:)
-  character(len=15),dimension(:),allocatable::cloudlist,gasname
+  character(len=50),intent(in) ::cloud_opaname(:)
+  character(len=15),dimension(:),allocatable:: gasname
+  character(len=50),dimension(:),allocatable :: cloudname
   double precision,intent(inout) :: logVMR(:,:)
-  integer,intent(inout) :: incloudnum(:,:)
-  character(len=15),dimension(:,:),allocatable :: cloudname
-  double precision,intent(inout) :: cloudrad(:,:,:)
-  double precision,intent(inout) :: cloudsig(:,:,:)
-  double precision,intent(inout) :: cloudprof(:,:,:)
+  ! clouddata: ncloud,miewave,mierad,3(qext,qscat,cos_qscar)
+  double precision,intent(inout) :: clouddata(:,:,:,:)
+  double precision,intent(inout) :: mierad(:), miewave(:)
+  double precision,intent(inout) :: cloudrad(:,:)
+  double precision,intent(inout) :: cloudsig(:,:)
+  double precision,intent(inout) :: cloudprof(:,:)
   double precision,dimension(2,maxwave),intent(OUT):: outspec
   double precision,dimension(maxpatch,maxwave),intent(OUT):: cl_phot_press,oth_phot_press
   double precision,dimension(:,:),allocatable :: out_spec, clphotspec,othphotspec
   double precision,dimension(:,:,:),allocatable :: cf
   double precision,dimension(maxpatch,maxwave,maxlayers) :: cfunc
   double precision,intent(inout) :: inwavenum(:)
-  !real,dimension(nlinetemps) :: inlinetemps
   real,intent(inout) :: inlinetemps(:)
   real,intent(inout) :: inpress(:)
-  integer :: maxgas,maxcloud,igas,icloud, idum1, idum2
   integer :: use_disort,make_oth_pspec,make_cl_pspec,do_bff,make_cf
   logical :: othphot,clphot,do_cf
-  
+
+  !open (1, file = 'log.txt', status ='new')
+  !write(1,*) 'here marv 56'
   call initlayers(size(inpress))
   call initwave(size(inwavenum))
   call initgas(size(molmass))
-  call initpatch(size(do_clouds))
-  call initcloud(size(cloudprof(1,1,:)))
+  call initpatch(size(cloudmap(:,1)))
+  call initcloud(size(cloudmap(1,:)))
   call inittemps(size(inlinetemps))
 
-! allocate(molmass(ngas),gasname(ngas))
-  allocate(cloudname(npatch,nclouds))
-
   allocate(out_spec(2,nwave))
+
+  !write(1,*) 'here marv 66'
 
   clphot = make_cl_pspec
   othphot = make_oth_pspec
   do_cf = make_cf
   
   allocate(gasname(size(ingasname)))
+  allocate(cloudname(ncloud))
   gasname = ingasname
- 
-  open(10,file="data/cloudlist.dat", status='old')
-  read(10,*) maxcloud
-  allocate(cloudlist(maxcloud))
-  do icloud = 1, maxcloud
-     read(10,"(I3,A15)") idum2,cloudlist(icloud)
-  end do
-  close(10)
+  cloudname = cloud_opaname
   
-   do ipatch = 1, npatch
-     do icloud = 1, nclouds
-        ! check if we're doing a specific cloud or a generic/mixed cloud
-        if (incloudnum(ipatch,icloud) .gt. 50) then
-           cloudname(ipatch,icloud) = "mixto"
-        else
-           cloudname(ipatch,icloud) = trim(adjustl(cloudlist(incloudnum(ipatch,icloud))))
-        endif
-     end do
-  end do
-
-  
-  deallocate(cloudlist)  
   call forward(temp,logg,R2D2,gasname,molmass,logVMR,pcover,&
-       do_clouds,incloudnum,cloudname,cloudrad,cloudsig,cloudprof,&
+       cloudmap,cloudname,cloudsize,clouddata,miewave,mierad,&
+       cloudrad,cloudsig,cloudprof,&
        inlinetemps,inpress,inwavenum,inlinelist,cia,ciatemps,use_disort,&
        clphot,othphot,do_cf,do_bff,bff,out_spec,clphotspec,othphotspec,cf)
 
@@ -120,7 +107,7 @@ subroutine marv(temp,logg,R2D2,ingasname,molmass,logVMR,pcover,&
   end if
 
   deallocate(out_spec,clphotspec,othphotspec,cf)
- 
+  close(1)
 end subroutine marv
 
 

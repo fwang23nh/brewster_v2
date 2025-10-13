@@ -14,6 +14,8 @@ from scipy.interpolate import interp1d
 from scipy.interpolate import InterpolatedUnivariateSpline
 import TPmod
 from collections import namedtuple
+from mpi4py import MPI
+import h5py
 
 __author__ = "Fei Wang"
 __copyright__ = "Copyright 2024 - Fei Wang"
@@ -59,6 +61,7 @@ class Instrument:
         self.R = None
         self.wl = None
         self.logf_flag = None
+        self.scales = None
         
         # only load R if the user provides it
         if R_file:
@@ -70,14 +73,16 @@ class Instrument:
 
     def load_R_file(self):
         """
-        loads the R(first column) vs wl (second column) vs flag for tolerance param (third column) txt file (if provided)
+        loads the R(first column) vs wl (second column) vs flag for tolerance param (third column) 
+        vs scales flag (fourth column) txt file if provided
         """
         try:
             data = np.loadtxt(self.R_file)
             self.R = data[:,0]
             self.wl = data[:,1]
             self.logf_flag = data[:,2]
-            self.R_data = {'R': self.R, 'wl': self.wl, 'logf_flag': self.logf_flag}
+            self.scales = data[:,3]
+            self.R_data = {'R': self.R, 'wl': self.wl, 'logf_flag': self.logf_flag, 'scales': self.scales}
         except Exception as e:
             print(f'no such file: {e}')
 
@@ -147,7 +152,7 @@ class ModelConfig:
         Update the model configuration dictionary with the current attributes.
     """
 
-    def __init__(self, samplemode, do_fudge, use_disort=0, malk=0, mch4=0, do_bff=1, fresh=0, xpath="../Linelists/", xlist="data/gaslistRox.dat", dist=None, pfile="data/LSR1835_eqpt.dat"):
+    def __init__(self, samplemode, do_fudge, use_disort=0, malk=0, mch4=0, do_bff=1, fresh=0,cloudpath=None,xpath="../Linelists/", xlist="data/gaslistRox.dat", dist=None, pfile="data/LSR1835_eqpt.dat"):
         self.samplemode = samplemode
         self.use_disort = use_disort
         self.do_fudge = do_fudge
@@ -157,6 +162,7 @@ class ModelConfig:
         self.fresh = fresh
         self.xpath = xpath
         self.xlist = xlist
+        self.cloudpath = cloudpath
         
         self.dist = dist
         self.dist_err = 0
@@ -280,6 +286,7 @@ class ModelConfig:
             f"- xlist : {self.xlist}\n"
             f"- dist : {self.dist}\n"
             f"- pfile : {self.pfile}\n"
+            f"- cloudpath : {self.cloudpath}\n"
             f"\n"
         )
         if self.samplemode.lower() == 'mcmc':
@@ -449,7 +456,7 @@ def dp_customized_distribution(x):
     return np.abs(0.1 * np.random.randn(x))
 
 
-def hansan_b_customized_distribution(x):
+def hansen_b_customized_distribution(x):
     return np.abs(0.2+0.05 * np.random.randn(x))
 
 
@@ -493,7 +500,7 @@ class Retrieval_params:
         Indexes for `cloudname` corresponding to which cloud patches 
     particle_dis : str, optional
         Distribution type for particles in the cloud. Default is None.
-        E.g., 'log_normal', 'hansan', etc.
+        E.g., 'log_normal', 'hansen', etc.
         only used when include Mie cloud.
     
     Methods
@@ -516,7 +523,7 @@ class Retrieval_params:
         String representation of the class instance.
     """
     
-    def __init__(self, samplemode,chemeq=None, gaslist=None, gastype_list=None,fwhm=None,do_fudge=1,ptype=None,do_clouds=1,npatches=None,cloudname=None,cloudpatch_index=None,particle_dis=None):
+    def __init__(self, samplemode,chemeq=None, gaslist=None, gastype_list=None,fwhm=None,do_fudge=1,ptype=None,do_clouds=1,npatches=None,cloud_name=None,cloud_type=None,cloudpatch_index=None,particle_dis=None, instrument=None):
         self.samplemode = samplemode
         self.chemeq = chemeq
         self.gaslist = gaslist
@@ -525,11 +532,14 @@ class Retrieval_params:
         self.do_fudge = do_fudge
         self.ptype = ptype
         self.do_clouds = do_clouds
-        self.cloudname = cloudname
+        self.cloud_name = cloud_name
+        self.cloud_type = cloud_type
+        
         self.cloudpatch_index=cloudpatch_index
         self.particle_dis=particle_dis
+        self.instrument=instrument
         
-        self.dictionary = self.retrieval_para_dic_gen(chemeq, gaslist, gastype_list,fwhm,do_fudge, ptype,do_clouds,npatches,cloudname,cloudpatch_index,particle_dis)
+        self.dictionary = self.retrieval_para_dic_gen(chemeq, gaslist, gastype_list,fwhm,do_fudge, ptype,do_clouds,npatches,cloud_name,cloud_type,cloudpatch_index,particle_dis)
         
         
         
@@ -543,7 +553,7 @@ class Retrieval_params:
                 'params':{'log_abund':
                            {'initialization':None,
                             'distribution':['normal',-4.0,0.5],
-                            'range':None,
+                            'range':[-12,0],
                             'prior':None}
                          }}
 
@@ -554,19 +564,19 @@ class Retrieval_params:
                 'params':{'log_abund':
                            {'initialization':None,
                             'distribution':['normal',-4.0,0.5],
-                            'range':None,
+                            'range':[-12,0],
                             'prior': None},
 
                            "p_ref": 
                             {'initialization':None,
                               'distribution':['normal',-1,0.2],
-                              'range':None,
+                              'range':[-4,2.4],
                               'prior': None},
 
                            "alpha":
                             {'initialization':None,
                              'distribution':['uniform',0,1],
-                             'range':None,
+                             'range':[0,1],
                              'prior': None}    
                            }}
         elif gastype=='H':
@@ -575,13 +585,13 @@ class Retrieval_params:
                 'params':{'log_abund':
                            {'initialization':None,
                             'distribution':['normal',-4.0,0.5],
-                            'range':None,
+                            'range':[-12,0],
                             'prior': None},
                             
                            "p_ref": 
                             {'initialization':None,
                               'distribution':['normal',-1,0.2],
-                              'range':None,
+                              'range':[-4,2.4],
                               'prior': None}
 
                            }}
@@ -600,7 +610,7 @@ class Retrieval_params:
                 'params':{'gamma':
                            {'initialization':None,
                             'distribution':['normal',50,1],
-                             'range':None,
+                             'range':[0,5000],
                             'prior':None}}}
             
             for i in range(13):
@@ -620,31 +630,31 @@ class Retrieval_params:
                 'params':{'alpha1':
                            {'initialization':None,
                             'distribution':['normal',0.2,0.1],
-                            'range':None,
+                            'range':[0,1],
                             'prior':None},
 
                           'alpha2':
                            {'initialization':None,
                             'distribution':['normal',0.18,0.05],
-                            'range':None,
+                            'range':[0,1],
                             'prior':None},
 
                           'logP1':
                            {'initialization':None,
                             'distribution':['normal',-1,0.2],
-                            'range':None,
+                            'range':[-4,2.4],
                             'prior':None},
 
                           'logP3':
                            {'initialization':None,
                             'distribution':['normal',2,0.2],
-                            'range':None,
+                            'range':[-4,2.4],
                             'prior':None},
 
                           'T3':
                            {'initialization':None,
                             'distribution':['normal',3600,500],
-                            'range':None,
+                            'range':[0,5000],
                             'prior':None}
                          }}
         elif ptype==3:
@@ -654,37 +664,37 @@ class Retrieval_params:
                 'params':{'alpha1':
                            {'initialization':None,
                             'distribution':['normal',0.2,0.1],
-                            'range':None,
+                            'range':[0,1],
                             'prior':None},
 
                           'alpha2':
                            {'initialization':None,
                             'distribution':['normal',0.18,0.05],
-                            'range':None,
+                            'range':[0,1],
                             'prior':None},
 
                           'logP1':
                            {'initialization':None,
                             'distribution':['normal',-1,0.2],
-                            'range':None,
+                            'range':[-4,2.4],
                             'prior':None},
 
                           'logP2':
                            {'initialization':None,
                             'distribution':['normal',0.1,0.2],
-                            'range':None,
+                            'range':[-4,2.4],
                             'prior':None},
 
                           'logP3':
                            {'initialization':None,
                             'distribution':['normal',2,0.2],
-                            'range':None,
+                            'range':[-4,2.4],
                             'prior':None},
 
                           'T3':
                            {'initialization':None,
                             'distribution':['normal',3600,500],
-                            'range':None,
+                            'range':[0,5000],
                             'prior':None}
                          }}
 
@@ -695,37 +705,37 @@ class Retrieval_params:
                 'params':{'Tint':
                            {'initialization':None,
                             'distribution':['normal',1200,200],
-                            'range':None,
+                            'range':[0,5000],
                             'prior':None},
 
                           'alpha':
                            {'initialization':None,
                             'distribution':['uniform',1,2],
-                            'range':None,
+                            'range':[1,2],
                             'prior':None},
 
                           'lndelta':
                            {'initialization':None,
-                            'distribution':['normal',0,1],
-                            'range':None,
+                            'distribution':['normal',0.5,0.5],
+                            'range':[-20,0],
                             'prior':None},
 
                           'T1':
                            {'initialization':None,
                             'distribution':['normal',1200,200],
-                            'range':None,
+                            'range':[0,5000],
                             'prior':None},
 
                           'T2':
                            {'initialization':None,
                             'distribution':['normal',1200,200],
-                            'range':None,
+                            'range':[0,5000],
                             'prior':None},
 
                           'T3':
                            {'initialization':None,
                             'distribution':['normal',1200,200],
-                            'range':None,
+                            'range':[0,5000],
                             'prior':None}
                          }}
 
@@ -736,43 +746,43 @@ class Retrieval_params:
                 'params':{'gamma':
                            {'initialization':None,
                             'distribution':['normal',50,1],
-                            'range':None,
+                            'range':[0,5000],
                             'prior':None},
 
                           'Tint':
                            {'initialization':None,
                             'distribution':['normal',1200,200],
-                            'range':None,
+                            'range':[0,5000],
                             'prior':None},
 
                           'alpha':
                            {'initialization':None,
                             'distribution':['uniform',1,2],
-                            'range':None,
+                            'range':[1,2],
                             'prior':None},
                             
                           'lndelta':
                            {'initialization':None,
                             'distribution':['normal',0,1],
-                            'range':None,
+                            'range':[-20,0],
                             'prior':None},
 
                           'T1':
                            {'initialization':None,
                             'distribution':['normal',1200,200],
-                            'range':None,
+                            'range':[0,5000],
                             'prior':None},
 
                           'T2':
                            {'initialization':None,
                             'distribution':['normal',1200,200],
-                            'range':None,
+                            'range':[0,5000],
                             'prior':None},
 
                           'T3':
                            {'initialization':None,
                             'distribution':['normal',1200,200],
-                            'range':None,
+                            'range':[0,5000],
                             'prior':None}
                          }}
 
@@ -785,254 +795,263 @@ class Retrieval_params:
 
 
 
-    def cloud_dic_gen(self,do_clouds,cloudname,particle_dis=None):
+    def cloud_dic_gen(self,do_clouds,cloud_type_name,particle_dis=None):
         dictionary = {}
         if do_clouds==0:
             return {}
         
         else:
 
-            if cloudname=='grey cloud deck':
+            if cloud_type_name=='grey cloud deck':
 
                 dictionary["patch"]={
-                    'cloudnum': 99,
+                    # 'cloudnum': 99,
+                    # 'cloud_name': cloud_type_name,
                     'cloudtype':2,
                     'params':{'logp_gcd':
                                {'initialization':None,
                                 'distribution':['normal',1,0.1],
-                                'range':None,
+                                'range':[-4,2.4],
                                 'prior':None},
                               'dp_gcd':
                                {'initialization':None,
                                 'distribution':['customized',dp_customized_distribution],  #lambda x: np.abs(0.1 * np.random.randn(x))
-                                'range':None,
+                                'range':[0,7],
                                 'prior':None},
                               'omega_gcd':
                               {'initialization':None,
                                'distribution':['uniform',0,1],
-                               'range':None,
+                               'range':[0,1],
                                 'prior':None}
                              }}
 
-            elif cloudname=='grey cloud slab':
+            elif cloud_type_name=='grey cloud slab':
 
                 dictionary["patch"]={
-                    'cloudnum': 99,
+                    # 'cloudnum': 99,
+                    # 'cloud_name': cloud_type_name,
                     'cloudtype':1,
 
                     'params':{'tau_gcs':
                                {'initialization':None,
                                 'distribution':['normal',10,1],
-                                'range':None,
+                                'range':[0,100],
                                 'prior':None},
                               'logp_gcs':
                                {'initialization':None,
                                 'distribution':['normal',-0.2,0.1],
-                                'range':None,
+                                'range':[-4,2.4],
                                 'prior':None},
                               'dp_gcs':
                               {'initialization':None,
                                'distribution':['customized',dp_customized_distribution],  #lambda x: np.abs(0.5+0.01* np.random.randn(x))
-                               'range':None,
-                                'prior':None},
+                               'range':None,  #correlated with logp_gcs [0, (phi[logp_gcs_index] - np.log10(press[0]))]
+                               'prior':None},
                               'omega_gcs':
                               {'initialization':None,
                                'distribution':['uniform',0,1],
-                               'range':None,
+                               'range':[0,1],
                                 'prior':None}
                              }}
 
-            elif cloudname=='powerlaw cloud deck':
+            elif cloud_type_name=='powerlaw cloud deck':
 
                 dictionary["patch"]={
-                    'cloudnum': 89,
+                    # 'cloudnum': 89,
+                    # 'cloud_name': cloud_type_name,
+                    'cloud_type_name': cloud_type_name,
                     'cloudtype':2,
 
                     'params':{'logp_pcd':
                                {'initialization':None,
                                 'distribution':['normal',-0.2,0.1],
-                                'range':None,
+                                'range':[-4,2.4],
                                 'prior':None},
                               'dp_pcd':
                                {'initialization':None,
                                 'distribution':['customized',dp_customized_distribution], #lambda x: np.abs(0.1 * np.random.randn(x))
-                                'range':None,
+                                'range':[0,7],
                                 'prior':None},
                               'omega_pcd':
                               {'initialization':None,
                                'distribution':['uniform',0,1],
-                               'range':None,
+                               'range':[0,1],
                                 'prior':None},
                               'alpha_pcd':
                               {'initialization':None,
                                'distribution':['normal',0,1],
-                               'range':None,
+                               'range':[-10,10],
                                 'prior':None}
                              }}
 
-            elif 'Mie scattering cloud deck' in cloudname:
+            elif 'Mie scattering cloud deck' in cloud_type_name:
                 
-                cloudspecies=cloudname.split('--')[1].strip()
-                cloudnum=cloud_dic.get(cloudspecies,None)
+                cloudspecies=cloud_type_name.split('--')[1].split('.mieff')[0]
+                # cloudnum=50
 
 
-                if particle_dis=="hansan":
+                if particle_dis=="hansen":
                     dictionary["patch"]={
-                        'cloudnum': cloudnum,
+                        # 'cloudnum': cloudnum,
+                        # 'cloud_name': cloud_type_name,
                         'cloudtype':2,
-                        "particle_dis":"hansan",
+                        "particle_dis":"hansen",
                         'params':{'logp_mcd_%s'%cloudspecies:
                                     {'initialization':None,
                                     'distribution':['normal',1,0.1],
-                                    'range':None,
+                                    'range':[-4,2.4],
                                     'prior':None},
                                    'dp_mcd_%s'%cloudspecies:
                                     {'initialization':None,
                                     'distribution':['customized',dp_customized_distribution], #lambda x: np.abs(0.1 * np.random.randn(x))
-                                    'range':None, 
+                                    'range':[0,7], 
                                     'prior':None},
-                                    'hansan_a_mcd_%s'%cloudspecies:
+                                    'hansen_a_mcd_%s'%cloudspecies:
                                     {'initialization':None,
                                     'distribution':['normal',-1.4,0.1],
-                                    'range':None,
+                                    'range':[-3,3],
                                     'prior':None},
-                                    'hansan_b_mcd_%s'%cloudspecies:
+                                    'hansen_b_mcd_%s'%cloudspecies:
                                     {'initialization':None,
-                                    'distribution':['customized',hansan_b_customized_distribution], #lambda x: np.abs(0.2+0.05 * np.random.randn(x))
-                                    'range':None,
+                                    'distribution':['customized',hansen_b_customized_distribution], #lambda x: np.abs(0.2+0.05 * np.random.randn(x))
+                                    'range':[0,1],
                                     'prior':None}
                                         }}
                                 
                 if particle_dis=="log_normal":
                     dictionary["patch"]={
-                        'cloudnum': cloudnum,
+                        # 'cloudnum': cloudnum,
+                        # 'cloud_name': cloud_type_name,
                         'cloudtype':1,
                         "particle_dis":"log_normal",
                         'params':{'logp_mcd_%s'%cloudspecies:
                                     {'initialization':None,
                                     'distribution':['normal',1,0.1],
-                                    'range':None,
+                                    'range':[-4,2.4],
                                     'prior':None},
                                     'dp_mcd_%s'%cloudspecies:
                                     {'initialization':None,
                                     'distribution':['customized',dp_customized_distribution], #lambda x: np.abs(0.1 * np.random.randn(x))
-                                    'range':None,
+                                    'range':[0,7],
                                     'prior':None},
                                     'mu_mcd_%s'%cloudspecies:
                                     {'initialization':None,
                                     'distribution':['normal',0,1],
-                                    'range':None,
+                                    'range':[-3,3],
                                     'prior':None},
                                     'sigma_mcd_%s'%cloudspecies:
                                     {'initialization':None,
                                     'distribution':['normal',0,1],
-                                    'range':None,
+                                    'range':[0,1],
                                     'prior':None}
                                         }}
 
-            elif cloudname=='power law cloud slab':
+            elif cloud_type_name=='powerlaw cloud slab':
 
                 dictionary["patch"]={
-                    'cloudnum': 89,
+                    # 'cloudnum': 89,
+                    # 'cloud_name': cloud_type_name,
                     'cloudtype':1,
 
                     'params':{'tau_pcs':
                                {'initialization':None,
                                 'distribution':['normal',10,1],
-                                'range':None,
+                                'range':[0,100],
                                 'prior':None},
                               'logp_pcs':
                                {'initialization':None,
                                 'distribution':['normal',-0.2,0.5],
-                                'range':None,
+                                'range':[-4,2.4],
                                 'prior':None},
                               'dp_pcs':
                               {'initialization':None,
                                'distribution':['customized', dp_customized_distribution], #lambda x: np.abs(0.1 * np.random.randn(x))
-                               'range':None,
+                               'range':None,  #correlated with logp_gcs [0, (phi[logp_gcs_index] - np.log10(press[0]))]
                                 'prior':None},
                               'omega_pcs':
                               {'initialization':None,
                                'distribution':['uniform',0,1],
-                               'range':None,
+                               'range':[0,1],
                                 'prior':None},
                               'alpha_pcs':
                               {'initialization':None,
                                'distribution':['normal',0,1],
-                               'range':None,
+                               'range':[-10,10],
                                 'prior':None}
                              }}
 
 
-            elif 'Mie scattering cloud slab' in cloudname:
-                cloudspecies=cloudname.split('--')[1].strip()
-                cloudnum=cloud_dic.get(cloudspecies,None)
+            elif 'Mie scattering cloud slab' in cloud_type_name:
+                cloudspecies=cloud_type_name.split('--')[1].split('.mieff')[0]
+                # cloudnum=50
 
-                if particle_dis=="hansan":
+                if particle_dis=="hansen":
                     dictionary["patch"]={
-                        'cloudnum': cloudnum,
+                        # 'cloudnum': cloudnum,
+                        # 'cloud_name': cloud_type_name,
                         'cloudtype':1,
-                        'particle_dis':"hansan",
+                        'particle_dis':"hansen",
                         'params':{'tau_mcs_%s'%cloudspecies:
                                    {'initialization':None,
                                     'distribution':['normal',10,1],
-                                    'range':None,
+                                    'range':[0,100],
                                     'prior':None},
                                   'logp_mcs_%s'%cloudspecies:
                                    {'initialization':None,
                                     'distribution':['normal',-0.2,0.5],
-                                    'range':None,
+                                    'range':[-4,2.4],
                                     'prior':None},
                                   'dp_mcs_%s'%cloudspecies:
                                   {'initialization':None,
                                    'distribution':['customized',dp_customized_distribution], # lambda x: np.abs(0.1 * np.random.randn(x))
-                                   'range':None,
+                                   'range':None,  #correlated with logp_gcs [0, (phi[logp_gcs_index] - np.log10(press[0]))]
                                     'prior':None},
-                                  'hansan_a_mcs_%s'%cloudspecies:
+                                  'hansen_a_mcs_%s'%cloudspecies:
                                   {'initialization':None,
                                    'distribution':['normal',-1.4,0.1],
-                                   'range':None,
+                                   'range':[-3,3],
                                     'prior':None},
-                                  'hansan_b_mcs_%s'%cloudspecies:
+                                  'hansen_b_mcs_%s'%cloudspecies:
                                   {'initialization':None,
-                                   'distribution':['customized',hansan_b_customized_distribution], #lambda x: np.abs(0.2+0.05 * np.random.randn(x))
-                                   'range':None,
+                                   'distribution':['customized',hansen_b_customized_distribution], #lambda x: np.abs(0.2+0.05 * np.random.randn(x))
+                                   'range':[0,1],
                                    'prior':None}
                                      }}
 
                 if particle_dis=="log_normal":
                     dictionary["patch"]={
-                        'cloudnum': cloudnum,
+                        # 'cloudnum': cloudnum,
+                        # 'cloud_name': cloud_type_name,
                         'cloudtype':1,
                         'particle_dis':"log_normal",
                         'params':{'tau_mcs_%s'%cloudspecies:
                                    {'initialization':None,
                                     'distribution':['normal',10,1],
-                                    'range':None,
+                                    'range':[0,100],
                                     'prior':None},
                                   'logp_mcs_%s'%cloudspecies:
                                    {'initialization':None,
                                     'distribution':['normal',-0.2,0.5],
-                                    'range':None,
+                                    'range':[-4,2.4],
                                     'prior':None},
                                   'dp_mcs_%s'%cloudspecies:
                                   {'initialization':None,
                                    'distribution':['customized',dp_customized_distribution], #lambda x: np.abs(0.1 * np.random.randn(x))
-                                   'range':None,
+                                   'range':None,   #correlated with logp_gcs [0, (phi[logp_gcs_index] - np.log10(press[0]))]
                                     'prior':None},
                                   'mu_mcs_%s'%cloudspecies:
                                   {'initialization':None,
                                    'distribution':['normal',0,1],
-                                   'range':None,
+                                   'range':[-3,3],
                                     'prior':None},
                                   'sigma_mcs_%s'%cloudspecies:
                                   {'initialization':None,
                                    'distribution':['normal',0,1],
-                                   'range':None,
+                                   'range':[0,1],
                                     'prior':None}
                                      }}
 
-            elif cloudname=='clear':
+            elif cloud_type_name=='clear':
                 dictionary["patch"]={'params':{}}
 
 
@@ -1050,101 +1069,147 @@ class Retrieval_params:
 
 
         if self.samplemode.lower() == 'mcmc':
-               dictionary['params'] = {
-                    'logg': {
-                        'initialization': None,
-                        'distribution': ['normal', 4.5, 0.1],
-                        'prior': None
-                    },
-                    'r2d2': {
-                        'initialization': None,
-                        'distribution': ['normal', 0, 1],
-                        'prior': None
-                    },
-                    'scale1': {
-                        'initialization': None,
-                        'distribution': ['normal', 0, 0.001],
-                        'prior': None
-                    },
-                    'scale2': {
-                        'initialization': None,
-                        'distribution': ['normal', 0, 0.001],
-                        'prior': None
-                    },
-                    'dlambda': {
-                        'initialization': None,
-                        'distribution': ['normal', 0, 0.001],
-                        'prior': None
-                    }
+            dictionary['params'] = {
+                'logg': {
+                    'initialization': None,
+                    'distribution': ['normal', 4.5, 0.1],
+                    'range':[0,6],
+                    'prior': None
+                },
+                'r2d2': {
+                    'initialization': None,
+                    'distribution': ['normal', 0, 1],
+                    'range':[0,1],
+                    'prior': None
+                },
+                #'scale1': {
+                #    'initialization': None,
+                #    'distribution': ['normal', 0, 0.001],
+                #    'prior': None
+                #},
+                #'scale2': {
+                #    'initialization': None,
+                #    'distribution': ['normal', 0, 0.001],
+                #    'prior': None
+                #},
+                # 'frac_param': {
+                #     'initialization': None,
+                #     'distribution': ['normal', 0.5, 0.1],
+                #     'prior': None
+                # },
+                'dlambda': {
+                    'initialization': None,
+                    'distribution': ['normal', 0, 0.001],
+                    'range':[-0.01,0.01],
+                    'prior': None
                 }
+            }
+            if getattr(self, "instrument", None) is not None and getattr(self.instrument, "scales", None) is not None:
+                scales_parameter_max = int(np.max(self.instrument.scales))
+                if scales_parameter_max > 0:
+                    for i in range(1, scales_parameter_max + 1):
+                        dictionary['params'][f'scale{i}'] = {
+                        'initialization': None,
+                        'distribution': ['normal', 1, 0.001],
+                        'range':[0.1,10],
+                        'prior': None
+                        }
+                      
+                  #for i in range(1, scales_parameter_max+1):
+                  #    dictionary['params'][f'scale{i}']['initialization'] =1.0 +1e3*np.random.randn()
+                      
+               
+                
         elif self.samplemode.lower() == 'multinest':
-                    dictionary['params'] = {
+            dictionary['params'] = {
                     'M': {
                         'initialization': None,
                         'distribution': ['normal', 4.5, 0.1],
-                        'range':None,
+                        'range': [1.0,80],
                         'prior': None
                     },
                     'R': {
                         'initialization': None,
                         'distribution': ['normal', 0, 1],
-                        'range':None,
-                        'prior': None
-                    },
-                    'scale1': {
-                        'initialization': None,
-                        'distribution': ['normal', 0, 0.001],
-                        'range':None,
-                        'prior': None
-                    },
-                    'scale2': {
-                        'initialization': None,
-                        'distribution': ['normal', 0, 0.001],
-                        'range':None,
+                        'range':[0.5,2.5],
                         'prior': None
                     },
                     'dlambda': {
                         'initialization': None,
                         'distribution': ['normal', 0, 0.001],
-                        'range':None,
+                        'range':[-0.01,0.01],
                         'prior': None
                     }
                 }
+                    
+            if getattr(self, "instrument", None) is not None and getattr(self.instrument, "scales", None) is not None:
+                    scales_parameter_max = int(np.max(self.instrument.scales))
+                    if scales_parameter_max > 0:
+                        for i in range(1, scales_parameter_max + 1):
+                            dictionary['params'][f'scale{i}'] = {
+                                'initialization': None,
+                                'distribution': ['normal', 1, 0.001],
+                                'range':[0.1,10],
+                                'prior': None
+                            }
         else:
             raise ValueError("Unsupported samplemode. Please choose 'mcmc' or 'multinest'.")
             
         # Remove 'scale1' and 'scale2' if fwhm condition is not met
     
-        if self.fwhm in [555, 888]:
-            del dictionary['params']['scale1']
-            del dictionary['params']['scale2']
-            if  self.do_fudge == 1:
-                ndata = 2
+        if (self.fwhm >=0 and self.fwhm <=500) or (self.fwhm in [-5,-6]):
 
-        elif self.fwhm in [777]:
-            del dictionary['params']['scale1']
-            del dictionary['params']['scale2']
-            if self.do_fudge == 1:
-                ndata = 0
-
-        elif self.fwhm >=0 or self.fwhm in [-5,-6]:
-            del dictionary['params']['scale1']
-            del dictionary['params']['scale2']
-            ndata = 0
+            #del dictionary['params']['scale1']
+            #del dictionary['params']['scale2']
             if self.do_fudge==1:
-                ndata = 1
+                ndata=1
 
-        elif self.fwhm in [-2]:
-            del dictionary['params']['scale1']
-            ndata = 1
-            if self.do_fudge == 1:
-                ndata = 2
+        if self.fwhm in [-2]:
+            # del dictionary['params']['scale1']
+            if self.do_fudge==1:
+                ndata=2
 
-        elif self.fwhm in [-1, -3, -4]:
-            ndata = 2
-            if self.do_fudge == 1:
-                ndata = 3
+        if self.fwhm in [-1, -3, -4]:
+            if self.do_fudge==1:
+                ndata=3
+            
+        if self.fwhm in [555, 888]:
+            #if int(np.max(self.instrument.scales)) == 0:
+            #   scale_delete = [k for k in dictionary['params'] if k.startswith('scale')]
+            #   for k in scale_delete:
+            #   # del dictionary['params'][k]
+            #       del dictionary['params'][k]
 
+            # scales_max = int(np.max(self.instrument.scales))
+            # scale_keys = [k for k in dictionary['params'] if k.startswith('scale')]
+
+            # if scales_max == 0:
+            # # no scales remains
+            #     for k in scale_keys:
+            #         del dictionary['params'][k]
+            # else:
+            # # only keep scale1 ... scale_n
+            #     for k in scale_keys:
+            #         i = int(k.replace('scale', ''))
+            #         if i > scales_max:
+            #             del dictionary['params'][k]
+                
+            if self.do_fudge==1:
+                ndata=int(np.max(self.instrument.logf_flag))
+            
+            
+        if self.fwhm in [777]:
+            # del dictionary['params']['scale1']
+            # del dictionary['params']['scale2']
+
+            dictionary['params']['frac_param'] =  {
+            'initialization': None,
+            'distribution': ['normal', 0.5, 0.1],
+            'range':[0.1,1],
+            'prior': None
+        }
+            if self.do_fudge==1:
+                ndata=0
 
         # Add tolerance parameters after 'dlambda'
         if self.do_fudge==1:
@@ -1152,7 +1217,7 @@ class Retrieval_params:
                 dictionary['params']["tolerance_parameter_%d" % (i+1)] = {
                     'initialization': None,
                     'distribution': ['customized', 0],
-                    'range':None,
+                    'range':None,  
                     'prior': None
                 }
         return dictionary
@@ -1167,12 +1232,12 @@ class Retrieval_params:
                        {'mh':
                            {'initialization':None,
                             'distribution':['normal',-1,3],
-                            'range':None,
+                            'range':[-1,2],
                             'prior':None},
                        'co':
                            {'initialization':None,
                             'distribution':['normal',0.25,2.25],
-                            'range':None,
+                            'range':[0.25,2.5],
                             'prior':None}
                       }}
 
@@ -1195,9 +1260,44 @@ class Retrieval_params:
 
         return gas_dic
     
+
+    def cloud_type_name_gen(self,cloud_name,cloud_type):
+        cloud_type_name=[]
+        
+        
+        
+        #for i in range(len(cloud_name)):
+        
+        
+        if not cloud_name:  # No clouds at all
+            return ['clear']  # or return empty list if code can handle it
     
-    
-    def cloud_allparams_gen(self,do_clouds,npatches,cloudname,cloudpatch_index,particle_dis):
+        for i in range(len(cloud_name)):
+            name = cloud_name[i]
+            ctype = cloud_type[i]
+
+            if isinstance(name, list):
+                name = name[0]
+            if isinstance(ctype, list):
+                ctype = ctype[0]
+        
+            if cloud_name[i].lower()=='clear':
+                cloud_type_name.append('clear')
+            elif cloud_name[i].lower()=='powerlaw':
+                
+                cloud_type_name.append('powerlaw cloud '+cloud_type[i].lower())
+                
+            elif cloud_name[i].lower()=='grey':
+                cloud_type_name.append('grey cloud '+cloud_type[i].lower())
+                
+            else:
+                cloud_type_name.append('Mie scattering cloud '+cloud_type[i].lower()+'--'+cloud_name[i])
+                    
+        return cloud_type_name
+        
+  
+
+    def cloud_allparams_gen(self,do_clouds,npatches,cloud_type_name,cloudpatch_index,particle_dis):
         cloud_dic = {}
 
         if do_clouds > 0:
@@ -1205,20 +1305,21 @@ class Retrieval_params:
                 cloud_dic["fcld"] = {
                     'initialization': None,
                     'distribution': ['uniform', 0, 1],
-                    'range':None,
+                    'range':[0,1],
                     'prior': None
                 }
 
             for i in range(npatches):
                 for j in range(len(cloudpatch_index)):
                     if i + 1 in cloudpatch_index[j]:
-                        dic = self.cloud_dic_gen(do_clouds, cloudname[j], particle_dis[j])
+                        dic = self.cloud_dic_gen(do_clouds, cloud_type_name[j], particle_dis[j])
+
                         patch_key = f"patch {i + 1}"
 
                         if patch_key not in cloud_dic:
                             cloud_dic[patch_key] = {}
 
-                        cloud_dic[patch_key][cloudname[j]] = dic["patch"]
+                        cloud_dic[patch_key][cloud_type_name[j]] = dic["patch"]
 
                 # if i+1 > len(cloudpatch_index):
                 #     patch_key = f"patch {i + 1}"
@@ -1240,12 +1341,13 @@ class Retrieval_params:
 
     
     
-    def retrieval_para_dic_gen(self,chemeq,gaslist,gastype_list,fwhm,do_fudge,ptype,do_clouds,npatches,cloudname,cloudpacth_index,particle_dis):
+    def retrieval_para_dic_gen(self,chemeq,gaslist,gastype_list,fwhm,do_fudge,ptype,do_clouds,npatches,cloud_name,cloud_type,cloudpatch_index,particle_dis):
         retrieval_param={}
         gas_dic=self.gas_allparams_gen(chemeq,gaslist,gastype_list)
         refinement_dic=self.refinement_params_dic_gen()
         pt_dic=self.pt_dic_gen(ptype)
-        cloud_dic=self.cloud_allparams_gen(do_clouds,npatches,cloudname,cloudpacth_index,particle_dis) 
+        cloud_type_name=self.cloud_type_name_gen(cloud_name,cloud_type)
+        cloud_dic=self.cloud_allparams_gen(do_clouds,npatches,cloud_type_name,cloudpatch_index,particle_dis) 
         retrieval_param["gas"]=gas_dic
         retrieval_param["refinement_params"]=refinement_dic
         retrieval_param["pt"]=pt_dic
@@ -1359,8 +1461,15 @@ def get_all_parametres(dic):
 
 
 def update_dictionary(dic, params_instance):
-    # Update gas parameters
+  
     
+    # ordered_params = {}
+    # for field in params_instance._fields:
+    #     if field in dic['refinement_params']['params']:
+    #         ordered_params[field] = dic['refinement_params']['params'][field]
+    # dic['refinement_params']['params'] = ordered_params
+
+    # Update gas parameters
     gastype_values = [info['gastype'] for key, info in dic['gas'].items() if 'gastype' in info]
     gaslist=list(dic['gas'].keys())
     for i in range(len(gaslist)):
@@ -1437,6 +1546,7 @@ def MC_P0_gen(updated_dic,model_config_instance,args_instance):
     
     
     all_distributions=get_distribution_values(updated_dic)
+  
     
     for i in range(model_config_instance.ndim):
         if all_distributions[i][0]=='normal':
@@ -1479,114 +1589,59 @@ def MC_P0_gen(updated_dic,model_config_instance,args_instance):
 def cloud_para_gen(dic):
 
 
+
     # Determine number of patches and clouds
-    npatches = 1
-    nclouds = 1
-
-
     if 'cloud' not in dic or not dic['cloud']:
-        return np.zeros([npatches, nclouds], dtype='i'), np.zeros([npatches, nclouds], dtype='i'), np.zeros([npatches], dtype='i')
 
-    if 'patch 1' in dic['cloud']:
-        # Determine if there is more than one patch
-        if 'patch 2' in dic['cloud'] and dic['cloud']['patch 2']:
-            npatches = 2
-            
-        cloudnum_list=[]
-        for cloud_type, cloud_info in dic['cloud']['patch 1'].items():
-            if 'cloudnum' in cloud_info:
-                cloudnum_list.append(cloud_info['cloudnum'])
-            
-        # if len(cloudnum_list) ==2: #and len(set(cloudnum_list)) == len(cloudnum_list):
-        #     nclouds = 2
-        nclouds= len(cloudnum_list)
+        npatches = 1
+        nclouds = 1
 
-    # Initialize arrays
-    do_clouds = np.zeros([npatches], dtype='i')
-    cloudnum = np.zeros([npatches, nclouds], dtype='i')
-    cloudtype = np.zeros([npatches, nclouds], dtype='i')
-
-    # Populate arrays
-    patch_index = 0
-    for patch_key in dic['cloud'].keys():
-        if patch_key.startswith('patch 1'):            
-            for i in range(nclouds):
-                cloudkey=list(dic['cloud'][patch_key].keys())
-                cloud_info = dic['cloud'][patch_key][cloudkey[i]]
-                if 'cloudnum' in cloud_info and 'cloudtype' in cloud_info:
-                    cloudnum[patch_index, i] = cloud_info['cloudnum']
-                    cloudtype[patch_index, i] = cloud_info['cloudtype']
-                    do_clouds[patch_index] = 1
-
-            
-    if npatches==2:
-        cloudkey=list(dic['cloud']['patch 2'].keys())
-        cloud_info = dic['cloud']['patch 2'][cloudkey[0]]
-        if 'cloudnum' in cloud_info and 'cloudtype' in cloud_info:
-            cloudnum[1, 0] = cloud_info['cloudnum']
-            cloudnum[1, 1] = cloud_info['cloudnum']
-            cloudtype[1, 1] = cloud_info['cloudtype']
-            do_clouds[1] = 1
-        
-                    
-    return cloudnum, cloudtype, do_clouds
-
-
-
-# def args_gen(re_params,model,instrument,obspec):
-
-#     # set up pressure grids in log(bar) cos its intuitive
-#     logcoarsePress = np.arange(-4.0, 2.5, 0.53)
-#     logfinePress = np.arange(-4.0, 2.4, 0.1)
-
-#     # but forward model wants pressure in bar
-#     coarsePress = pow(10,logcoarsePress)
-#     press = pow(10,logfinePress)        
+        return np.zeros([nclouds]), np.zeros([nclouds]),np.zeros((npatches, nclouds)),np.zeros([nclouds])
     
-#     dist=model.dist
-#     use_disort=model.use_disort
-#     xpath=model.xpath
-#     xlist=model.xlist
-#     malk=model.malk
-#     do_fudge=model.do_fudge
-#     pfile=model.pfile
-#     do_bff=model.do_bff
-#     gaslist=list(re_params.dictionary['gas'].keys())
-#     gaslist_lower = [gas.lower() for gas in gaslist]
+    else:
+    
+        # Determine number of patches and clouds
+        patch_numbers = [
+        int(k.split(' ')[1])
+        for k in list(dic['cloud'].keys())
+        if k.startswith('patch') and k.split(' ')[1].isdigit()
+    ]
+        npatches = max(patch_numbers)
 
-#     chemeq=re_params.chemeq
-    
-#     if gaslist_lower[-1] == 'k_na':
-#         gaslist=list(gaslist[0:-1])+['k', 'na']
+        cloudname_set = [] #Used a set (cloudname_set) to automatically remove duplicates.
+        cloudsize =[]
+        for i in range(npatches):
+            for key in dic['cloud'][f'patch {i+1}']:
+                if 'clear' not in key and key not in cloudname_set:
+                    cloudname_set.append(key) 
+                    particle_dis=dic['cloud'][f'patch {i+1}'][key].get("particle_dis", 0)
+                    if particle_dis=='log_normal':
+                        cloudsize.append(2)
+                    elif particle_dis=='hansen':
+                        cloudsize.append(1)
+                    else:
+                        cloudsize.append(0)
 
-#     elif gaslist_lower[-1] == 'k_na_cs':
-#         gaslist=list(gaslist[0:-1])+['k','na','cs']
 
-    
-#     fwhm=instrument.fwhm
-#     w1,w2=instrument.wavelength_range[:]
-#     proftype=re_params.ptype
+        nclouds = len(cloudname_set)
+        cloud_opaname= np.zeros([nclouds], dtype=object, order='F')
 
-#     cloudnum, cloudtype, do_clouds=cloud_para_gen(re_params.dictionary)
-    
-#     prof = np.full(13, 100.)
-#     if proftype == 9:
-#         modP, modT = np.loadtxt(pfile, skiprows=1, usecols=(1, 2), unpack=True)
-#         tfit = InterpolatedUnivariateSpline(np.log10(modP), modT, k=1)
-#         prof = tfit(logcoarsePress)
-        
-        
-#     inlinetemps,inwavenum,linelist,gasnum,nwave = get_opacities(gaslist,w1,w2,press,xpath,xlist,malk)
-#     tmpcia, ciatemps = ciamod.read_cia("CIA_DS_aug_2015.dat",inwavenum)
-#     cia = np.asfortranarray(np.empty((4,ciatemps.size,nwave)),dtype='float32')
-#     cia[:,:,:] = tmpcia[:,:,:nwave] 
-#     ciatemps = np.asfortranarray(ciatemps, dtype='float32')
-    
-    
-#     # grab BFF and Chemical grids
-#     bff_raw,ceTgrid,metscale,coscale,gases_myP = sort_bff_and_CE(chemeq,"chem_eq_tables_P3K.pic",press,gaslist)
-    
-#     return gases_myP,chemeq,dist,cloudtype,do_clouds,gasnum,cloudnum,inlinetemps,coarsePress,press,inwavenum,linelist,cia,ciatemps,use_disort,fwhm,obspec,proftype,do_fudge, prof,do_bff,bff_raw,ceTgrid,metscale,coscale
+        for i in range(nclouds):
+            if 'Mie'in cloudname_set[i]:
+                cloud_opaname[i] = cloudname_set[i].split('--')[1]
+            else:
+                cloud_opaname[i] = cloudname_set[i].split(' ')[0]
+
+
+        cloudmap = np.zeros((npatches, nclouds), dtype=int,order='F')
+        # Populate arrays
+        for idx, cloud in enumerate(cloudname_set):
+            for i in range(npatches):
+                if cloud in list(dic['cloud'][f'patch {i+1}'].keys()):
+                    cloudmap[i,idx]= 1
+
+         
+        return cloudname_set,cloud_opaname,cloudmap,np.array(cloudsize) 
 
 
 
@@ -1647,6 +1702,9 @@ def get_opacities(gaslist,w1,w2,press,xpath='../Linelists',xlist='gaslistR10K.da
         inlinelist= pickle.load(open(lists[gas], "rb" ) )[3]
         for i in range (0,ntemps):
             for j in range (r1,r2+1):
+               # print(f"gas={gas}, i={i}, j={j}")
+               # print("inpress shape:", inpress.shape)
+               # print("inlinelist[:, i, j] shape:", inlinelist[:, i, j].shape)
                 pfit = interp1d(np.log10(inpress),np.log10(inlinelist[:,i,j]))
                 linelist[gas,:,i,(j-r1)] = np.asfortranarray(pfit(np.log10(press)))
     linelist[np.isnan(linelist)] = -50.0
@@ -1659,6 +1717,100 @@ def get_opacities(gaslist,w1,w2,press,xpath='../Linelists',xlist='gaslistR10K.da
     gasnames = np.asfortranarray(gasnames,dtype='c')
 
     return inlinetemps,inwavenum,linelist,gasnames,gasmass,nwave
+    
+    
+    
+def get_k_opacities(gaslist,w1,w2,press,xpath='../K_tables',xlist='gaslist_ck.dat'):
+    #import exo_k as xk
+    #from scipy.interpolate import interp1d
+    # Now we'll get the opacity files into an array
+    ngas = len(gaslist)
+    totgas = 0
+    gasdata = []
+    with open(xlist) as fa:
+        for line_aa in fa.readlines():
+            if len(line_aa) == 0:
+                break
+            totgas = totgas +1 
+            line_aa = line_aa.strip()
+            gasdata.append(line_aa.split())
+
+
+    list1 = []
+    for i in range(0,ngas):
+        for j in range(0,totgas):
+            if (gasdata[j][1].lower() == gaslist[i].lower()):
+                list1.append(gasdata[j])
+
+    lists = [xpath+i[3] for i in list1[0:ngas]]
+    gasmass = np.asfortranarray(np.array([i[2] for i in list1[0:ngas]],dtype='float32'))
+
+
+    # c-k part
+    
+    with h5py.File(lists[0], "r") as f:
+        inlinetemps = f['t'][:]             # temp grid
+        inpress = f['p'][:]                 # press grid
+        wn_all = f['bin_centers'][:]        # central points of wnumber bins in cm^-1
+        ngauss = f['kcoeff'].shape[-1]      # number of g-points
+        gpoints = f['samples'][:]           # abscissa of the g grid 
+        weights = f['weights'][:]           #quadrature weights corresponding to the g points
+    
+    #kt0 = xk.Ktable(filename=lists[0])
+    #inlinetemps = kt0.tgrid #temp grid, in the h5py the key is t
+    #inpress = kt0.pgrid  #press grid, in the h5py the key is p
+    #wn_all = kt0.wns #central points of wnumber bins in cm^-1, in the h5py the key is  bin_centers
+    #ngauss = kt0.Ng  #number of g points, in the h5py we can retrieve is as ['kcoeff'].shape[-1]
+    #gpoints = kt0.ggrid  #abscissa of the g grid , in the h5py the key is  samples             
+    #weights = kt0.weights #quadrature weights corresponding to the g points, in the h5py the key is  weights
+    
+
+    #convert micron to cm^-1
+    wn1 = 10000. / w2
+    wn2 = 10000. / w1
+    mask = (wn_all >= wn1) & (wn_all <= wn2)
+    #inwavenum = np.asfortranarray(rawwavenum[np.where(np.logical_not(np.logical_or(rawwavenum[:] > wn2, rawwavenum[:] < wn1)))],dtype='float64')
+    inwavenum = np.asfortranarray(wn_all[mask],dtype='float64')
+    
+    ntemps = inlinetemps.size
+    npress= press.size
+    nwave = inwavenum.size
+    #r1 = np.amin(np.where(np.logical_not(np.logical_or(rawwavenum[:] > wn2, rawwavenum[:] < wn1))))
+    #r2 = np.amax(np.where(np.logical_not(np.logical_or(rawwavenum[:] > wn2, rawwavenum[:] < wn1))))
+
+    # Here we are interpolating the linelist onto our fine pressure scale.
+    linelist = (np.zeros([ngas,ngauss,npress,ntemps,nwave],order='F')).astype('float64', order='F')
+
+    for g, fname in enumerate(lists):     #loop over gases (e.g. 0=h2o, 1=ch4)
+        #kt = xk.Ktable(filename=fname)    
+        with h5py.File(fname, "r") as f:
+            kcoeff = f['kcoeff'][:]
+            pgrid = f['p'][:]
+            
+            for i in range(ntemps):           # loop over T
+                for j, w in enumerate(np.where(mask)[0]):  # loop over selected wavelengths, 
+                                                       # j is the index of the selected wavenumber bin within the masked range 
+                                                       # w the actual index in the full wavenumber grid (kt.wns)
+                    for gg in range(ngauss):  # loop over g-points (g-point indexing)
+                
+                        kslice = kcoeff[:, i, w, gg]   #[npress, ntemp, nwave, ngauss], opacity cross-section at all pressures, at temperature i, at wavenumber bin w, and at g-point gg
+            
+                        # interpolate onto retrieval pressure grid
+                        pfit = interp1d(np.log10(pgrid), np.log10(kslice),
+                                        bounds_error=False, fill_value=-50.0)
+                        linelist[g, gg, :, i, j] = np.asfortranarray(pfit(np.log10(press))) #[gas, gg point, P, T, masked wave]
+    
+    # convert gaslist into fortran array of ascii strings for fortran code 
+    gasnames = np.empty((len(gaslist), 10), dtype='c')
+    for i, g in enumerate(gaslist):
+        gasnames[i, 0:len(g)] = list(g)
+
+    gasnames = np.asfortranarray(gasnames,dtype='c')
+    gpoints = np.asfortranarray(gpoints, dtype='float32')
+    weights = np.asfortranarray(weights, dtype='float32')
+    
+    return inlinetemps,inwavenum,linelist,gasnames,gasmass,nwave,gpoints,weights #these 2 needs to be float 32
+    #also use pickle instead of h5
 
 
 
@@ -1753,6 +1905,112 @@ def sort_bff_and_CE(chemeq,ce_table,press,gaslist):
 
 
 
+def get_clouddata(cloudname,cloudpath = "../Clouds/"):
+
+    """
+    A function to get the clouddata from the cloud path, and put into memory. 
+    The result should be a array like cloudnum (update name) with npatch, nclouda and each of these having miewave, mierad, qext, qscat, cos_qscat
+
+    """
+
+    with open(cloudpath + f'{cloudname}.pic', 'rb') as f:
+        miewave, mierad, qscat, qext, cos_qscat = pickle.load(f)
+
+    # Convert to Fortran order and float64
+
+    miewave_f = np.asfortranarray(miewave, dtype=np.float64)
+    mierad_f = np.asfortranarray(mierad, dtype=np.float64)
+    qext_f = np.asfortranarray(qext, dtype=np.float64)
+    qscat_f = np.asfortranarray(qscat, dtype=np.float64)
+    cos_qscat_f = np.asfortranarray(cos_qscat, dtype=np.float64)
+
+    # Flatten all arrays (column-major order for Fortran)
+    # cloud = np.concatenate([
+    #     miewave_f.ravel(order='F'),          # size: nwave
+    #     mierad_f.ravel(order='F'),           # size: nrad
+    #     qext_f.ravel(order='F'),             # size: nwave * nrad
+    #     qscat_f.ravel(order='F'),
+    #     cos_qscat_f.ravel(order='F')
+    # ])
+
+        # Flatten all arrays (column-major order for Fortran)
+    cloud =[qscat_f,qext_f,cos_qscat_f]
+
+    return cloud,miewave_f,mierad_f
+
+
+    
+def shared_memory_array(rank, comm, shape,datatype='d'):
+    ''' 
+    Creates a numpy array shared in memory across multiple cores.
+    Taken from Ryan MacDonald's Poseidon. Adapted for multiple nodes by 
+    Ben Burningham using github: rcthomas/example-allocate-shared.py
+
+    Adapted from :
+    https://stackoverflow.com/questions/32485122/shared-memory-in-mpi4py
+    
+    '''
+    
+    # Create a shared array of size given by product of each dimension
+    size = np.prod(shape)
+    itemsize = MPI.DOUBLE.Get_size() 
+
+    if (rank == 0): 
+        nbytes = size * itemsize   # Array memory allocated for first process
+    else:  
+        nbytes = 0   # No memory storage on other processes
+        
+    # On rank 0, create the shared block
+    # On other ranks, get a handle to it (known as a window in MPI speak)
+
+    
+    new_comm = MPI.Comm.Split(comm)
+    win = MPI.Win.Allocate_shared(nbytes, itemsize, comm=new_comm) 
+ 
+    # Create a numpy array whose data points to the shared memory
+    buf, itemsize = win.Shared_query(0) 
+    assert itemsize == MPI.DOUBLE.Get_size() 
+    array =  np.ndarray(buffer=buf, dtype=datatype, shape=shape,order='F')
+    
+    return array, win
+
+
+# def get_gasdetails(gaslist,w1,w2,xpath='../Linelists',xlist='gaslistR10K.dat'):
+#     # Now we'll get the opacity files into an array
+#     ngas = len(gaslist)
+
+#     totgas = 0
+#     gasdata = []
+#     with open(xlist) as fa:
+#         for line_aa in fa.readlines():
+#             if len(line_aa) == 0:
+#                 break
+#             totgas = totgas +1 
+#             line_aa = line_aa.strip()
+#             gasdata.append(line_aa.split())
+
+    
+#     list1 = []
+#     for i in range(0,ngas):
+#         for j in range(0,totgas):
+#             if (gasdata[j][1].lower() == gaslist[i].lower()):
+#                 list1.append(gasdata[j])
+
+#     gasnum = np.asfortranarray(np.array([i[0] for i in list1[0:ngas]],dtype='i'))
+    
+#     lists = [xpath+i[3] for i in list1[0:ngas]]
+
+ 
+#     # get the basic framework from water list
+#     rawwavenum, inpress, inlinetemps, inlinelist = pickle.load(open(lists[0], "rb"))
+
+#     wn1 = 10000. / w2
+#     wn2 = 10000. / w1
+#     inwavenum = np.asfortranarray(rawwavenum[np.where(np.logical_not(np.logical_or(rawwavenum[:] > wn2, rawwavenum[:] < wn1)))],dtype='float64')
+ 
+#     nwave = inwavenum.size
+
+#     return inlinetemps,inwavenum,gasnum,nwave
 
 
 
@@ -1783,12 +2041,10 @@ class ArgsGen:
         List of gasnames in fortran compatible character arrays
     gasmass: float
         List of molecular masses for gases
-    cloudtype : str
-        Type of cloud parameterization used.
     do_clouds : bool
         Whether clouds are considered.
-    cloudnum : int
-        Number of cloud layers.
+    cloudflag : int
+        powerlaw, grey, or MIE cloud 
     inlinetemps : np.array
         Inline temperatures from opacities.
     coarsePress : np.array
@@ -1845,7 +2101,7 @@ class ArgsGen:
     def generate(self):
         # Set up pressure grids in log(bar)
         logcoarsePress = np.arange(-4.0, 2.5, 0.53)
-        logfinePress = np.arange(-4.0, 2.4, 0.1)
+        logfinePress = np.arange(-4.0, 2.4, 0.1) #np.linspace(-4.0, 2.4, 100)#logfinePress = np.arange(-4.0, 2.4, 0.1) #PRESSURE LAYER CHANGE
         
         # Pressure in bar
         self.coarsePress = pow(10, logcoarsePress)
@@ -1862,6 +2118,7 @@ class ArgsGen:
         self.pfile = self.model.pfile
         self.do_bff = self.model.do_bff
         self.chemeq = self.re_params.chemeq
+        
         # Process gas list
         self.gaslist = list(self.re_params.dictionary['gas'].keys())
         gaslist_lower = [gas.lower() for gas in self.gaslist]
@@ -1877,11 +2134,45 @@ class ArgsGen:
         self.R = self.instrument.R
         self.wl = self.instrument.wl
         self.logf_flag = self.instrument.logf_flag #!!!!!!!!!!!!!!!!
+        self.scales = self.instrument.scales
         
         # Profile type and cloud parameters
         self.proftype = self.re_params.ptype
-        self.cloudnum, self.cloudtype, self.do_clouds = cloud_para_gen(self.re_params.dictionary)
+        # self.cloudflag, self.cloudtype, self.do_clouds,self.cloudnames = cloud_para_gen(self.re_params.dictionary)
         
+
+        if self.re_params.dictionary['cloud']:
+            self.cloudname_set,self.cloud_opaname,self.cloudmap,self.cloudsize=cloud_para_gen(self.re_params.dictionary)
+
+            cloud_demo,self.miewave,self.mierad= get_clouddata('H2O.mieff', self.model.cloudpath)
+            # Initialize clouddata as a nested list to hold arrays
+            self.cloudata = np.zeros((len(self.cloudname_set), 3, len(self.miewave), len(self.mierad)), order='F')
+
+            for i in range(len(self.cloudname_set)):
+                val = self.cloudname_set[i]
+                if isinstance(val, str) and 'Mie' in val:
+                    self.cloudata[i]= np.asfortranarray(
+                            get_clouddata(self.cloudname_set[i].split('--')[1], self.model.cloudpath)[0])
+                            
+        if not self.re_params.dictionary['cloud']:
+            self.miewave = np.array([])
+            self.mierad = np.array([])
+            #self.cloudata = None
+            self.cloudata=np.zeros((0,0), dtype=float)
+            self.cloud_opaname = []
+            self.cloudsize = []
+            self.cloudmap = np.zeros((1, 1), dtype=int)
+
+        # # Initialize clouddata as a nested list to hold arrays
+        # self.cloudata = np.zeros((*self.cloudflag.shape, 3, len(self.miewave), len(self.mierad)), order='F')
+
+        # for i in range(len(self.cloudflag)):
+        #     for j in range(len(self.cloudflag[0])):
+        #         val = self.cloudflag[i][j]
+        #         if isinstance(val, str) and 'Mie' in val:
+        #             self.cloudata[i][j] = np.asfortranarray(
+        #                 get_clouddata(self.cloudnames[i][j], self.model.cloudpath)[0])
+
         # Generate temperature profile
         self.prof = np.full(13, 100.0)
         if self.proftype == 9:
@@ -1904,25 +2195,46 @@ class ArgsGen:
 
         
     def __str__(self):
-        return f"""
-        ArgsGen Model Parameters:
-        -------------------------
-        Distance: {self.dist} (Error: {self.dist_err})
-        Chemical Equilibrium: {self.chemeq}
-        FWHM: {self.fwhm}
-        Wavelength Range: {self.w1} - {self.w2}
-        DISORT Flag: {self.use_disort}
-        do_fudge {self.do_fudge}
-        do_bff: {self.do_bff}
-        Profile Type: {self.proftype}
-        Gas List: {self.gaslist}
-        do_clouds: {self.do_clouds}
-        Number of Clouds: {self.cloudnum}
-        Cloud Type: {self.cloudtype} 
-        Metallicity Scale: {self.metscale}
-        C/O Ratio Scale: {self.coscale}
-        Coarse Pressure Grid: {self.coarsePress}
-        """
+
+        if self.re_params.dictionary['cloud']:
+            return f"""
+            ArgsGen Model Parameters:
+            -------------------------
+            Distance: {self.dist} (Error: {self.dist_err})
+            Chemical Equilibrium: {self.chemeq}
+            FWHM: {self.fwhm}
+            Wavelength Range: {self.w1} - {self.w2}
+            DISORT Flag: {self.use_disort}
+            do_fudge {self.do_fudge}
+            do_bff: {self.do_bff}
+            Profile Type: {self.proftype}
+            Gas List: {self.gaslist}
+            cloudname_set: {self.cloudname_set}
+            cloud_opaname: {self.cloud_opaname}
+            cloudmap: {self.cloudmap}
+            cloudsize: {self.cloudsize}
+            cloudata: {self.cloudata}
+            Metallicity Scale: {self.metscale}
+            C/O Ratio Scale: {self.coscale}
+            Coarse Pressure Grid: {self.coarsePress}
+            """
+        else:
+            return f"""
+            ArgsGen Model Parameters:
+            -------------------------
+            Distance: {self.dist} (Error: {self.dist_err})
+            Chemical Equilibrium: {self.chemeq}
+            FWHM: {self.fwhm}
+            Wavelength Range: {self.w1} - {self.w2}
+            DISORT Flag: {self.use_disort}
+            do_fudge {self.do_fudge}
+            do_bff: {self.do_bff}
+            Profile Type: {self.proftype}
+            Gas List: {self.gaslist}
+            Metallicity Scale: {self.metscale}
+            C/O Ratio Scale: {self.coscale}
+            Coarse Pressure Grid: {self.coarsePress}
+            """
 
         # Temperature Profile: {self.prof}
         # Inlined Temperatures: {self.inlinetemps}
@@ -1932,3 +2244,6 @@ class ArgsGen:
         # BFF Raw Grid: {self.bff_raw}
         # Fine Pressure Grid: {self.press}
         # Chemical Grid T: {self.ceTgrid}
+        # cloudflag: {self.cloudflag}
+
+

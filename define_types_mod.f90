@@ -12,7 +12,7 @@ module define_types
 
 
   type a_cloud
-     character(len=15):: name
+     character(len=50):: name
      double precision :: dtau1,rg,rsig
   end type a_cloud
 
