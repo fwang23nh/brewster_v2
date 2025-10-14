@@ -55,6 +55,9 @@ contains
     allocate(cld1arr(nlayers))
 
     ! first set up the grids and get the Mie coefficients, cloud by cloud
+   !write(1,*) 'clouddata shape = ', shape(clouddata)
+   !write(1,*) 'miewave = ',miewave
+   !write(1,*) 'radii = ', mierad
     !write(1,*) 'here clouds 58'   
 
     
@@ -73,7 +76,7 @@ contains
 
     if (abs(radius(irad) - mierad(irad)) .gt. &
          0.001*radius(irad)) then
-       !write(1,*) "Radius grid mismatch in mie data"
+       write(*,*) "Radius grid mismatch in mie data"
        stop
     end if
     enddo
@@ -254,9 +257,9 @@ contains
                       arg1 = (-rr/(a*b)) + log(drr)
                       !write(*,*) arg1
                       arg2 = ((1. - 3.*b)/b) * log(rr)
-                      argscat = log(clouddata(icloud,1,loc1,irad) * PI * rr**2)
-                      argext = log(clouddata(icloud,2,loc1,irad) * PI * rr**2)
-                      argcosqs = clouddata(icloud,3,loc1,irad) * PI * rr**2
+                      argscat = log(clouddata(icloud,1,imiewave,irad) * PI * rr**2)
+                      argext = log(clouddata(icloud,2,imiewave,irad) * PI * rr**2)
+                      argcosqs = clouddata(icloud,3,imiewave,irad) * PI * rr**2
                       !write(*,*) logcon, arg1, arg2, arg3, arg4 
                       scat_cloud(ilayer,imiewave,icloud) =  &
                            scat_cloud(ilayer,imiewave,icloud) + &

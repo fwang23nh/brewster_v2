@@ -66,7 +66,7 @@ contains
     call init_all
     !wavenum[nwave],wavelen[nwave])
 
-    !write(1,*) 'here main 69'
+   !write(1,*) 'here main 69'
 
 
     do ipatch = 1, npatch
@@ -118,7 +118,7 @@ contains
     call cpu_time(tstart)
     
     
-    !write(1,*) 'here main 121'   
+   !write(1,*) 'here main 121'   
     ! now H2 and He fractions and mu for each layer
     do ilayer = 1, nlayers
 
@@ -199,21 +199,21 @@ contains
     
     ! now put in the cloud details
     call cpu_time(cloudstart)
-    !write(1,*) 'here main 202'   
+   !write(1,*) 'here main 202'   
 
     do ipatch = 1, npatch
-       !write(1,*) 'here main 205'   
+      !write(1,*) 'here main 205'   
        
        
        patch(ipatch)%cover = pcover(ipatch)
-       !write(1,*) 'here main 209'   
+      !write(1,*) 'here main 209'   
        !do icloud =1,nclouds
-       !   write(1,*) 'Cloud ',icloud,' patches ',cloudmap(:, icloud)
+       !  !write(1,*) 'Cloud ',icloud,' patches ',cloudmap(:, icloud)
        !end do
        
        if (any(cloudmap(ipatch,:) .ne. 0)) then
           do icloud = 1, nclouds
-             !write(1,*) 'here main 213'   
+            !write(1,*) 'here main 213'   
 
           
              ! in case of simple/generic/mixed cloud we won't be doing Mie coeffs
@@ -223,7 +223,7 @@ contains
                 if (verify('grey',trim(cloudname(icloud))) .eq. 0 &
                      .or. verify('power',trim(cloudname(icloud))) .eq. 0) then
 
-                   !write(1,*) 'here main 223'   
+                  !write(1,*) 'here main 223'   
 
                    do ilayer= 1, nlayers
                       patch(ipatch)%atm(ilayer)%opd_ext = &
@@ -239,17 +239,22 @@ contains
                    end do ! layer loop
                 else !if cloud not grey or power
                    do ilayer = 1, nlayers
+                      !write(1,*) 'here main 242'
                       patch(ipatch)%atm(ilayer)%cloud(icloud)%name = cloudname(icloud)
                       patch(ipatch)%atm(ilayer)%cloud(icloud)%dtau1 = &
                            cloudprof(ilayer,icloud)
-                      patch(ipatch)%atm(ilayer)%cloud(icloud)%rg = cloudrad(ilayer,icloud) 
+                     !write(1,*) 'dtau in layer ',ilayer,'= ', patch(ipatch)%atm(ilayer)%cloud(icloud)%dtau1
+                      patch(ipatch)%atm(ilayer)%cloud(icloud)%rg = cloudrad(ilayer,icloud)
+                     !write(1,*) 'rg in layer ',ilayer,'= ', patch(ipatch)%atm(ilayer)%cloud(icloud)%rg
+
                       patch(ipatch)%atm(ilayer)%cloud(icloud)%rsig = cloudsig(ilayer,icloud)
+                      !write(1,*) 'rsig in layer ',ilayer,'= ', patch(ipatch)%atm(ilayer)%cloud(icloud)%rsig
                    end do
                 end if
              end if
           end do ! cloud loop
        
-          !write(1,*) 'here main 249'
+         !write(1,*) 'here main 249'
           
           call cloudcalcs(patch(ipatch)%atm,sizdist,miewave,mierad,clouddata)
           !do ilayer = 1,nlayers
@@ -296,12 +301,12 @@ contains
     
     call cpu_time(tfinish)
     
-    !write(*,*) "Time elapsed :", (tfinish - tstart), " seconds"
+    !write(1,*) "Time elapsed :", (tfinish - tstart), " seconds"
     
-    !write(*,*) "Opacity interpolations took : ", (opfinish - opstart), " seconds"
+    !write(1,*) "Opacity interpolations took : ", (opfinish - opstart), " seconds"
 
-    !write(*,*) "Cloud bits took: ", (cloudfinish - cloudstart), " seconds"
-    !write(*,*) "RT took : ", (difinish - distart), " seconds"
+    !write(1,*) "Cloud bits took: ", (cloudfinish - cloudstart), " seconds"
+    !write(1,*) "RT took : ", (difinish - distart), " seconds"
 
     deallocate(wavelen,wavenum)
     do ipatch = 1, npatch
