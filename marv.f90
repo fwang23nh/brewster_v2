@@ -52,7 +52,7 @@ subroutine marv(temp,logg,R2D2,ingasname,molmass,logVMR,pcover,&
   integer :: use_disort,make_oth_pspec,make_cl_pspec,do_bff,make_cf
   logical :: othphot,clphot,do_cf
 
-  !open (1, file = 'log.txt', status ='new')
+  !open (1, file = 'log.txt', status ='old')
   !write(1,*) 'here marv 56'
   call initlayers(size(inpress))
   call initwave(size(inwavenum))
@@ -107,7 +107,7 @@ subroutine marv(temp,logg,R2D2,ingasname,molmass,logVMR,pcover,&
   end if
 
   deallocate(out_spec,clphotspec,othphotspec,cf)
-  close(1)
+  !close(1)
 end subroutine marv
 
 
