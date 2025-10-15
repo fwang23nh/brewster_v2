@@ -1568,7 +1568,7 @@ def MC_P0_gen(updated_dic,model_config_instance,args_instance):
         params_instance = params_master(*all_params_values)
         T_1_index=params_instance._fields.index('T_1')
         T_13_index=params_instance._fields.index('T_13')
-        BTprof = np.loadtxt("BTtemp800_45_13.dat")
+        BTprof = np.loadtxt("data/BTtemp800_45_13.dat")
 
         for i in range(0, 13):  # 13 layer points ====> Total: 13 + 13 (gases+) +no cloud = 26
             p0[:,T_1_index+i] = (BTprof[i] - 200.) + (150. * np.random.randn(nwalkers).reshape(nwalkers))

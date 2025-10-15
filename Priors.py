@@ -59,6 +59,8 @@ class Priors:
         # Internal temperature profile keys and values
         self.intemp_keys = list(self.re_params.dictionary['pt']['params'].keys())
         self.intemp = np.array([getattr(self.params_instance, key) for key in self.intemp_keys])
+        if (self.args_instance.proftype == 1 or self.args_instance.proftype == 77):
+            self.intemp=self.intemp[1:]
 
         # Extract gas type information
         self.gastype_values = [info['gastype'] for key, info in self.re_params.dictionary['gas'].items() if 'gastype' in info]
@@ -132,12 +134,126 @@ class Priors:
             True if all post-processing priors are satisfied, False otherwise.
         """
         # 1. T-profile check
-        T = TPmod.set_prof(self.args_instance.proftype, self.args_instance.coarsePress,self.args_instance.press, self.intemp)
-        prior_T = (min(T) > 1.0) and (max(T) < 6000.)
 
+        
+        T = TPmod.set_prof(self.args_instance.proftype, self.args_instance.coarsePress,self.args_instance.press, self.intemp)
+        prior_T_overall = (min(T) > 1.0) and (max(T) < 6000.)
 
         diff=np.roll(T,-1)-2.*T+np.roll(T,1)
         pp=len(T)
+
+        prior_T_params=True
+        if self.args_instance.proftype==2:
+            """
+            (0. < a1 < 1. and 0. < a2 < 1.0
+            and T3 > 0.0 and P3 >= P1 and P1 >= np.log10(press[0])
+            and P3 <= 5):
+
+            """
+            prior_T_params= (0. < self.params_instance.alpha1 < 1. and 0. < self.params_instance.alpha2 < 1.0
+            and self.params_instance.T3 > 0.0 and self.params_instance.logP3 >= self.params_instance.logP1 and self.params_instance.logP1 >= np.log10(self.args_instance.press[0])
+            and self.params_instance.logP3 <= 5)
+
+        elif self.args_instance.proftype==3:
+            """
+            (0. < a1 < 1. and 0. < a2 < 1.0
+            and T3 > 0.0 and P3 >= P2 and P3 >= P1 and P2 >= np.log10(press[0]) and P1 >= np.log10(press[0])
+             and P3 <= 5)
+            """
+
+            prior_T_params=  (0. < self.params_instance.alpha1 < 1. and 0. < self.params_instance.alpha2 < 1.0
+            and self.params_instance.T3 > 0.0 and self.params_instance.logP3 >= self.params_instance.logP2  and self.params_instance.logP3 >= self.params_instance.logP1 and self.params_instance.logP2 >= np.log10(self.args_instance.press[0]) and self.params_instance.logP1 >= np.log10(self.args_instance.press[0])
+             and  self.params_instance.logP3 <= 5)
+            
+
+        elif self.args_instance.proftype==7:
+
+            """
+            delta=np.exp(lndelta)
+            Tconnect = (((3/4) * Tint**4) * ((2/3) + (0.1)))**(1/4)
+            T = np.empty([press.size])
+            T[:] = -100.
+
+            P1 = ((1/delta)**(1/alpha)) # P1 - pressure where tau = 1
+            cp = 0.84*14.32 + 0.16*5.19
+            cv = 0.84*10.16 + 0.16*3.12
+            gamma=cp/cv
+
+            tau=delta*(press)**alpha
+            T_edd=(((3/4)*Tint**4)*((2/3)+(tau)))**(1/4)
+            nabla_ad=(gamma-1)/gamma
+            nabla_rad = np.diff(np.log(T_edd))/np.diff(np.log(press))
+            convtest = np.any(np.where(nabla_rad >= nabla_ad))
+            # Now get temperatures on the adiabat from RC boundary downwards
+            if convtest:
+                RCbound = np.where(nabla_rad >= nabla_ad)[0][0]
+                P_RC = press[RCbound]
+            else:
+                P_RC = 1000.
+
+            # put prior on P_RC to put it shallower than 100 bar
+            if  (1 < alpha  < 2. and P_RC < 100 and P1 < P_RC
+                and P_RC > press[0] and  P1 > press[0]
+                and T1 > 0.0 and T2 > 0.0 and T3 > 0.0 and Tint >0.0):
+                T = TPmod.set_prof(proftype,junkP,press,intemp) # allow inversion
+            """
+
+            delta=np.exp(self.params_instance.lndelta)
+            T = np.empty([self.args_instance.press.size])
+            T[:] = -100.
+
+            P1 = ((1/delta)**(1/self.params_instance.alpha)) # P1 - pressure where tau = 1
+            cp = 0.84*14.32 + 0.16*5.19
+            cv = 0.84*10.16 + 0.16*3.12
+            gamma=cp/cv
+
+            tau=delta*(self.args_instance.press)**self.params_instance.alpha
+            T_edd=(((3/4)*self.params_instance.Tint**4)*((2/3)+(tau)))**(1/4)
+            nabla_ad=(gamma-1)/gamma
+            nabla_rad = np.diff(np.log(T_edd))/np.diff(np.log(self.args_instance.press))
+            convtest = np.any(np.where(nabla_rad >= nabla_ad))
+            # Now get temperatures on the adiabat from RC boundary downwards
+            if convtest:
+                RCbound = np.where(nabla_rad >= nabla_ad)[0][0]
+                P_RC = self.args_instance.press[RCbound]
+            else:
+                P_RC = 1000.
+
+            prior_T_params= (1 < self.params_instance.alpha  < 2. and P_RC < 100 and P1 < P_RC
+                and P_RC > self.args_instance.press[0] and  P1 > self.args_instance.press[0]
+                and self.params_instance.T1 > 0.0 and self.params_instance.T2 > 0.0 and self.params_instance.T3 > 0.0 and self.params_instance.Tint >0.0)
+            
+        elif self.args_instance.proftype==77:
+            """
+            delta= np.exp(lndelta)
+            Tconnect = (((3/4) * Tint**4) * ((2/3) + (0.1)))**(1/4)
+
+            T = np.empty([press.size])
+            T[:] = -100.
+
+            #if  (1 < alpha  < 2. and 0. < delta < 0.1
+            #   and T1 > 0.0 and T1 < T2 and T2 < T3 and T3 < Tconnect and Tint >0.0):
+            #  T = TPmod.set_prof(proftype,junkP,press,theta[pc+nc:])  # no inversion 
+            P1 = ((1/delta)**(1/alpha))
+            # put prior on P1 to put it shallower than 100 bar   
+            if  (1 < alpha  < 2. and P1 < 100. and P1 > press[0]
+                and T1 > 0.0 and T2 > 0.0 and T3 > 0.0 and Tint >0.0):
+                T = TPmod.set_prof(proftype,junkP,press,intemp) # allow inversion 
+
+            # bits for smoothing in prior
+            gam = params_instance.gamma
+            """
+
+            delta= np.exp(self.params_instance.lndelta)
+            T = np.empty([self.args_instance.press.size])
+            T[:] = -100.
+
+            P1 = ((1/delta)**(1/self.params_instance.alpha))
+            # put prior on P1 to put it shallower than 100 bar   
+            prior_T_params= (1 < self.params_instance.alpha  < 2. and self.params_instance.P1 < 100. and self.params_instance.P1 > self.args_instance.press[0]
+                and self.params_instance.T1 > 0.0 and self.params_instance.T2 > 0.0 and self.params_instance.T3 > 0.0 and self.params_instance.Tint >0.0 and self.params_instance.gamma>0)
+
+        prior_T=prior_T_overall+prior_T_params
 
         # 2. Gas profile check
         gas_keys = list(self.re_params.dictionary['gas'].keys())
@@ -173,7 +289,7 @@ class Priors:
 
         # 4. Tolerance parameters
 
-        priors_tolerance_params = True
+        prior_tolerance_params = True
 
         tolerance_params = {
             attr: getattr(self.params_instance, attr) 
@@ -206,7 +322,7 @@ class Priors:
                     < 10.**value
                     < 100. * np.max(self.args_instance.obspec[2,mask]**2)
                 )
-                priors_tolerance_params = priors_tolerance_params and statement
+                prior_tolerance_params = prior_tolerance_params and statement
 
         # priors_tolerance_params = True
         # if len(tolerance_params) > 0:
@@ -343,7 +459,7 @@ class Priors:
 
 
         # Combine all priors
-        post_prior = prior_T and prior_gas and prior_MR and priors_tolerance_params and prior_cloud
+        post_prior = prior_T and prior_gas and prior_MR and prior_tolerance_params and prior_cloud
         return post_prior,diff,pp
     
 
@@ -565,7 +681,6 @@ def priormap_dic(theta,re_params):
        #         tolerance_parameter_2_index = params_instance._fields.index('tolerance_parameter_2')
        #         phi[tolerance_parameter_2_index] = (theta[tolerance_parameter_2_index] * (maxerr2 - minerr2)) + minerr2
 
-            
         
     elif (fwhm < 0.0):
         if (fwhm == -1 or fwhm == -3 or fwhm == -4 or fwhm == -8):
