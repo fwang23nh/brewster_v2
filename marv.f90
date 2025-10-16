@@ -53,7 +53,7 @@ subroutine marv(temp,logg,R2D2,ingasname,molmass,logVMR,pcover,&
   logical :: othphot,clphot,do_cf
 
   !open (1, file = 'log.txt', status ='old')
-  !write(1,*) 'here marv 56'
+ !write(1,*) 'here marv 56'
   call initlayers(size(inpress))
   call initwave(size(inwavenum))
   call initgas(size(molmass))
@@ -63,7 +63,7 @@ subroutine marv(temp,logg,R2D2,ingasname,molmass,logVMR,pcover,&
 
   allocate(out_spec(2,nwave))
 
-  !write(1,*) 'here marv 66'
+ !write(1,*) 'here marv 66'
 
   clphot = make_cl_pspec
   othphot = make_oth_pspec
