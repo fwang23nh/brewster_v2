@@ -465,7 +465,8 @@ class Priors:
 
     def priors(self,dic):
 
-        prior_re_params=self.get_priorranges(dic)
+        re_params_priorranges=self.get_priorranges(dic)
+        prior_re_params=self.get_retrieval_param_priors(self.all_params,self.params_instance,re_params_priorranges)
         prior_post,diff,pp=self.post_processing_prior()
         self.statement=(prior_re_params and prior_post)
 

@@ -41,7 +41,7 @@ samplemode='mcmc'
 # samplemode='multinest'
 
 instrument_instance = utils.Instrument(fwhm=fwhm, wavelength_range=wavelength_range, ndata=ndata, wavpoints=None, R_file=R_file)
-re_params = utils.Retrieval_params(samplemode,chemeq,gaslist,gastype_list,fwhm,do_fudge,ptype,do_clouds,npatches,cloud_name,cloudpatch_index,particle_dis,instrument_instance)
+re_params = utils.Retrieval_params(samplemode,chemeq,gaslist,gastype_list,fwhm,do_fudge,ptype,do_clouds,npatches,cloud_name,cloudpatch_index,particle_dis,instrument=instrument_instance)
 model_config_instance = utils.ModelConfig(samplemode,do_fudge,cloudpath=cloudpath)
 io_config_instance = utils.IOConfig()
 
@@ -53,7 +53,7 @@ io_config_instance.update_dictionary()
 
 model_config_instance.dist= 5.84
 model_config_instance.xlist ='data/gaslistRox.dat'
-model_config_instance.xpath ='../LineLists/'
+model_config_instance.xpath ='../Linelists/'
 model_config_instance.do_bff=0
 model_config_instance.malk=1
 model_config_instance.ch4=0
@@ -72,5 +72,5 @@ re_params.dictionary['refinement_params']['params']['logg']['distribution']=['no
 obspec = np.asfortranarray(np.loadtxt("examples/example_data/G570D_2MHcalib.dat",dtype='d',unpack='true')) # G570D_2MassJcalib.dat
 args_instance = utils.ArgsGen(re_params,model_config_instance,instrument_instance,obspec)
 settings.init(args_instance)
-# retrieval_run.brewster_reterieval_run(re_params,model_config_instance,io_config_instance)
+retrieval_run.brewster_reterieval_run(re_params,model_config_instance,io_config_instance)
 

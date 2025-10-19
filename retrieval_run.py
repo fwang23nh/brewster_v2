@@ -53,11 +53,10 @@ def brewster_reterieval_run(re_params,model_config_instance,io_config_instance):
 
     if (rank == 0):
         # cia = np.asfortranarray(np.empty((4,ciatemps.size,nwave)),dtype='float32')
-        settings.cia[:,:,:] = args_instance.tmpcia[:,:,:args_instance.nwave].copy() 
+        settings.cia[:,:,:] = args_instance.cia
+        delattr(args_instance, 'tmpcia')
+        delattr(args_instance, 'cia')
 
-    # del(tmpcia)
-    delattr(args_instance, 'cia')
-    delattr(args_instance, 'tmpcia')
 
 
     # set up shared memory array for linelist
@@ -68,22 +67,21 @@ def brewster_reterieval_run(re_params,model_config_instance,io_config_instance):
 
     if (rank == 0):
     # Now we'll get the opacity files into an array
-        settings.linelist[:,:,:,:] = args_instance.linelist
-    delattr(args_instance, 'linelist')
+        settings.linelist[:,:,:,:] = utils.get_opacities(args_instance.gaslist,args_instance.w1,args_instance.w2,args_instance.press,args_instance.xpath,args_instance.xlist,args_instance.malk)
+
 
     # set up shared memory array for clouddata
-    if hasattr(args_instance, "cloudata"):
+    if hasattr(args_instance, "cloudata") and args_instance.cloudata.size > 0:
         cloudata = args_instance.cloudata
-
         ncloud = len(args_instance.cloudname_set)
         nmiewave= args_instance.miewave.size
         nmierad= args_instance.mierad.size
         settings.cloudata, _ = utils.shared_memory_array(rank, node_comm, (ncloud,3,nmiewave,nmierad))
 
-    if (rank == 0):
-    # Now we'll get the opacity files into an array
-        settings.cloudata[:,:,:,:] = args_instance.cloudata
-    delattr(args_instance, 'cloudata')
+        if (rank == 0):
+        # Now we'll get the opacity files into an array
+            settings.cloudata[:,:,:,:] = args_instance.cloudata
+        delattr(args_instance, 'cloudata')
 
 
     # settings.init(args_instance)
@@ -98,7 +96,9 @@ def brewster_reterieval_run(re_params,model_config_instance,io_config_instance):
     if (io_config_instance.make_arg_pickle > 0):
         pickle.dump(args_instance,open(io_config_instance.outdir+io_config_instance.runname+"_runargs.pic","wb"))
         pickle.dump((settings.linelist,settings.cia),open(io_config_instance.outdir+io_config_instance.runname+"_opacities.pic","wb"))
-        pickle.dump((settings.cloudata),open(io_config_instance.outdir+io_config_instance.runname+"_cloudata.pic","wb"))
+
+        if hasattr(args_instance, "cloudata") and args_instance.cloudata.size > 0:
+            pickle.dump((settings.cloudata),open(io_config_instance.outdir+io_config_instance.runname+"_cloudata.pic","wb"))
 
         with open(io_config_instance.outdir+io_config_instance.runname+'_configs.pkl', 'wb') as file:
             pickle.dump({

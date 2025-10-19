@@ -16,6 +16,7 @@ import TPmod
 from collections import namedtuple
 from mpi4py import MPI
 import h5py
+import settings
 
 __author__ = "Fei Wang"
 __copyright__ = "Copyright 2024 - Fei Wang"
@@ -1716,7 +1717,9 @@ def get_opacities(gaslist,w1,w2,press,xpath='../Linelists',xlist='gaslistR10K.da
 
     gasnames = np.asfortranarray(gasnames,dtype='c')
 
-    return inlinetemps,inwavenum,linelist,gasnames,gasmass,nwave
+    return linelist
+
+    # return inlinetemps,inwavenum,linelist,gasnames,gasmass,nwave
     
     
     
@@ -1975,43 +1978,49 @@ def shared_memory_array(rank, comm, shape,datatype='d'):
     return array, win
 
 
-# def get_gasdetails(gaslist,w1,w2,xpath='../Linelists',xlist='gaslistR10K.dat'):
-#     # Now we'll get the opacity files into an array
-#     ngas = len(gaslist)
+def get_gasdetails(gaslist,w1,w2,xpath='../Linelists',xlist='gaslistR10K.dat'):
+    # Now we'll get the opacity files into an array
 
-#     totgas = 0
-#     gasdata = []
-#     with open(xlist) as fa:
-#         for line_aa in fa.readlines():
-#             if len(line_aa) == 0:
-#                 break
-#             totgas = totgas +1 
-#             line_aa = line_aa.strip()
-#             gasdata.append(line_aa.split())
+    ngas = len(gaslist)
+    totgas = 0
+    gasdata = []
+    with open(xlist) as fa:
+        for line_aa in fa.readlines():
+            if len(line_aa) == 0:
+                break
+            totgas = totgas +1 
+            line_aa = line_aa.strip()
+            gasdata.append(line_aa.split())
 
-    
-#     list1 = []
-#     for i in range(0,ngas):
-#         for j in range(0,totgas):
-#             if (gasdata[j][1].lower() == gaslist[i].lower()):
-#                 list1.append(gasdata[j])
+    list1 = []
+    for i in range(0,ngas):
+        for j in range(0,totgas):
+            if (gasdata[j][1].lower() == gaslist[i].lower()):
+                list1.append(gasdata[j])
 
-#     gasnum = np.asfortranarray(np.array([i[0] for i in list1[0:ngas]],dtype='i'))
-    
-#     lists = [xpath+i[3] for i in list1[0:ngas]]
 
+    lists = [xpath+i[3] for i in list1[0:ngas]]
+    gasmass = np.asfortranarray(np.array([i[2] for i in list1[0:ngas]],dtype='float32'))
+
+
+    # convert gaslist into fortran array of ascii strings for fortran code 
+    gasnames = np.empty((len(gaslist), 10), dtype='c')
+    for i in range(0,len(gaslist)):
+        gasnames[i,0:len(gaslist[i])] = gaslist[i]
+
+    gasnames = np.asfortranarray(gasnames,dtype='c')
+  
+
+    # get the basic framework from water list
+    rawwavenum, inpress, inlinetemps, inlinelist = pickle.load(open(lists[0], "rb"))
+
+    wn1 = 10000. / w2
+    wn2 = 10000. / w1
+    inwavenum = np.asfortranarray(rawwavenum[np.where(np.logical_not(np.logical_or(rawwavenum[:] > wn2, rawwavenum[:] < wn1)))],dtype='float64')
  
-#     # get the basic framework from water list
-#     rawwavenum, inpress, inlinetemps, inlinelist = pickle.load(open(lists[0], "rb"))
+    nwave = inwavenum.size
 
-#     wn1 = 10000. / w2
-#     wn2 = 10000. / w1
-#     inwavenum = np.asfortranarray(rawwavenum[np.where(np.logical_not(np.logical_or(rawwavenum[:] > wn2, rawwavenum[:] < wn1)))],dtype='float64')
- 
-#     nwave = inwavenum.size
-
-#     return inlinetemps,inwavenum,gasnum,nwave
-
+    return inlinetemps,inwavenum,gasnames,gasmass,nwave
 
 
 class ArgsGen:
@@ -2181,8 +2190,15 @@ class ArgsGen:
             self.prof = tfit(np.log10(self.coarsePress))
         
         # Get opacities, CIA data
-        self.inlinetemps, self.inwavenum, self.linelist,self.gasnames,self.gasmass, self.nwave = get_opacities(
-            self.gaslist, self.w1, self.w2, self.press, self.xpath, self.xlist, self.malk)
+        # self.inlinetemps, self.inwavenum, self.linelist,self.gasnames,self.gasmass, self.nwave = get_opacities(
+        #     self.gaslist, self.w1, self.w2, self.press, self.xpath, self.xlist, self.malk)
+
+        # self.tmpcia, self.ciatemps = ciamod.read_cia("data/CIA_DS_aug_2015.dat", self.inwavenum)
+        # self.cia = np.asfortranarray(np.empty((4, self.ciatemps.size, self.nwave)), dtype='float32')
+        # self.cia[:, :, :] = self.tmpcia[:, :, :self.nwave]
+        # self.ciatemps = np.asfortranarray(self.ciatemps, dtype='float32')
+
+        self.inlinetemps,self.inwavenum,self.gasnames,self.gasmass,self.nwave=get_gasdetails(self.gaslist, self.w1, self.w2,self.xpath, self.xlist)
 
         self.tmpcia, self.ciatemps = ciamod.read_cia("data/CIA_DS_aug_2015.dat", self.inwavenum)
         self.cia = np.asfortranarray(np.empty((4, self.ciatemps.size, self.nwave)), dtype='float32')
@@ -2192,7 +2208,6 @@ class ArgsGen:
         # BFF and Chemical grids
         self.bff_raw, self.ceTgrid, self.metscale, self.coscale, self.gases_myP = sort_bff_and_CE(
             self.chemeq, "data/chem_eq_tables_P3K.pic", self.press, self.gaslist)
-
         
     def __str__(self):
 
