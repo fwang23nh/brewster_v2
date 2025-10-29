@@ -718,7 +718,7 @@ class Retrieval_params:
                           'lndelta':
                            {'initialization':None,
                             'distribution':['normal',0.5,0.5],
-                            'range':[-20,0],
+                            'range':[-5,5],
                             'prior':None},
 
                           'T1':
