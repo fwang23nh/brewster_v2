@@ -52,7 +52,7 @@ class Instrument:
         loads the R vs wl file
     """
     
-    def __init__(self, fwhm=None, wavelength_range=None, ndata=None,wavpoints=None, R_file=None):
+    def __init__(self, fwhm=None, wavelength_range=None, ndata=None,wavpoints=None, R_file=None, obspec=None):
         self.fwhm  = fwhm 
         self.wavelength_range = wavelength_range
         self.ndata = ndata
@@ -63,6 +63,9 @@ class Instrument:
         self.wl = None
         self.logf_flag = None
         self.scales = None
+        self.obspec = obspec
+        self.obs_wl = None
+        self.R_interp = None
         
         # only load R if the user provides it
         if R_file:
@@ -84,6 +87,13 @@ class Instrument:
             self.logf_flag = data[:,2]
             self.scales = data[:,3]
             self.R_data = {'R': self.R, 'wl': self.wl, 'logf_flag': self.logf_flag, 'scales': self.scales}
+            
+            
+            self.obs_wl = self.obspec[0, :]
+            self.R_interp = np.interp(self.obs_wl,self.wl,self.R)
+            self.R= self.R_interp
+            self.wl = self.obs_wl
+            
         except Exception as e:
             print(f'no such file: {e}')
 
