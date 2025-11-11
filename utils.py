@@ -50,11 +50,7 @@ class Instrument:
         loads the R vs wl file
     """
     
-<<<<<<< HEAD
-    def __init__(self, fwhm=None, wavelength_range=None, ndata=None,wavpoints=None, R_file=None, obspec=None):
-=======
     def __init__(self, fwhm=None, wavelength_range=None, R_file=None,obspec=None):
->>>>>>> d177dda (Implement vsini and vrad support, update tutorials for uniform R_file)
         self.fwhm  = fwhm 
         self.wavelength_range = wavelength_range
         self.R_file = R_file
