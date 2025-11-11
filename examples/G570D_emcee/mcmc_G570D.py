@@ -19,8 +19,9 @@ __status__ = "Development"
 
 fwhm=0
 wavelength_range=[1.0,2.5]
-R_file = 'examples/example_data/G570D_R_file.txt'
-ndata=1
+Rfile = 'examples/example_data/G570D_R_file.txt'
+obspec = np.asfortranarray(np.loadtxt("examples/example_data/G570D_2MHcalib.dat",dtype='d',unpack='true'))
+
 
 chemeq=0
 gaslist =  ['h2o','co','co2','ch4','nh3','h2s','k','na']
@@ -40,7 +41,7 @@ do_fudge=1
 samplemode='mcmc'
 # samplemode='multinest'
 
-instrument_instance = utils.Instrument(fwhm=fwhm, wavelength_range=wavelength_range, ndata=ndata, wavpoints=None, R_file=R_file)
+instrument_instance = utils.Instrument(fwhm=fwhm, wavelength_range=wavelength_range, R_file=Rfile,obspec=obspec)
 re_params = utils.Retrieval_params(samplemode,chemeq,gaslist,gastype_list,fwhm,do_fudge,ptype,do_clouds,npatches,cloud_name,cloudpatch_index,particle_dis,instrument=instrument_instance)
 model_config_instance = utils.ModelConfig(samplemode,do_fudge,cloudpath=cloudpath)
 io_config_instance = utils.IOConfig()
@@ -55,9 +56,7 @@ model_config_instance.dist= 5.84
 model_config_instance.xlist ='data/gaslistRox.dat'
 model_config_instance.xpath ='../Linelists/'
 model_config_instance.do_bff=0
-model_config_instance.malk=1
-model_config_instance.ch4=0
-model_config_instance.niter=50000
+model_config_instance.niter=30000
 model_config_instance.update_dictionary()
 
 
@@ -69,7 +68,7 @@ re_params.dictionary['gas']['K_Na']['params']['log_abund']['distribution']=['nor
 re_params.dictionary['refinement_params']['params']['logg']['distribution']=['normal',4.9,0.1]
 
 
-obspec = np.asfortranarray(np.loadtxt("examples/example_data/G570D_2MHcalib.dat",dtype='d',unpack='true')) # G570D_2MassJcalib.dat
+
 args_instance = utils.ArgsGen(re_params,model_config_instance,instrument_instance,obspec)
 settings.init(args_instance)
 retrieval_run.brewster_reterieval_run(re_params,model_config_instance,io_config_instance)

@@ -54,8 +54,8 @@ def brewster_reterieval_run(re_params,model_config_instance,io_config_instance):
     if (rank == 0):
         # cia = np.asfortranarray(np.empty((4,ciatemps.size,nwave)),dtype='float32')
         settings.cia[:,:,:] = args_instance.cia
-        delattr(args_instance, 'tmpcia')
-        delattr(args_instance, 'cia')
+    delattr(args_instance, 'tmpcia')
+    delattr(args_instance, 'cia')
 
 
 
@@ -84,31 +84,32 @@ def brewster_reterieval_run(re_params,model_config_instance,io_config_instance):
         delattr(args_instance, 'cloudata')
 
 
-    # settings.init(args_instance)
     world_comm.Barrier()
-    
 
-    if not os.path.exists(f"{io_config_instance.outdir}"):
-        os.makedirs(f"{io_config_instance.outdir}", exist_ok=True)
 
-    
-    # Write the arguments to a pickle if needed
-    if (io_config_instance.make_arg_pickle > 0):
-        pickle.dump(args_instance,open(io_config_instance.outdir+io_config_instance.runname+"_runargs.pic","wb"))
-        pickle.dump((settings.linelist,settings.cia),open(io_config_instance.outdir+io_config_instance.runname+"_opacities.pic","wb"))
+    if rank == 0:
+        if not os.path.exists(f"{io_config_instance.outdir}"):
+            os.makedirs(f"{io_config_instance.outdir}", exist_ok=True)
 
-        if hasattr(args_instance, "cloudata") and args_instance.cloudata.size > 0:
-            pickle.dump((settings.cloudata),open(io_config_instance.outdir+io_config_instance.runname+"_cloudata.pic","wb"))
+        # Write the arguments to a pickle if needed
+        if (io_config_instance.make_arg_pickle > 0):
+            pickle.dump(args_instance,open(io_config_instance.outdir+io_config_instance.runname+"_runargs.pic","wb"))
+            pickle.dump((settings.linelist,settings.cia),open(io_config_instance.outdir+io_config_instance.runname+"_opacities.pic","wb"))
 
-        with open(io_config_instance.outdir+io_config_instance.runname+'_configs.pkl', 'wb') as file:
-            pickle.dump({
-                're_params': re_params,
-                'model_config': model_config_instance,
-                'io_config': io_config_instance,
-            }, file)
+            if hasattr(args_instance, "cloudata") and args_instance.cloudata.size > 0:
+                pickle.dump((settings.cloudata),open(io_config_instance.outdir+io_config_instance.runname+"_cloudata.pic","wb"))
 
-        if(io_config_instance.make_arg_pickle == 1):
-            sys.exit()
+            with open(io_config_instance.outdir+io_config_instance.runname+'_configs.pkl', 'wb') as file:
+                pickle.dump({
+                    're_params': re_params,
+                    'model_config': model_config_instance,
+                    'io_config': io_config_instance,
+                }, file)
+
+            if(io_config_instance.make_arg_pickle == 1):
+                sys.exit()
+                
+    world_comm.Barrier()
 
         
 
