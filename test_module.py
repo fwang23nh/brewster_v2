@@ -639,7 +639,7 @@ def modelspec(theta,re_params,args_instance,gnostics):
         if (fwhm == -1 or fwhm == -3 or fwhm == -4):
             if re_params.samplemode=='mcmc':
                 r2d2 = [params_instance.r2d2,params_instance.scale1,params_instance.scale2]  #theta[ng+1:ng+4]
-            dlam = params_instance.dlambda
+            # dlam = params_instance.dlambda
             # if (do_fudge == 1):
             #     logf =[params_instance.tolerance_parameter_1,params_instance.tolerance_parameter_2,params_instance.tolerance_parameter_3] #theta[ng+5:ng+8]
             # else:
@@ -649,7 +649,7 @@ def modelspec(theta,re_params,args_instance,gnostics):
         elif (fwhm == -2):
             if re_params.samplemode=='mcmc':
                 r2d2 = [params_instance.r2d2,params_instance.scale1]  #theta[ng+1:ng+3]
-            dlam = params_instance.dlambda
+            # dlam = params_instance.dlambda
             # if (do_fudge == 1):
             #     logf =[params_instance.tolerance_parameter_1,params_instance.tolerance_parameter_2] # theta[ng+4:ng+6]
             # else:
@@ -659,7 +659,7 @@ def modelspec(theta,re_params,args_instance,gnostics):
         elif (fwhm == -5):
             if re_params.samplemode=='mcmc':
                 r2d2 = params_instance.r2d2
-            dlam = params_instance.dlambda
+            # dlam = params_instance.dlambda
             # if (do_fudge == 1):
             #     logf = params_instance.tolerance_parameter_1
             # else:
@@ -669,7 +669,7 @@ def modelspec(theta,re_params,args_instance,gnostics):
         elif (fwhm == -6):
             if re_params.samplemode=='mcmc':
                 r2d2 = params_instance.r2d2
-            dlam = params_instance.dlambda
+            # dlam = params_instance.dlambda
             # if (do_fudge == 1):
             #     logf = params_instance.tolerance_parameter_1
             # else:
@@ -679,7 +679,7 @@ def modelspec(theta,re_params,args_instance,gnostics):
     else:
         if re_params.samplemode=='mcmc':
             r2d2 = params_instance.r2d2
-        dlam = params_instance.dlambda
+        # dlam = params_instance.dlambda
         # if (do_fudge == 1):
         #     logf = params_instance.tolerance_parameter_1
         # else:
@@ -893,6 +893,8 @@ def modelspec(theta,re_params,args_instance,gnostics):
     if hasattr(params_instance, "vrad"):
         vrad = params_instance.vrad
         dlam = trimspec[0,:] * vrad/3e5
+    else:
+        dlam = params_instance.dlambda
 
     shiftspec[0,:] =  trimspec[0,:] + dlam
     shiftspec[1,:] =  trimspec[1,:]
