@@ -135,6 +135,11 @@ def proc_spec(runargs,shiftspec,theta,all_params):
         
     modspec = np.array([shiftspec[0,::-1],shiftspec[1,::-1]])
 
+
+    if hasattr(params_instance, "vrad"):
+        rotspec = rotBroad(modspec[0],modspec[1],params_instance.vsini)
+        modspec[1,:] = rotspec
+
     # If we've set a value for FWHM that we're using... 
     
     if (fwhm == 555.0): #this convolves with non uni R using the R file

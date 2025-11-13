@@ -40,8 +40,6 @@ class Instrument:
         Spectral resolution  file
     wavelength_range : float
         Maximum wavelength (um)
-    ndata : float
-        number of instruments
     R_file : str
         path to the R vs wl file
     
@@ -52,17 +50,18 @@ class Instrument:
         loads the R vs wl file
     """
     
-    def __init__(self, fwhm=None, wavelength_range=None, ndata=None,wavpoints=None, R_file=None):
+    def __init__(self, fwhm=None, wavelength_range=None, R_file=None,obspec=None):
         self.fwhm  = fwhm 
         self.wavelength_range = wavelength_range
-        self.ndata = ndata
-        self.wavpoints = wavpoints
         self.R_file = R_file
         self.R_data = None
         self.R = None
         self.wl = None
         self.logf_flag = None
         self.scales = None
+        self.obspec = obspec
+        self.obs_wl = None
+        self.R_interp = None
         
         # only load R if the user provides it
         if R_file:
@@ -84,6 +83,13 @@ class Instrument:
             self.logf_flag = data[:,2]
             self.scales = data[:,3]
             self.R_data = {'R': self.R, 'wl': self.wl, 'logf_flag': self.logf_flag, 'scales': self.scales}
+            
+            
+            self.obs_wl = self.obspec[0, :]
+            self.R_interp = np.interp(self.obs_wl,self.wl,self.R)
+            self.R= self.R_interp
+            self.wl = self.obs_wl
+            
         except Exception as e:
             print(f'no such file: {e}')
 
@@ -95,8 +101,6 @@ class Instrument:
             'params': {
                 'fwhm': self.fwhm,
                 'wavelength_range': self.wavelength_range,
-                'ndata': self.ndata,
-                'wavpoints': self.wavpoints,
                 'R_file': self.R_file,
                 'R_data': self.R_data
             }
@@ -106,8 +110,6 @@ class Instrument:
         string = 'Instrument: \n------------\n' +\
             '- fwhm : ' + "%s" % (self.fwhm) + '\n' +\
             '- wavelength_range : ' + "%s" % (self.wavelength_range) + '\n' +\
-            '- ndata : ' + "%s" % (self.ndata) + ' \n'  +\
-            '- wavpoints : ' + "%s" % (self.wavpoints) + ' \n' +\
             '- R_file : ' + "%s" % (self.R_file) + '\n' +\
             '- R_data : ' + "%s" % (self.R_data) + ' \n'
         return string
@@ -486,8 +488,12 @@ class Retrieval_params:
         Full width at half maximum of the spectral lines. 
     do_fudge : int, optional
         Flag indicating whether to apply tolerance_parameter to the data. 
-    ndata : int
-        number of instruments
+    vrad:bool
+     Flag indicating whether to apply vrad to do doppler shift to spectral lines
+     -defalut False
+    vsini
+     Flag indicating whether to apply rotationally broaden to modelspec
+     -defalut False
     ptype : int
         Type of pressure-temperature profile.
     do_clouds : int, optional
@@ -524,7 +530,7 @@ class Retrieval_params:
         String representation of the class instance.
     """
     
-    def __init__(self, samplemode,chemeq=None, gaslist=None, gastype_list=None,fwhm=None,do_fudge=1,ptype=None,do_clouds=1,npatches=None,cloud_name=None,cloud_type=None,cloudpatch_index=None,particle_dis=None, instrument=None):
+    def __init__(self, samplemode,chemeq=None, gaslist=None, gastype_list=None,fwhm=None,do_fudge=1,ptype=None,do_clouds=1,npatches=None,cloud_name=None,cloud_type=None,cloudpatch_index=None,particle_dis=None, instrument=None,vrad=False,vsini=False):
         self.samplemode = samplemode
         self.chemeq = chemeq
         self.gaslist = gaslist
@@ -539,6 +545,8 @@ class Retrieval_params:
         self.cloudpatch_index=cloudpatch_index
         self.particle_dis=particle_dis
         self.instrument=instrument
+        self.vrad=vrad
+        self.vsini=vsini
         
         self.dictionary = self.retrieval_para_dic_gen(chemeq, gaslist, gastype_list,fwhm,do_fudge, ptype,do_clouds,npatches,cloud_name,cloud_type,cloudpatch_index,particle_dis)
         
@@ -718,7 +726,7 @@ class Retrieval_params:
                           'lndelta':
                            {'initialization':None,
                             'distribution':['normal',0.5,0.5],
-                            'range':[-20,0],
+                            'range':[-5,5],
                             'prior':None},
 
                           'T1':
@@ -1082,7 +1090,7 @@ class Retrieval_params:
                     'distribution': ['normal', 0, 1],
                     'range':[0,1],
                     'prior': None
-                },
+                }}
                 #'scale1': {
                 #    'initialization': None,
                 #    'distribution': ['normal', 0, 0.001],
@@ -1098,13 +1106,31 @@ class Retrieval_params:
                 #     'distribution': ['normal', 0.5, 0.1],
                 #     'prior': None
                 # },
-                'dlambda': {
-                    'initialization': None,
-                    'distribution': ['normal', 0, 0.001],
-                    'range':[-0.01,0.01],
-                    'prior': None
-                }
-            }
+
+            if self.vrad==False:
+                dictionary['params']['dlambda']={
+                        'initialization': None,
+                        'distribution': ['normal', 0, 0.001],
+                        'range':[-0.01,0.01],
+                        'prior': None
+                    }
+            elif self.vrad==True:
+                dictionary['params']['vrad']={
+                        'initialization': None,
+                        'distribution': ['normal', 0, 0.001],
+                        'range':[-250,250],
+                        'prior': None
+                    }
+            
+            if self.vsini==True:
+                dictionary['params']['vsini']={
+                        'initialization': None,
+                        'distribution': ['normal', 0, 0.001],
+                        'range':[0,100],
+                        'prior': None
+                    }
+                
+
             if getattr(self, "instrument", None) is not None and getattr(self.instrument, "scales", None) is not None:
                 scales_parameter_max = int(np.max(self.instrument.scales))
                 if scales_parameter_max > 0:
@@ -1115,11 +1141,6 @@ class Retrieval_params:
                         'range':[0.1,10],
                         'prior': None
                         }
-                      
-                  #for i in range(1, scales_parameter_max+1):
-                  #    dictionary['params'][f'scale{i}']['initialization'] =1.0 +1e3*np.random.randn()
-                      
-               
                 
         elif self.samplemode.lower() == 'multinest':
             dictionary['params'] = {
@@ -1134,14 +1155,37 @@ class Retrieval_params:
                         'distribution': ['normal', 0, 1],
                         'range':[0.5,2.5],
                         'prior': None
-                    },
-                    'dlambda': {
+                    }}
+            
+            if self.vrad==False:
+                dictionary['params']['dlambda']={
                         'initialization': None,
                         'distribution': ['normal', 0, 0.001],
                         'range':[-0.01,0.01],
                         'prior': None
                     }
-                }
+            elif self.vrad==True:
+                dictionary['params']['vrad']={
+                        'initialization': None,
+                        'distribution': ['normal', 0, 0.001],
+                        'range':[-250,250],
+                        'prior': None
+                    }
+                
+            if self.vsini==True:
+                dictionary['params']['vsini']={
+                        'initialization': None,
+                        'distribution': ['normal', 0, 0.001],
+                        'range':[0,100],
+                        'prior': None
+                    }
+
+                    # 'dlambda': {
+                    #     'initialization': None,
+                    #     'distribution': ['normal', 0, 0.001],
+                    #     'range':[-0.01,0.01],
+                    #     'prior': None
+                    # }
                     
             if getattr(self, "instrument", None) is not None and getattr(self.instrument, "scales", None) is not None:
                     scales_parameter_max = int(np.max(self.instrument.scales))
