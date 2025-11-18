@@ -83,6 +83,7 @@ def NoCloud_Tdwarf(xpath,xlist):
      settings.init(args_instance)
      settings.cia = args_instance.cia
      settings.linelist= utils.get_opacities(args_instance.gaslist,args_instance.w1,args_instance.w2,args_instance.press,args_instance.xpath,args_instance.xlist,args_instance.malk)
+     settings.cloudata = args_instance.cloudata
      args_instance=settings.runargs
 
      all_params,all_params_values =utils.get_all_parametres(re_params.dictionary) 
