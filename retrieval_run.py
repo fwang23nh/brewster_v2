@@ -96,7 +96,8 @@ def brewster_reterieval_run(re_params,model_config_instance,io_config_instance):
             pickle.dump(args_instance,open(io_config_instance.outdir+io_config_instance.runname+"_runargs.pic","wb"))
             pickle.dump((settings.linelist,settings.cia),open(io_config_instance.outdir+io_config_instance.runname+"_opacities.pic","wb"))
 
-            if hasattr(args_instance, "cloudata") and args_instance.cloudata.size > 0:
+            # if hasattr(args_instance, "cloudata") and args_instance.cloudata.size > 0:
+            if hasattr(settings, "cloudata") and settings.cloudata.size > 0:
                 pickle.dump((settings.cloudata),open(io_config_instance.outdir+io_config_instance.runname+"_cloudata.pic","wb"))
 
             with open(io_config_instance.outdir+io_config_instance.runname+'_configs.pkl', 'wb') as file:
