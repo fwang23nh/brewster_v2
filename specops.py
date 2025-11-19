@@ -38,11 +38,45 @@ def proc_spec(inputspec,theta,re_params,obspec,instrument,do_scales=True,do_shif
        
     
     #this convolves with non uni R using the R file
-
-    R = instrument.R
     
-    convspec = conv_non_uniform_R(modspec[1,:], modspec[0,:], instrument.R, obspec[:,0])
+    convspec = conv_non_uniform_R(modspec[1,:], modspec[0,:], instrument.R, obspec[:,0])  #probably not needed?
+    #get the resolving power, the flag, and its maximum value, the scale, and its maximum value
+    spec = np.zeros_like(obspec[0,:])
     
+    scales_param = instrument.scales
+    
+    scales_param_max = int(np.max(scales_param))
+    
+    scales= [getattr(params_instance, f) for f in params_instance._fields if f.startswith("scale")] 
+    
+    R = instrument.R 
+    
+    #looping thru their max values so we can map the spectral regions and do spec
+    for j in range(0, scales_param_max +1):
+    
+        or_indices = np.where(scales_param == float(j))[0]
+        
+        if or_indices.size == 0:
+            continue
+            
+        obs_wl_i = obspec[0, or_indices]
+        spec_i = conv_non_uniform_R(modspec[1,:], modspec[0,:], R[or_indices], obs_wl_i)
+        
+        #if theres a scale parameter, then multiple it with spec
+        if j>0:
+            scale_value = scales[j-1]
+            spec_i = scale_value * spec_i
+            
+        spec[or_indices] = spec_i
+        
+    outspec = spec
+    
+    
+    
+    
+    
+    
+'''  OLD FWHM 555 VERSION
     if (do_scales == True) and (np.max(instrument.scales)>0.0):
         outspecs = []
         scales = instrument.scales
@@ -67,14 +101,7 @@ def proc_spec(inputspec,theta,re_params,obspec,instrument,do_scales=True,do_shif
     
     return outspec
 
-
-
-
-
-
-
-
-
+'''
 
 
 
