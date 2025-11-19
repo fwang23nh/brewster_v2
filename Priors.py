@@ -378,100 +378,100 @@ class Priors:
                 cloud_opatype.append(match.group(1).lower() if match else 'unknown')
 
             
-        cloud_tau0_all = np.empty([nclouds])
-        cloud_top_all = np.empty_like(cloud_tau0_all)
-        cloud_bot_all = np.empty_like(cloud_tau0_all)
-        cloud_height_all  = np.empty_like(cloud_tau0_all)
-        w0_all = np.empty_like(cloud_tau0_all)
-        taupow_all =  np.empty_like(cloud_tau0_all)
-        loga_all = np.empty_like(cloud_tau0_all)
-        b_all = np.empty_like(cloud_tau0_all)
+            cloud_tau0_all = np.empty([nclouds])
+            cloud_top_all = np.empty_like(cloud_tau0_all)
+            cloud_bot_all = np.empty_like(cloud_tau0_all)
+            cloud_height_all  = np.empty_like(cloud_tau0_all)
+            w0_all = np.empty_like(cloud_tau0_all)
+            taupow_all =  np.empty_like(cloud_tau0_all)
+            loga_all = np.empty_like(cloud_tau0_all)
+            b_all = np.empty_like(cloud_tau0_all)
 
-        for idx, name in enumerate(cloudname_set):
-            if  cloud_opatype[idx] == 'grey':
-                if cloud_distype[idx] == "slab":
-                        cloud_tau0_all[idx]= cloudparams[0,idx]
+            for idx, name in enumerate(cloudname_set):
+                if  cloud_opatype[idx] == 'grey':
+                    if cloud_distype[idx] == "slab":
+                            cloud_tau0_all[idx]= cloudparams[0,idx]
+                            # cloud_top_all[idx]= cloudparams[1,idx]
+                            # cloud_height_all[idx]= cloudparams[2,idx]
+                            # cloud_bot_all[idx] = cloud_top_all[idx] + cloud_height_all[idx]
+                            cloud_bot_all[idx]= cloudparams[1,idx]
+                            cloud_height_all[idx]= cloudparams[2,idx]
+                            cloud_top_all[idx] = cloud_bot_all[idx] - cloud_height_all[idx]
+                            w0_all[idx] = cloudparams[3,idx]
+                            taupow_all[idx]= 0.0
+                            loga_all[idx] = 0.0
+                            b_all[idx] = 0.5
+                    elif cloud_distype[idx] == "deck":
+                            cloud_tau0_all[idx] = 1.0
+                            cloud_bot_all[idx] = np.log10(self.args_instance.press[-1])
+                            cloud_top_all[idx] = cloudparams[1,idx]
+                            cloud_height_all[idx] = cloudparams[2,idx]
+                            w0_all[idx] = cloudparams[3,idx]
+                            taupow_all[idx] = 0.0
+                            loga_all[idx] = 0.0
+                            b_all[idx] = 0.5
+                elif  cloud_opatype[idx] == 'powerlaw':
+                    if cloud_distype[idx] == "slab":
+                            cloud_tau0_all[idx] = cloudparams[0,idx]
+                            # cloud_top_all[idx]= cloudparams[1,idx]
+                            # cloud_height_all[idx]= cloudparams[2,idx]
+                            # cloud_bot_all[idx] = cloud_top_all[idx] + cloud_height_all[idx]
+                            cloud_bot_all[idx]= cloudparams[1,idx]
+                            cloud_height_all[idx]= cloudparams[2,idx]
+                            cloud_top_all[idx] = cloud_bot_all[idx] - cloud_height_all[idx]
+                            w0_all[idx] = cloudparams[3,idx]
+                            taupow_all[idx] = cloudparams[4,idx]
+                            loga_all[idx] = 0.0
+                            b_all[idx] = 0.5
+                    elif cloud_distype[idx] == "deck":
+                            cloud_tau0_all[idx] = 1.0
+                            cloud_bot_all[idx] = np.log10(self.args_instance.press[-1])
+                            cloud_top_all[idx] = cloudparams[1,idx]
+                            cloud_height_all[idx] = cloudparams[2,idx]
+                            w0_all[idx] = cloudparams[3,idx]
+                            taupow_all[idx] = cloudparams[4,idx]
+                            loga_all[idx] = 0.0
+                            b_all[idx] = 0.5
+                elif  cloud_opatype[idx] == 'mie':
+                    if cloud_distype[idx] == "slab":
+                        cloud_tau0_all[idx] =  cloudparams[0,idx]
                         # cloud_top_all[idx]= cloudparams[1,idx]
                         # cloud_height_all[idx]= cloudparams[2,idx]
                         # cloud_bot_all[idx] = cloud_top_all[idx] + cloud_height_all[idx]
                         cloud_bot_all[idx]= cloudparams[1,idx]
                         cloud_height_all[idx]= cloudparams[2,idx]
                         cloud_top_all[idx] = cloud_bot_all[idx] - cloud_height_all[idx]
-                        w0_all[idx] = cloudparams[3,idx]
-                        taupow_all[idx]= 0.0
-                        loga_all[idx] = 0.0
-                        b_all[idx] = 0.5
-                elif cloud_distype[idx] == "deck":
-                        cloud_tau0_all[idx] = 1.0
-                        cloud_bot_all[idx] = np.log10(self.args_instance.press[-1])
-                        cloud_top_all[idx] = cloudparams[1,idx]
-                        cloud_height_all[idx] = cloudparams[2,idx]
-                        w0_all[idx] = cloudparams[3,idx]
+                        w0_all[idx] = 0.5
                         taupow_all[idx] = 0.0
-                        loga_all[idx] = 0.0
-                        b_all[idx] = 0.5
-            elif  cloud_opatype[idx] == 'powerlaw':
-                if cloud_distype[idx] == "slab":
-                        cloud_tau0_all[idx] = cloudparams[0,idx]
-                        # cloud_top_all[idx]= cloudparams[1,idx]
-                        # cloud_height_all[idx]= cloudparams[2,idx]
-                        # cloud_bot_all[idx] = cloud_top_all[idx] + cloud_height_all[idx]
-                        cloud_bot_all[idx]= cloudparams[1,idx]
-                        cloud_height_all[idx]= cloudparams[2,idx]
-                        cloud_top_all[idx] = cloud_bot_all[idx] - cloud_height_all[idx]
-                        w0_all[idx] = cloudparams[3,idx]
-                        taupow_all[idx] = cloudparams[4,idx]
-                        loga_all[idx] = 0.0
-                        b_all[idx] = 0.5
-                elif cloud_distype[idx] == "deck":
+                        loga_all[idx] = cloudparams[3,idx]
+                        b_all[idx] = cloudparams[4,idx]
+                        
+                    elif cloud_distype[idx] == "deck":
                         cloud_tau0_all[idx] = 1.0
-                        cloud_bot_all[idx] = np.log10(self.args_instance.press[-1])
+                        cloud_bot_all[idx] = np.log10(self.args_instance.press[self.args_instance.press.size-1])
                         cloud_top_all[idx] = cloudparams[1,idx]
                         cloud_height_all[idx] = cloudparams[2,idx]
-                        w0_all[idx] = cloudparams[3,idx]
-                        taupow_all[idx] = cloudparams[4,idx]
-                        loga_all[idx] = 0.0
-                        b_all[idx] = 0.5
-            elif  cloud_opatype[idx] == 'mie':
-                if cloud_distype[idx] == "slab":
-                    cloud_tau0_all[idx] =  cloudparams[0,idx]
-                    # cloud_top_all[idx]= cloudparams[1,idx]
-                    # cloud_height_all[idx]= cloudparams[2,idx]
-                    # cloud_bot_all[idx] = cloud_top_all[idx] + cloud_height_all[idx]
-                    cloud_bot_all[idx]= cloudparams[1,idx]
-                    cloud_height_all[idx]= cloudparams[2,idx]
-                    cloud_top_all[idx] = cloud_bot_all[idx] - cloud_height_all[idx]
-                    w0_all[idx] = 0.5
-                    taupow_all[idx] = 0.0
-                    loga_all[idx] = cloudparams[3,idx]
-                    b_all[idx] = cloudparams[4,idx]
-                    
-                elif cloud_distype[idx] == "deck":
-                    cloud_tau0_all[idx] = 1.0
-                    cloud_bot_all[idx] = np.log10(self.args_instance.press[self.args_instance.press.size-1])
-                    cloud_top_all[idx] = cloudparams[1,idx]
-                    cloud_height_all[idx] = cloudparams[2,idx]
-                    w0_all[idx] = +0.5
-                    taupow_all[idx] =0.0
-                    loga_all[idx] =  cloudparams[3,idx]
-                    b_all[idx] =  cloudparams[4,idx]
+                        w0_all[idx] = +0.5
+                        taupow_all[idx] =0.0
+                        loga_all[idx] =  cloudparams[3,idx]
+                        b_all[idx] =  cloudparams[4,idx]
 
-        prior_cloud  = prior_cloud and ((np.all(cloud_tau0_all >= 0.0))
-                    and (np.all(cloud_tau0_all <= 100.0))
-                    and np.all(cloud_top_all < cloud_bot_all)
-                    and np.all(cloud_bot_all <= np.log10(self.args_instance.press[-1]))
-                    and np.all(np.log10(self.args_instance.press[0]) <= cloud_top_all)
-                    and np.all(cloud_top_all < cloud_bot_all)
-                    and np.all(0. < cloud_height_all)
-                    and np.all(cloud_height_all < 7.0)
-                    and np.all(0.0 < w0_all)
-                    and np.all(w0_all <= 1.0)
-                    and np.all(-10.0 < taupow_all)
-                    and np.all(taupow_all < +10.0)
-                    and np.all( -3.0 < loga_all)
-                    and np.all (loga_all < 3.0)
-                    and np.all(b_all < 1.0)
-                    and np.all(b_all > 0.0))
+            prior_cloud  = prior_cloud and ((np.all(cloud_tau0_all >= 0.0))
+                        and (np.all(cloud_tau0_all <= 100.0))
+                        and np.all(cloud_top_all < cloud_bot_all)
+                        and np.all(cloud_bot_all <= np.log10(self.args_instance.press[-1]))
+                        and np.all(np.log10(self.args_instance.press[0]) <= cloud_top_all)
+                        and np.all(cloud_top_all < cloud_bot_all)
+                        and np.all(0. < cloud_height_all)
+                        and np.all(cloud_height_all < 7.0)
+                        and np.all(0.0 < w0_all)
+                        and np.all(w0_all <= 1.0)
+                        and np.all(-10.0 < taupow_all)
+                        and np.all(taupow_all < +10.0)
+                        and np.all( -3.0 < loga_all)
+                        and np.all (loga_all < 3.0)
+                        and np.all(b_all < 1.0)
+                        and np.all(b_all > 0.0))
 
 
         # Combine all priors
@@ -482,8 +482,12 @@ class Priors:
             f"prior_gas: {prior_gas}, "
             f"prior_MR: {prior_MR}, "
             f"prior_tolerance_params: {prior_tolerance_params}, "
-            f"prior_cloud: {prior_cloud}"
-            )
+        )
+
+        if self.re_params.dictionary['cloud']:
+            post_check_info += f"prior_cloud: {prior_cloud}"
+        else:
+            post_check_info += "prior_cloud: None"
 
         return post_prior,diff,pp,post_check_info
     
