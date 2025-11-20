@@ -69,10 +69,11 @@ def brewster_reterieval_run(re_params,model_config_instance,io_config_instance):
     # Now we'll get the opacity files into an array
         settings.linelist[:,:,:,:] = utils.get_opacities(args_instance.gaslist,args_instance.w1,args_instance.w2,args_instance.press,args_instance.xpath,args_instance.xlist,args_instance.malk)
 
+    #send empty clouddata (clear atmosphere) to settings for model_spec calculation
+    settings.cloudata=args_instance.cloudata
 
     # set up shared memory array for clouddata
     if hasattr(args_instance, "cloudata") and args_instance.cloudata.size > 0:
-        cloudata = args_instance.cloudata
         ncloud = len(args_instance.cloudname_set)
         nmiewave= args_instance.miewave.size
         nmierad= args_instance.mierad.size
