@@ -4,7 +4,7 @@ from bbconv import convfwhm
 from bbconv import convr
 
 
-def proc_spec(inputspec,theta,re_params,obspec,instrument,do_scales=True,do_shift=True):
+def proc_spec(inputspec,theta,re_params, args_instance, do_scales=True,do_shift=True):
 
     all_params,all_params_values =utils.get_all_parametres(re_params.dictionary)
     params_master = namedtuple('params',all_params)
@@ -39,10 +39,33 @@ def proc_spec(inputspec,theta,re_params,obspec,instrument,do_scales=True,do_shif
     
     #this convolves with non uni R using the R file
 
-    R = instrument.R
-    
-    convspec = conv_non_uniform_R(modspec[1,:], modspec[0,:], instrument.R, obspec[:,0])
-    
+    R = args_instance.R   
+    log_f_param = args_instance.logf_flag       
+    scales_param = args_instance.scales
+
+    outspec= np.zeros_like(inputspec[1,:])
+       
+    region_flags = np.unique(np.vstack((log_f_param, scales_param)).T, axis=0)#get unique values as a 2 column array [logf,scales]
+    #for i,j in region_flags:
+    for logf_flag_val, scale_flag_val in region_flags: #loop thru them, so we get each flags
+        or_indices = np.where( (log_f_param == logf_flag_val) & (scales_param == scale_flag_val) ) #getting wl regions where both conditions are met
+
+        obs_wl_i = obspec[0, :]
+        spec_i = conv_non_uniform_R(modspec[1, :], modspec[0, :], args_instance.R[or_indices], obs_wl_i[or_indices])
+
+        # IF THERE ARE SCALE PARAMETERS
+        if scale_flag_val > 0:
+                scale_name = f"scale{int(scale_flag_val)}"
+                if scale_name in params_instance._fields:
+                    scale_value = getattr(params_instance, scale_name)
+                    spec_i = scale_value * spec_i
+            
+        outspec[or_indices] = spec_i 
+        
+    return outspec 
+   
+   
+''' 
     if (do_scales == True) and (np.max(instrument.scales)>0.0):
         outspecs = []
         scales = instrument.scales
@@ -66,7 +89,7 @@ def proc_spec(inputspec,theta,re_params,obspec,instrument,do_scales=True,do_shif
         outspec = convspec
     
     return outspec
-
+'''
 
 
 
