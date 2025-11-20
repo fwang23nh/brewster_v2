@@ -2,13 +2,17 @@ import numpy as np
 from bbconv import prism
 from bbconv import convfwhm
 from bbconv import convr
-
+import utils
+from collections import namedtuple
+from rotBroadInt import rot_int_cmj as rotBroad   
 
 def proc_spec(inputspec,theta,re_params, args_instance, do_scales=True,do_shift=True):
 
     all_params,all_params_values =utils.get_all_parametres(re_params.dictionary)
     params_master = namedtuple('params',all_params)
     params_instance = params_master(*theta)
+
+    modspec = None 
     
     if do_shift == True:
         
@@ -22,14 +26,12 @@ def proc_spec(inputspec,theta,re_params, args_instance, do_scales=True,do_shift=
             vrad = params_instance.vrad
             dlam = inputspec[0,:] * vrad/3e5
             
-            if modspec in locals():
+            if modspec is not None:
                 modspec[0,:] = modspec[0,:] + dlam
             else:
                 modspec = np.empty_like(inputspec)
                 modspec[0,:] = inputspec[0,:] + dlam
                 modspec[1,:] = inputspec[1,:]
-        
-        from rotBroadInt import rot_int_cmj as rotBroad     
         
         if hasattr(params_instance, "vsini"):
             vsini = params_instance.vsini
@@ -50,7 +52,7 @@ def proc_spec(inputspec,theta,re_params, args_instance, do_scales=True,do_shift=
     for logf_flag_val, scale_flag_val in region_flags: #loop thru them, so we get each flags
         or_indices = np.where( (log_f_param == logf_flag_val) & (scales_param == scale_flag_val) ) #getting wl regions where both conditions are met
 
-        obs_wl_i = obspec[0, :]
+        obs_wl_i = args_instance.obspec[0, :]
         spec_i = conv_non_uniform_R(modspec[1, :], modspec[0, :], args_instance.R[or_indices], obs_wl_i[or_indices])
 
         # IF THERE ARE SCALE PARAMETERS

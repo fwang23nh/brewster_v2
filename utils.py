@@ -155,7 +155,7 @@ class ModelConfig:
         Update the model configuration dictionary with the current attributes.
     """
 
-    def __init__(self, samplemode, do_fudge, use_disort=0, malk=0, mch4=0, do_bff=1, fresh=0,cloudpath=None,xpath="../Linelists/", xlist="data/gaslistRox.dat", dist=None, pfile="data/LSR1835_eqpt.dat"):
+    def __init__(self, samplemode, do_fudge, use_disort=0, malk=0, mch4=0, do_bff=1, fresh=0,cloudpath=None,xpath="../Linelists/", xlist="data/gaslistRox.dat", dist=None, pfile="data/LSR1835_eqpt.dat",do_scales=True,do_shift=True):
         self.samplemode = samplemode
         self.use_disort = use_disort
         self.do_fudge = do_fudge
@@ -166,6 +166,8 @@ class ModelConfig:
         self.xpath = xpath
         self.xlist = xlist
         self.cloudpath = cloudpath
+        self.do_scales=do_scales
+        self.do_shift=do_shift
         
         self.dist = dist
         self.dist_err = 0
@@ -1117,7 +1119,7 @@ class Retrieval_params:
             elif self.vrad==True:
                 dictionary['params']['vrad']={
                         'initialization': None,
-                        'distribution': ['normal', 0, 0.001],
+                        'distribution': ['normal', 0, 2],
                         'range':[-250,250],
                         'prior': None
                     }
@@ -1125,7 +1127,7 @@ class Retrieval_params:
             if self.vsini==True:
                 dictionary['params']['vsini']={
                         'initialization': None,
-                        'distribution': ['normal', 0, 0.001],
+                        'distribution': ['uniform', 0, 100],
                         'range':[0,100],
                         'prior': None
                     }
@@ -1167,7 +1169,7 @@ class Retrieval_params:
             elif self.vrad==True:
                 dictionary['params']['vrad']={
                         'initialization': None,
-                        'distribution': ['normal', 0, 0.001],
+                        'distribution': ['normal', 0, 2],
                         'range':[-250,250],
                         'prior': None
                     }
@@ -1175,7 +1177,7 @@ class Retrieval_params:
             if self.vsini==True:
                 dictionary['params']['vsini']={
                         'initialization': None,
-                        'distribution': ['normal', 0, 0.001],
+                        'distribution': ['uniform', 0, 100],
                         'range':[0,100],
                         'prior': None
                     }
@@ -2141,13 +2143,14 @@ class ArgsGen:
         Generate the required model arguments.
     """
 
-    def __init__(self, re_params, model, instrument, obspec):
+    def __init__(self, re_params, model, instrument, obspec,Mass_priorange=[1.0,80.0],R_priorange=[0.5,2.0]):
         self.re_params = re_params
         self.model = model
         self.instrument = instrument
         self.obspec = obspec
-        #self.fwhm = self.instrument.fwhm
-        #self.logf = self.instrument.logf
+        self.Mass_priorange= Mass_priorange
+        self.R_priorange= R_priorange
+
         # Generate all necessary model arguments on initialization
         self.generate()
 
@@ -2160,7 +2163,7 @@ class ArgsGen:
         self.coarsePress = pow(10, logcoarsePress)
         self.press = pow(10, logfinePress)
         
-        # Retrieve model parameters
+        # model parameters
         self.dist = self.model.dist
         self.dist_err = self.model.dist_err
         self.use_disort = self.model.use_disort
@@ -2170,7 +2173,10 @@ class ArgsGen:
         self.do_fudge = self.model.do_fudge
         self.pfile = self.model.pfile
         self.do_bff = self.model.do_bff
+        self.do_scales= self.model.do_scales
+        self.do_shift= self.model.do_shift
         self.chemeq = self.re_params.chemeq
+   
         
         # Process gas list
         self.gaslist = list(self.re_params.dictionary['gas'].keys())

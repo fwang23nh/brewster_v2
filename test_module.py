@@ -44,8 +44,6 @@ __email__ = ""
 __status__ = "Development"
 
 
-
-
 def lnprob(theta,re_params):
 
     args_instance=settings.runargs
@@ -158,11 +156,10 @@ def lnlike(theta,re_params):
             logf = np.log10(0.1*(max(obspec[2,10::3]))**2)
 
     #modspec = np.array([shiftspec[0,::-1],shiftspec[1,::-1]])
-
-    if hasattr(params_instance, "vrad"):
-        rotspec = rotBroad(modspec[0],modspec[1],params_instance.vsini)
-        modspec[1,:] = rotspec
-
+    
+    # if hasattr(params_instance, "vrad"):
+    #     rotspec = rotBroad(trimspec[0],trimspec[1],params_instance.vsini)
+    #     trimspec[1,:] = rotspec
 
     # If we've set a value for FWHM that we're using...
     if (fwhm > 0.00 and fwhm < 1.00):
@@ -884,12 +881,9 @@ def modelspec(theta,re_params,args_instance,gnostics):
     cfunc = np.zeros([npatches,nwave,nlayers],dtype='d')
     cfunc = cf[:npatches,:nwave,:nlayers].reshape(npatches,nwave,nlayers)
     
-    
     trimspec[0,:] =  trimspec[0,::-1]
     trimspec[1,:] =  trimspec[1,::-1]
     
-    
-
 #     # now shift wavelen by delta_lambda
 #     shiftspec = np.empty_like(trimspec)
 # 
@@ -902,8 +896,6 @@ def modelspec(theta,re_params,args_instance,gnostics):
 #     shiftspec[0,:] =  trimspec[0,:] + dlam
 #     shiftspec[1,:] =  trimspec[1,:]
     
-
-
     # print("VMR")
     # print(logVMR)
     # print("----------------")

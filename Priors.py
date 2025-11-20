@@ -46,10 +46,13 @@ class Priors:
         Validates post-retrieval priors such as T-profile, gas profile, mass-radius, and tolerance parameters.
     """
 
-    def __init__(self, theta, re_params,instrument_instance):
+    def __init__(self, theta, re_params,instrument_instance,Mass_priorange=[1.0,80.0],R_priorange=[0.5,2.0]):
         self.re_params = re_params
         self.instrument_instance = instrument_instance
         self.args_instance = settings.runargs  # Assuming `settings.runargs` is pre-defined
+
+        self.Mass_priorange= Mass_priorange
+        self.R_priorange= R_priorange
 
         # Extract all parameters and their values
         self.all_params, self.all_params_values = utils.get_all_parametres(re_params.dictionary)
@@ -223,7 +226,6 @@ class Priors:
                 T = TPmod.set_prof(self.args_instance.proftype, self.args_instance.coarsePress,self.args_instance.press, self.intemp)
                 prior_T_overall = (min(T) > 1.0) and (max(T) < 6000.)
 
-            
         elif self.args_instance.proftype==77:
             """
             delta=np.exp(lndelta)
@@ -268,7 +270,7 @@ class Priors:
             diff=np.roll(T,-1)-2.*T+np.roll(T,1)
             pp=len(T)
 
-        prior_T=prior_T_overall+prior_T_params
+        prior_T=prior_T_overall and prior_T_params
 
         # 2. Gas profile check
         gas_keys = list(self.re_params.dictionary['gas'].keys())
@@ -299,7 +301,8 @@ class Priors:
         g = (10.**self.params_instance.logg) / 100.
         M = (R**2 * g / 6.67E-11) / 1.898E27
         Rj = R / 69911.e3
-        prior_MR = (1.0 < M < 80 and 0.5 < Rj < 2.0)
+
+        prior_MR = (self.Mass_priorange[0] < M < self.Mass_priorange[1] and self.R_priorange[0] < Rj < self.R_priorange[1])
 
 
         # 4. Tolerance parameters
@@ -543,7 +546,10 @@ class Priors:
             "- Post-processing Priors:\n"
             "  * T-profile check: (min(T) > 1.0) and (max(T) < 6000.)\n" 
             "  * Gas profile check: (np.sum(10.**(invmr)) < 1.0) and valid gas profiles\n"
-            "  * Mass and Radius check: (1.0 < M < 80 and 0.5 < Rj < 2.0)\n"
+            # "  * Mass and Radius check: (1.0 < M < 80 and 0.5 < Rj < 2.0)\n"
+            "  * Mass and Radius check:\n"
+            f"({self.Mass_priorange[0]} < M < {self.Mass_priorange[1]}) and "
+            f"({self.R_priorange[0]} < Rj < {self.R_priorange[1]})\n"
             "  * Tolerance parameters: ((0.01*np.min(obspec[2,:]**2)) < 10.**tolerance_parameter < (100.*np.max(obspec[2,:]**2)))\n"
             "  *all cloud parameters should be within range\n"
             "  * Prior check results:\n"
