@@ -1278,12 +1278,12 @@ class Retrieval_params:
              gas_dic= {'params':
                        {'mh':
                            {'initialization':None,
-                            'distribution':['normal',-1,3],
+                            'distribution':['normal',0,0.1],
                             'range':[-1,2],
                             'prior':None},
                        'co':
                            {'initialization':None,
-                            'distribution':['normal',0.25,2.25],
+                            'distribution':['uniform',0.25,2.5],
                             'range':[0.25,2.5],
                             'prior':None}
                       }}
@@ -1450,20 +1450,24 @@ def get_all_parametres(dic):
     gas=[]
     gas_values=[]
     
-    for i in range(len(gaslist)):
-        gas.append(gaslist[i])
-        gas_values.append(dic['gas'][gaslist[i]]['params']['log_abund']['initialization'])
-        if  gastype_values[i]=='N':
-            gas.append("p_ref_%s"%gaslist[i])
-            gas.append("alpha_%s"%gaslist[i])
-            gas_values.append(dic['gas'][gaslist[i]]['params']['p_ref']['initialization'])
-            gas_values.append(dic['gas'][gaslist[i]]['params']['alpha']['initialization'])    
+    if gaslist[0]=='params':
+        gas+=list(dic['gas']['params'].keys())
+        gas_values+=[info['initialization'] for key, info in dic['gas']['params'].items() if 'initialization' in info]
 
-        elif gastype_values[i]=='H':
-            gas.append("p_ref_%s"%gaslist[i])
-            gas_values.append(dic['gas'][gaslist[i]]['params']['p_ref']['initialization'])
-       
+    else:
+        for i in range(len(gaslist)):
+            gas.append(gaslist[i])
+            gas_values.append(dic['gas'][gaslist[i]]['params']['log_abund']['initialization'])
+            if  gastype_values[i]=='N':
+                gas.append("p_ref_%s"%gaslist[i])
+                gas.append("alpha_%s"%gaslist[i])
+                gas_values.append(dic['gas'][gaslist[i]]['params']['p_ref']['initialization'])
+                gas_values.append(dic['gas'][gaslist[i]]['params']['alpha']['initialization'])    
 
+            elif gastype_values[i]=='H':
+                gas.append("p_ref_%s"%gaslist[i])
+                gas_values.append(dic['gas'][gaslist[i]]['params']['p_ref']['initialization'])
+        
             
 
     refinement_params = list(dic['refinement_params']['params'].keys())
@@ -2177,15 +2181,18 @@ class ArgsGen:
         self.do_shift= self.model.do_shift
         self.chemeq = self.re_params.chemeq
    
-        
-        # Process gas list
-        self.gaslist = list(self.re_params.dictionary['gas'].keys())
-        gaslist_lower = [gas.lower() for gas in self.gaslist]
-        
-        if gaslist_lower[-1] == 'k_na':
-            self.gaslist = list(self.gaslist[:-1]) + ['k', 'na']
-        elif gaslist_lower[-1] == 'k_na_cs':
-            self.gaslist = list(self.gaslist[:-1]) + ['k', 'na', 'cs']
+        if self.chemeq==0:
+            # Process gas list
+            self.gaslist = list(self.re_params.dictionary['gas'].keys())
+            gaslist_lower = [gas.lower() for gas in self.gaslist]
+            
+            if gaslist_lower[-1] == 'k_na':
+                self.gaslist = list(self.gaslist[:-1]) + ['k', 'na']
+            elif gaslist_lower[-1] == 'k_na_cs':
+                self.gaslist = list(self.gaslist[:-1]) + ['k', 'na', 'cs']
+        else:
+            self.gaslist = self.re_params.gaslist
+
         
         # Retrieve instrument parameters
         self.fwhm = self.instrument.fwhm
