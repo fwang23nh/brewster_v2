@@ -27,6 +27,7 @@ import utils
 import settings
 import gas_nonuniform
 import test_module
+from specops import proc_spec
 
 
 
@@ -92,9 +93,10 @@ def NoCloud_Tdwarf(xpath,xlist):
      params_instance = params_master(*theta)
 
      gnostics=0
-     shiftspec, cloud_phot_press,other_phot_press,cfunc=test_module.modelspec(params_instance,re_params,args_instance,gnostics)
+     trimspec, cloud_phot_press,other_phot_press,cfunc=test_module.modelspec(params_instance,re_params,args_instance,gnostics)
 
-     modspec = np.array([shiftspec[0,::-1],shiftspec[1,::-1]])
+
+     modspec=proc_spec(inputspec=trimspec, theta=params_instance, re_params=re_params, args_instance=args_instance, do_scales=True, do_shift=True)
      benchspec = np.loadtxt('data/test_data/No_cloud_800K_model_benchmark_SPEC.dat',skiprows=3,unpack=True)
      outspec = prism_non_uniform(benchspec,modspec,3.3)
 
