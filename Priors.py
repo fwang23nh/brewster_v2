@@ -273,27 +273,31 @@ class Priors:
         prior_T=prior_T_overall and prior_T_params
 
         # 2. Gas profile check
-        gas_keys = list(self.re_params.dictionary['gas'].keys())
-        invmr = np.array([getattr(self.params_instance, key) for key in gas_keys])
-        prior_gas = (np.sum(10.**invmr) < 1.0)
 
-        if self.count_N > 0:
-            gas_profile = np.full((self.count_N, self.args_instance.press.size), -1.0)
-            gas_profile_index = 0
-            for i, gastype in enumerate(self.gastype_values):
-                if gastype == "N":
-                    P_gas = getattr(self.params_instance, f"p_ref_{gas_keys[i]}")
-                    gas_alpha = getattr(self.params_instance, f"alpha_{gas_keys[i]}")
-                    t_gas = getattr(self.params_instance, gas_keys[i])
-                    if (0. < gas_alpha < 1. and -12.0 < t_gas < 0.0 and 
-                        np.log10(self.args_instance.press[0]) <= P_gas <= 2.4):
-                        gas_profile[gas_profile_index, :] = gas_nonuniform.non_uniform_gas(
-                            self.args_instance.press, P_gas, t_gas, gas_alpha
-                        )
-                    else:
-                        gas_profile[gas_profile_index, :] = -30
-                    gas_profile_index += 1
-            prior_gas = prior_gas and (np.all(gas_profile > -25.0) and np.all(gas_profile < 0.0))
+        prior_gas=True
+        if self.args_instance.chemeq==0:
+
+            gas_keys = list(self.re_params.dictionary['gas'].keys())
+            invmr = np.array([getattr(self.params_instance, key) for key in gas_keys])
+            prior_gas = (np.sum(10.**invmr) < 1.0)
+
+            if self.count_N > 0:
+                gas_profile = np.full((self.count_N, self.args_instance.press.size), -1.0)
+                gas_profile_index = 0
+                for i, gastype in enumerate(self.gastype_values):
+                    if gastype == "N":
+                        P_gas = getattr(self.params_instance, f"p_ref_{gas_keys[i]}")
+                        gas_alpha = getattr(self.params_instance, f"alpha_{gas_keys[i]}")
+                        t_gas = getattr(self.params_instance, gas_keys[i])
+                        if (0. < gas_alpha < 1. and -12.0 < t_gas < 0.0 and 
+                            np.log10(self.args_instance.press[0]) <= P_gas <= np.log10(self.args_instance.press[1])):
+                            gas_profile[gas_profile_index, :] = gas_nonuniform.non_uniform_gas(
+                                self.args_instance.press, P_gas, t_gas, gas_alpha
+                            )
+                        else:
+                            gas_profile[gas_profile_index, :] = -30
+                        gas_profile_index += 1
+                prior_gas = prior_gas and (np.all(gas_profile > -25.0) and np.all(gas_profile < 0.0))
 
         # 3. Mass and Radius check
         D = 3.086e+16 * self.args_instance.dist  # Distance in meters
