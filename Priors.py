@@ -139,7 +139,7 @@ class Priors:
         # 1. T-profile check
         diff=0
         pp=0
-        prior_T_params=False
+
 
         if self.args_instance.proftype==2:
             """
@@ -265,10 +265,13 @@ class Priors:
                 pp=len(T)
 
         elif self.args_instance.proftype==1:
-            T = TPmod.set_prof(self.args_instance.proftype, self.args_instance.coarsePress,self.args_instance.press, self.intemp)
-            prior_T_overall = (min(T) > 1.0) and (max(T) < 6000.)
-            diff=np.roll(T,-1)-2.*T+np.roll(T,1)
-            pp=len(T)
+            prior_T_params=(min(self.intemp) > 1.0) and (max(self.intemp) < 6000.)
+            # if prior_T_params==True:
+            #     T = TPmod.set_prof(self.args_instance.proftype, self.args_instance.coarsePress,self.args_instance.press, self.intemp)
+            #     prior_T_overall = (min(T) > 1.0) and (max(T) < 6000.)
+            diff=np.roll(self.intemp,-1)-2.*self.intemp+np.roll(self.intemp,1)
+            pp=len(self.intemp)
+            prior_T_overall=True
 
         prior_T=prior_T_overall and prior_T_params
 
