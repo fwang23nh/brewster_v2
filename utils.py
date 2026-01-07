@@ -224,7 +224,10 @@ class ModelConfig:
                 'xpath': self.xpath,
                 'xlist': self.xlist,
                 'dist': self.dist,
-                'pfile': self.pfile
+                'pfile': self.pfile,
+                'cloudpath':self.cloudpath,
+                'do_scales':self.do_scales,
+                'do_shift':self.do_shift
             }
         }
 
@@ -292,6 +295,8 @@ class ModelConfig:
             f"- dist : {self.dist}\n"
             f"- pfile : {self.pfile}\n"
             f"- cloudpath : {self.cloudpath}\n"
+            f"- do_scales : {self.do_scales}\n"
+            f"- do_shift : {self.do_shift}\n"
             f"\n"
         )
         if self.samplemode.lower() == 'mcmc':

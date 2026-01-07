@@ -46,13 +46,14 @@ class Priors:
         Validates post-retrieval priors such as T-profile, gas profile, mass-radius, and tolerance parameters.
     """
 
-    def __init__(self, theta, re_params,instrument_instance,Mass_priorange=[1.0,80.0],R_priorange=[0.5,2.0]):
+    def __init__(self, theta, re_params,args_instance):
         self.re_params = re_params
-        self.instrument_instance = instrument_instance
-        self.args_instance = settings.runargs  # Assuming `settings.runargs` is pre-defined
+        self.args_instance = args_instance
+        self.instrument_instance = args_instance.instrument
+         # Assuming `settings.runargs` is pre-defined
 
-        self.Mass_priorange= Mass_priorange
-        self.R_priorange= R_priorange
+        self.Mass_priorange= args_instance.Mass_priorange
+        self.R_priorange= args_instance.R_priorange
 
         # Extract all parameters and their values
         self.all_params, self.all_params_values = utils.get_all_parametres(re_params.dictionary)
