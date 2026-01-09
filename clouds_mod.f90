@@ -30,7 +30,7 @@ contains
     double precision :: a, b, ndz, drr, arg3, argscat, argext, argcosqs
 
     double precision :: logcon, qpir2, frac
-    real, allocatable,dimension(:) :: cld1arr 
+    !real, allocatable,dimension(:) :: cld1arr 
     ! this will take the clouds and in turn calculate their opacities the layers
     ! based on name, density, mean radius and width of log normal distribution
     ! or using Hansen distribution: effective radius, radius spread and density
@@ -52,13 +52,14 @@ contains
     allocate(cqs_cloud(nlayers,nmiewave,nclouds))
     allocate(opd_ext(nlayers,nmiewave),opd_scat(nlayers,nmiewave))
     allocate(cos_qs(nlayers,nmiewave))
-    allocate(cld1arr(nlayers))
+    !allocate(cld1arr(nlayers))
 
     ! first set up the grids and get the Mie coefficients, cloud by cloud
-   !write(1,*) 'clouddata shape = ', shape(clouddata)
-   !write(1,*) 'miewave = ',miewave
-   !write(1,*) 'radii = ', mierad
-    !write(1,*) 'here clouds 58'   
+  !write(1,*) 'clouddata shape = ', shape(clouddata)
+  !write(1,*) 'miewave = ',miewave
+  !write(1,*) 'radii = ', mierad
+  !write(1,*) 'nwave = ', nwave
+  !write(1,*) 'here clouds 58'   
 
     
     ! these are set for EGP cases. Ditched soot. it will throw an error. 
@@ -86,7 +87,7 @@ contains
     ! let's get the location for wave = 1um in miewavelen for later
     loc = minloc(abs(miewave - 1e-4))
     loc1 = loc(1)
-    !write(*,*) miewavelen(loc1)
+   !write(1,*) miewave(loc1)
     
 
     
@@ -106,22 +107,23 @@ contains
     sum_ndz_2 = 0.d0
     ! This sets up options to print ndz etc
 
-    do ilayer = 1, nlayers
-       cld1arr(ilayer) = column(ilayer)%cloud(1)%dtau1
-    end do
-    loc = maxloc(cld1arr)
-    idum1 = loc(1)
+    !do ilayer = 1, nlayers
+       !cld1arr(ilayer) = column(ilayer)%cloud(1)%dtau1
+    !end do
+    !loc = maxloc(cld1arr)
+    !idum1 = loc(1)
  
-    !write(1,*) 'here clouds 112'   
+   !write(1,*) 'here clouds 112'   
 
     do ilayer = 1, nlayers
        do icloud = 1, nclouds
           ! first we need the cloud density in this layer
           ! we get this from the layer optical depth of the cloud at 1um
           ! which is what we're given
-          
+         !write(1,*) 'tau1 in layer ', ilayer, ' = ', column(ilayer)%cloud(icloud)%dtau1
           if (column(ilayer)%cloud(icloud)%dtau1 .gt. 1.d-6) then
-
+            !write(1,*) 'here clouds 125'
+             
              if (sizdist(icloud) .eq. 2) then
                 ! we take geometric mean parameter from python code
                 ! as a value between 0 and 1. This is then translated here to
@@ -133,12 +135,12 @@ contains
                 r2 = rg**2 * exp( 2*log(rsig)**2 )
              
                 !  Calculate normalization factor , i.e N_0
-                ! This is based on setting tau_cl = 1 at 1 micron
+                ! This is based on setting tau_cl at 1 micron
                 ! so we sum up the cross-section contrbutions at 1um from
                 ! all radii particles across the distribution
-                ! get Ndz from 1/ this sum
+                ! get Ndz from dtau/ this sum
                 norm = 0.
-      !write(1,*) 'here clouds 138'   
+               !write(1,*) 'here clouds 138'   
                
                 do irad = 1,nrad
                    rr = radius(irad)
@@ -149,9 +151,9 @@ contains
                 end do
                 
                 ! so Ndz (i.e total number density * height of layer) 
-                ndz  =  1. / norm
+                ndz  =  column(ilayer)%cloud(icloud)%dtau1 / norm
 
-     !write(1,*) 'here clouds 151'   
+               !write(1,*) 'here clouds 151'   
 
                 ! now loop over radius and fill up wavelength dependent opacity for
                 ! each cloud
@@ -192,7 +194,7 @@ contains
                 a = column(ilayer)%cloud(icloud)%rg * 1d-4
                 ! b is not a length, it is dimensionless
                 b  = column(ilayer)%cloud(icloud)%rsig
-                !write(1,*) 'here clouds 192'   
+               !write(1,*) 'here clouds 192'   
 
                 ! first need to get ndz from the optical depth dtau at 1um
 
@@ -205,7 +207,7 @@ contains
                    !write(*,*) arg1
                    arg2 = ((1.- 3.*b)/b) * log(rr)
                    !write(1,*) 'here clouds 204'
-                   !write(1,*) clouddata(icloud,1,loc1,irad)
+                   !write(1,*) clouddata(icloud,2,loc1,irad)
                    argext = log(clouddata(icloud,2,loc1,irad) * PI * rr**2.)
                    !write(1,*) 'here clouds 207'   
                    bot = bot + exp(arg1 + arg2 + argext)
@@ -282,21 +284,21 @@ contains
                    cos_qs(ilayer,imiewave) = cos_qs(ilayer,imiewave) + &
                         cqs_cloud(ilayer,imiewave,icloud)
                 end do ! miewave loop
-             end if
-             !write (*,*) scat_cloud(ilayer,loc1,icloud)
-             !write (*,*) ext_cloud(ilayer,loc1,icloud)
-             !write (*,*) cqs_cloud(ilayer,loc1,icloud)
+             end if ! size if
+             !write (1,*) scat_cloud(ilayer,loc1,icloud)
+             write (1,*) 'ext_cloud ',ilayer, ' = ', ext_cloud(ilayer,loc1,icloud)
+             !write (1,*) cqs_cloud(ilayer,loc1,icloud)
              
           end if
        end do   ! cloud loop
-       !write(1,*) 'here clouds 289'   
-
+      !write(1,*) 'here clouds 289'   
+ 
        ! rebin to working resolution (nwave) grid and write to
        
        do iwave= 1 , nwave
-          
+          !write(1,*) 'here iwave = ',iwave,' clouds 297'
           wdiff = abs(miewaven - wavenum(iwave))
-          
+                    
           oldw1 = minloc(wdiff,1)
           
           if (miewaven(oldw1) .lt. wavenum(iwave)) then
@@ -305,7 +307,6 @@ contains
              oldw2 = oldw1
              oldw1 = oldw2 - 1
           end if
-          
           !intfact = (log10(wavenum(iwave)) - log10(miewaven(oldw1))) / &
           !     (log10(miewaven(oldw2)) - log10(miewaven(oldw1)))
 
@@ -324,7 +325,7 @@ contains
           column(ilayer)%gg(iwave) = &
                   (((cos_qs(ilayer,oldw2) - cos_qs(ilayer,oldw1)) * lintfact) &
                   + cos_qs(ilayer,oldw1) ) / column(ilayer)%opd_scat(iwave)
-                       
+
           if (column(ilayer)%opd_scat(iwave) .lt. 1d-50) then
              column(ilayer)%opd_scat(iwave) = 0.
              column(ilayer)%gg(iwave) = 0.
@@ -344,9 +345,9 @@ contains
     !loc1a = loc(1)
     
     !write(*,*) "wavenum, wavelength for check = ", wavenum(loc1a), wavelen(loc1a)
-    !write(*,*) "clouds line 187 opd_scat layer ",column(idum1)%opd_scat(loc1a)
-    !write(*,*) "clouds line 188 opd_ext layer",column(idum1)%opd_ext(loc1a)
-    !write(*,*) "clouds line 189 gg layer ",column(idum1)%gg(loc1a)
+    !write(1,*) "clouds line 347 opd_scat layer ",column(idum1)%opd_scat(loc1a)
+    !write(1,*) "clouds line 348 opd_ext layer",column(idum1)%opd_ext(loc1a)
+    !write(1,*) "clouds line 349  gg layer ",column(idum1)%gg(loc1a)
 
 
     ! test line write cloud optical depth out

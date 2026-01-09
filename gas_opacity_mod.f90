@@ -15,7 +15,7 @@ contains
 
     type(a_layer),intent(inout) :: layer
     double precision, intent(inout) :: opd_lines(:)
-    double precision,intent(in):: linelist(:,:,:,:)
+    real,intent(in):: linelist(:,:,:,:)
     integer :: Tlay1, Tlay2, torder, index, iounit
     double precision, allocatable,dimension(:,:) :: logkap1, logkap2,logintkappa
     real, allocatable,dimension(:):: tdiff
