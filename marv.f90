@@ -22,7 +22,7 @@ subroutine marv(temp,logg,R2D2,ingasname,molmass,logVMR,pcover,&
 
   real,intent(inout) :: cia(:,:,:)
   real,dimension(nciatemps) :: ciatemps
-  double precision,intent(inout) :: inlinelist(:,:,:,:)
+  real,intent(inout) :: inlinelist(:,:,:,:)
   double precision,intent(inout):: temp(:)
   integer,intent(inout):: cloudsize(:)
   real :: R2D2,logg

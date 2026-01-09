@@ -1753,7 +1753,7 @@ def get_opacities(gaslist,w1,w2,press,xpath='../Linelists',xlist='gaslistR10K.da
 
     # Here we are interpolating the linelist onto our fine pressure scale.
     # pickles have linelist as 4th entry....
-    linelist = (np.zeros([ngas,npress,ntemps,nwave],order='F')).astype('float64', order='F')
+    linelist = (np.zeros([ngas,npress,ntemps,nwave],order='F')).astype('float32', order='F')
     for gas in range (0,ngas):
         inlinelist= pickle.load(open(lists[gas], "rb" ) )[3]
         for i in range (0,ntemps):
@@ -1837,7 +1837,7 @@ def get_k_opacities(gaslist,w1,w2,press,xpath='../K_tables',xlist='gaslist_ck.da
     #r2 = np.amax(np.where(np.logical_not(np.logical_or(rawwavenum[:] > wn2, rawwavenum[:] < wn1))))
 
     # Here we are interpolating the linelist onto our fine pressure scale.
-    linelist = (np.zeros([ngas,ngauss,npress,ntemps,nwave],order='F')).astype('float64', order='F')
+    linelist = (np.zeros([ngas,ngauss,npress,ntemps,nwave],order='F')).astype('float32', order='F')
 
     for g, fname in enumerate(lists):     #loop over gases (e.g. 0=h2o, 1=ch4)
         #kt = xk.Ktable(filename=fname)    

@@ -39,7 +39,7 @@ contains
     double precision,intent(inout) :: inwavenum(:)
     real,intent(inout) :: inlinetemps(:)
     real,intent(in) :: inpress(:)
-    double precision,intent(inout):: linelist(:,:,:,:)
+    real,intent(inout):: linelist(:,:,:,:)
     double precision,intent(inout):: bff(:,:)
     real, dimension(nciatemps), intent(in):: ciatemp
     real, intent(inout) :: cia(:,:,:)
