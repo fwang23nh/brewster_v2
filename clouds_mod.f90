@@ -133,7 +133,7 @@ contains
                 r2 = rg**2 * exp( 2*log(rsig)**2 )
              
                 !  Calculate normalization factor , i.e N_0
-                ! This is based on setting tau_cl = 1 at 1 micron
+                ! This is based on setting tau_cl at 1 micron
                 ! so we sum up the cross-section contrbutions at 1um from
                 ! all radii particles across the distribution
                 ! get Ndz from 1/ this sum
@@ -149,7 +149,7 @@ contains
                 end do
                 
                 ! so Ndz (i.e total number density * height of layer) 
-                ndz  =  1. / norm
+                ndz  =  column(ilayer)%cloud(icloud)%dtau1 / norm
 
      !write(1,*) 'here clouds 151'   
 
