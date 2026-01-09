@@ -151,9 +151,8 @@ contains
                 end do
                 
                 ! so Ndz (i.e total number density * height of layer) 
-                !ndz  =  column(ilayer)%cloud(icloud)%dtau1 / norm
+                ndz  =  column(ilayer)%cloud(icloud)%dtau1 / norm
 
-                ndz  =  1. / norm
                !write(1,*) 'here clouds 151'   
 
                 ! now loop over radius and fill up wavelength dependent opacity for
