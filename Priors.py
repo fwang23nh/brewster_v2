@@ -46,10 +46,14 @@ class Priors:
         Validates post-retrieval priors such as T-profile, gas profile, mass-radius, and tolerance parameters.
     """
 
-    def __init__(self, theta, re_params,instrument_instance):
+    def __init__(self, theta, re_params,args_instance):
         self.re_params = re_params
-        self.instrument_instance = instrument_instance
-        self.args_instance = settings.runargs  # Assuming `settings.runargs` is pre-defined
+        self.args_instance = args_instance
+        self.instrument_instance = args_instance.instrument
+         # Assuming `settings.runargs` is pre-defined
+
+        self.Mass_priorange= args_instance.Mass_priorange
+        self.R_priorange= args_instance.R_priorange
 
         # Extract all parameters and their values
         self.all_params, self.all_params_values = utils.get_all_parametres(re_params.dictionary)
@@ -59,6 +63,8 @@ class Priors:
         # Internal temperature profile keys and values
         self.intemp_keys = list(self.re_params.dictionary['pt']['params'].keys())
         self.intemp = np.array([getattr(self.params_instance, key) for key in self.intemp_keys])
+        if (self.args_instance.proftype == 1 or self.args_instance.proftype == 77):
+            self.intemp=self.intemp[1:]
 
         # Extract gas type information
         self.gastype_values = [info['gastype'] for key, info in self.re_params.dictionary['gas'].items() if 'gastype' in info]
@@ -132,35 +138,170 @@ class Priors:
             True if all post-processing priors are satisfied, False otherwise.
         """
         # 1. T-profile check
-        T = TPmod.set_prof(self.args_instance.proftype, self.args_instance.coarsePress,self.args_instance.press, self.intemp)
-        prior_T = (min(T) > 1.0) and (max(T) < 6000.)
+        diff=0
+        pp=0
 
 
-        diff=np.roll(T,-1)-2.*T+np.roll(T,1)
-        pp=len(T)
+        if self.args_instance.proftype==2:
+            """
+            (0. < a1 < 1. and 0. < a2 < 1.0
+            and T3 > 0.0 and P3 >= P1 and P1 >= np.log10(press[0])
+            and P3 <= 5):
+
+            """
+            prior_T_params= (0. < self.params_instance.alpha1 < 1. and 0. < self.params_instance.alpha2 < 1.0
+            and self.params_instance.T3 > 0.0 and self.params_instance.logP3 >= self.params_instance.logP1 and self.params_instance.logP1 >= np.log10(self.args_instance.press[0])
+            and self.params_instance.logP3 <= 5)
+
+            prior_T_overall=False
+            if prior_T_params==True:
+                T = TPmod.set_prof(self.args_instance.proftype, self.args_instance.coarsePress,self.args_instance.press, self.intemp)
+                prior_T_overall = (min(T) > 1.0) and (max(T) < 6000.)
+
+    
+        elif self.args_instance.proftype==3:
+            """
+            (0. < a1 < 1. and 0. < a2 < 1.0
+            and T3 > 0.0 and P3 >= P2 and P3 >= P1 and P2 >= np.log10(press[0]) and P1 >= np.log10(press[0])
+             and P3 <= 5)
+            """
+
+            prior_T_params=  (0. < self.params_instance.alpha1 < 1. and 0. < self.params_instance.alpha2 < 1.0
+            and self.params_instance.T3 > 0.0 and self.params_instance.logP3 >= self.params_instance.logP2  and self.params_instance.logP3 >= self.params_instance.logP1 and self.params_instance.logP2 >= np.log10(self.args_instance.press[0]) and self.params_instance.logP1 >= np.log10(self.args_instance.press[0])
+             and  self.params_instance.logP3 <= 5)
+            
+            prior_T_overall=False
+            if prior_T_params==True:
+                T = TPmod.set_prof(self.args_instance.proftype, self.args_instance.coarsePress,self.args_instance.press, self.intemp)
+                prior_T_overall = (min(T) > 1.0) and (max(T) < 6000.)
+            
+
+        elif self.args_instance.proftype==7:
+
+            """
+            delta=np.exp(lndelta)
+            tau=delta*(press)**alpha
+
+            delta=tau/(press)**alpha, alpha in [1,2]
+
+            find prior range of delta to keep τ ≈ 1 in a physically sensible region (typically around 0.1 -- 10 bar).
+
+            1. tau=1, alpha=1:
+
+            delta=1/press, press in [0.1, 10]
+            delta in [0.1,10]
+
+            2. tau=1, alpha=2:
+
+            delta=1/press**2, press in [0.1, 10]
+            delta in [0.01,100]
+            """
+
+            delta=np.exp(self.params_instance.lndelta)
+            T = np.empty([self.args_instance.press.size])
+            T[:] = -100.
+
+            P1 = ((1/delta)**(1/self.params_instance.alpha)) # P1 - pressure where tau = 1
+            cp = 0.84*14.32 + 0.16*5.19
+            cv = 0.84*10.16 + 0.16*3.12
+            gamma=cp/cv
+
+            tau=delta*(self.args_instance.press)**self.params_instance.alpha
+            T_edd=(((3/4)*self.params_instance.Tint**4)*((2/3)+(tau)))**(1/4)
+            nabla_ad=(gamma-1)/gamma
+            nabla_rad = np.diff(np.log(T_edd))/np.diff(np.log(self.args_instance.press))
+            convtest = np.any(np.where(nabla_rad >= nabla_ad))
+            # Now get temperatures on the adiabat from RC boundary downwards
+            if convtest:
+                RCbound = np.where(nabla_rad >= nabla_ad)[0][0]
+                P_RC = self.args_instance.press[RCbound]
+            else:
+                P_RC = 1000.
+
+            prior_T_params= (1 < self.params_instance.alpha  < 2. and P_RC < 100 and P1 < P_RC
+                and P_RC > self.args_instance.press[0] and  P1 > self.args_instance.press[0]
+                and self.params_instance.T1 > 0.0 and self.params_instance.T2 > 0.0 and self.params_instance.T3 > 0.0 and self.params_instance.Tint >0.0 and 0.01 <= delta <= 100)
+            
+            prior_T_overall=False
+            if prior_T_params==True:
+                T = TPmod.set_prof(self.args_instance.proftype, self.args_instance.coarsePress,self.args_instance.press, self.intemp)
+                prior_T_overall = (min(T) > 1.0) and (max(T) < 6000.)
+
+        elif self.args_instance.proftype==77:
+            """
+            delta=np.exp(lndelta)
+            tau=delta*(press)**alpha
+
+            delta=tau/(press)**alpha, alpha in [1,2]
+
+            find prior range of delta to keep τ ≈ 1 in a physically sensible region (typically around 0.1 -- 10 bar).
+
+            1. tau=1, alpha=1:
+
+            delta=1/press, press in [0.1, 10]
+            delta in [0.1,10]
+
+            2. tau=1, alpha=2:
+
+            delta=1/press**2, press in [0.1, 10]
+            delta in [0.01,100]
+        
+            # bits for smoothing in prior
+            gam = params_instance.gamma
+            """
+
+            delta= np.exp(self.params_instance.lndelta)
+            T = np.empty([self.args_instance.press.size])
+            T[:] = -100.
+            P1 = ((1/delta)**(1/self.params_instance.alpha))
+            # put prior on P1 to put it shallower than 100 bar   
+            prior_T_params= (1 < self.params_instance.alpha  < 2. and P1 < 100. and P1 > self.args_instance.press[0]
+                and self.params_instance.T1 > 0.0 and self.params_instance.T2 > 0.0 and self.params_instance.T3 > 0.0 and self.params_instance.Tint >0.0 and self.params_instance.gamma>0 and 0.01 <= delta <= 100)
+            
+            prior_T_overall=False
+            if prior_T_params==True:
+                T = TPmod.set_prof(self.args_instance.proftype, self.args_instance.coarsePress,self.args_instance.press, self.intemp)
+                prior_T_overall = (min(T) > 1.0) and (max(T) < 6000.)
+                diff=np.roll(T,-1)-2.*T+np.roll(T,1)
+                pp=len(T)
+
+        elif self.args_instance.proftype==1:
+            prior_T_params=(min(self.intemp) > 1.0) and (max(self.intemp) < 6000.)
+            # if prior_T_params==True:
+            #     T = TPmod.set_prof(self.args_instance.proftype, self.args_instance.coarsePress,self.args_instance.press, self.intemp)
+            #     prior_T_overall = (min(T) > 1.0) and (max(T) < 6000.)
+            diff=np.roll(self.intemp,-1)-2.*self.intemp+np.roll(self.intemp,1)
+            pp=len(self.intemp)
+            prior_T_overall=True
+
+        prior_T=prior_T_overall and prior_T_params
 
         # 2. Gas profile check
-        gas_keys = list(self.re_params.dictionary['gas'].keys())
-        invmr = np.array([getattr(self.params_instance, key) for key in gas_keys])
-        prior_gas = (np.sum(10.**invmr) < 1.0)
 
-        if self.count_N > 0:
-            gas_profile = np.full((self.count_N, self.args_instance.press.size), -1.0)
-            gas_profile_index = 0
-            for i, gastype in enumerate(self.gastype_values):
-                if gastype == "N":
-                    P_gas = getattr(self.params_instance, f"p_ref_{gas_keys[i]}")
-                    gas_alpha = getattr(self.params_instance, f"alpha_{gas_keys[i]}")
-                    t_gas = getattr(self.params_instance, gas_keys[i])
-                    if (0. < gas_alpha < 1. and -12.0 < t_gas < 0.0 and 
-                        np.log10(self.args_instance.press[0]) <= P_gas <= 2.4):
-                        gas_profile[gas_profile_index, :] = gas_nonuniform.non_uniform_gas(
-                            self.args_instance.press, P_gas, t_gas, gas_alpha
-                        )
-                    else:
-                        gas_profile[gas_profile_index, :] = -30
-                    gas_profile_index += 1
-            prior_gas = prior_gas and (np.all(gas_profile > -25.0) and np.all(gas_profile < 0.0))
+        prior_gas=True
+        if self.args_instance.chemeq==0:
+
+            gas_keys = list(self.re_params.dictionary['gas'].keys())
+            invmr = np.array([getattr(self.params_instance, key) for key in gas_keys])
+            prior_gas = (np.sum(10.**invmr) < 1.0)
+
+            if self.count_N > 0:
+                gas_profile = np.full((self.count_N, self.args_instance.press.size), -1.0)
+                gas_profile_index = 0
+                for i, gastype in enumerate(self.gastype_values):
+                    if gastype == "N":
+                        P_gas = getattr(self.params_instance, f"p_ref_{gas_keys[i]}")
+                        gas_alpha = getattr(self.params_instance, f"alpha_{gas_keys[i]}")
+                        t_gas = getattr(self.params_instance, gas_keys[i])
+                        if (0. < gas_alpha < 1. and -12.0 < t_gas < 0.0 and 
+                            np.log10(self.args_instance.press[0]) <= P_gas <= np.log10(self.args_instance.press[1])):
+                            gas_profile[gas_profile_index, :] = gas_nonuniform.non_uniform_gas(
+                                self.args_instance.press, P_gas, t_gas, gas_alpha
+                            )
+                        else:
+                            gas_profile[gas_profile_index, :] = -30
+                        gas_profile_index += 1
+                prior_gas = prior_gas and (np.all(gas_profile > -25.0) and np.all(gas_profile < 0.0))
 
         # 3. Mass and Radius check
         D = 3.086e+16 * self.args_instance.dist  # Distance in meters
@@ -168,12 +309,13 @@ class Priors:
         g = (10.**self.params_instance.logg) / 100.
         M = (R**2 * g / 6.67E-11) / 1.898E27
         Rj = R / 69911.e3
-        prior_MR = (1.0 < M < 80 and 0.5 < Rj < 2.0)
+
+        prior_MR = (self.Mass_priorange[0] < M < self.Mass_priorange[1] and self.R_priorange[0] < Rj < self.R_priorange[1])
 
 
         # 4. Tolerance parameters
 
-        priors_tolerance_params = True
+        prior_tolerance_params = True
 
         tolerance_params = {
             attr: getattr(self.params_instance, attr) 
@@ -206,17 +348,8 @@ class Priors:
                     < 10.**value
                     < 100. * np.max(self.args_instance.obspec[2,mask]**2)
                 )
-                priors_tolerance_params = priors_tolerance_params and statement
+                prior_tolerance_params = prior_tolerance_params and statement
 
-        # priors_tolerance_params = True
-        # if len(tolerance_params) > 0:
-        #     for value in tolerance_params.values():
-        #         statement = (
-        #             0.01 * np.min(self.args_instance.obspec[2, :]**2) 
-        #             < 10.**value 
-        #             < 100. * np.max(self.args_instance.obspec[2, :]**2)
-        #         )
-        #         priors_tolerance_params = priors_tolerance_params and statement
 
 
         # 5.cloud 
@@ -256,105 +389,130 @@ class Priors:
                 cloud_opatype.append(match.group(1).lower() if match else 'unknown')
 
             
-            cloud_tau0 = np.empty([nclouds])
-            cloud_top = np.empty_like(cloud_tau0)
-            cloud_bot = np.empty_like(cloud_tau0)
-            cloud_height  = np.empty_like(cloud_tau0)
-            w0 = np.empty_like(cloud_tau0)
-            taupow =  np.empty_like(cloud_tau0)
-            loga = np.empty_like(cloud_tau0)
-            b = np.empty_like(cloud_tau0)
+            cloud_tau0_all = np.empty([nclouds])
+            cloud_top_all = np.empty_like(cloud_tau0_all)
+            cloud_bot_all = np.empty_like(cloud_tau0_all)
+            cloud_height_all  = np.empty_like(cloud_tau0_all)
+            w0_all = np.empty_like(cloud_tau0_all)
+            taupow_all =  np.empty_like(cloud_tau0_all)
+            loga_all = np.empty_like(cloud_tau0_all)
+            b_all = np.empty_like(cloud_tau0_all)
 
             for idx, name in enumerate(cloudname_set):
                 if  cloud_opatype[idx] == 'grey':
                     if cloud_distype[idx] == "slab":
-                            cloud_tau0= cloudparams[0,idx]
-                            cloud_top= cloudparams[1,idx]
-                            cloud_height= cloudparams[2,idx]
-                            cloud_bot = cloud_top[idx] + cloud_height[idx]
-                            w0 = cloudparams[3,idx]
-                            taupow= 0.0
-                            loga[idx] = 0.0
-                            b[idx] = 0.5
+                            cloud_tau0_all[idx]= cloudparams[0,idx]
+                            # cloud_top_all[idx]= cloudparams[1,idx]
+                            # cloud_height_all[idx]= cloudparams[2,idx]
+                            # cloud_bot_all[idx] = cloud_top_all[idx] + cloud_height_all[idx]
+                            cloud_bot_all[idx]= cloudparams[1,idx]
+                            cloud_height_all[idx]= cloudparams[2,idx]
+                            cloud_top_all[idx] = cloud_bot_all[idx] - cloud_height_all[idx]
+                            w0_all[idx] = cloudparams[3,idx]
+                            taupow_all[idx]= 0.0
+                            loga_all[idx] = 0.0
+                            b_all[idx] = 0.5
                     elif cloud_distype[idx] == "deck":
-                            cloud_tau0[idx] = 1.0
-                            cloud_bot[idx] = np.log10(self.args_instance.press[-1])
-                            cloud_top[idx] = cloudparams[1,idx]
-                            cloud_height[idx] = cloudparams[2,idx]
-                            w0[idx] = cloudparams[3,idx]
-                            taupow[idx] = 0.0
-                            loga[idx] = 0.0
-                            b[idx] = 0.5
+                            cloud_tau0_all[idx] = 1.0
+                            cloud_bot_all[idx] = np.log10(self.args_instance.press[-1])
+                            cloud_top_all[idx] = cloudparams[1,idx]
+                            cloud_height_all[idx] = cloudparams[2,idx]
+                            w0_all[idx] = cloudparams[3,idx]
+                            taupow_all[idx] = 0.0
+                            loga_all[idx] = 0.0
+                            b_all[idx] = 0.5
                 elif  cloud_opatype[idx] == 'powerlaw':
                     if cloud_distype[idx] == "slab":
-                            cloud_tau0[idx] = cloudparams[0,idx]
-                            cloud_top[idx] = cloudparams[1,idx]
-                            cloud_height[idx] = cloudparams[2,idx]
-                            cloud_bot[idx] = cloud_top[idx] + cloud_height[idx]
-                            w0[idx] = cloudparams[3,idx]
-                            taupow[idx] = cloudparams[4,idx]
-                            loga[idx] = 0.0
-                            b[idx] = 0.5
+                            cloud_tau0_all[idx] = cloudparams[0,idx]
+                            # cloud_top_all[idx]= cloudparams[1,idx]
+                            # cloud_height_all[idx]= cloudparams[2,idx]
+                            # cloud_bot_all[idx] = cloud_top_all[idx] + cloud_height_all[idx]
+                            cloud_bot_all[idx]= cloudparams[1,idx]
+                            cloud_height_all[idx]= cloudparams[2,idx]
+                            cloud_top_all[idx] = cloud_bot_all[idx] - cloud_height_all[idx]
+                            w0_all[idx] = cloudparams[3,idx]
+                            taupow_all[idx] = cloudparams[4,idx]
+                            loga_all[idx] = 0.0
+                            b_all[idx] = 0.5
                     elif cloud_distype[idx] == "deck":
-                            cloud_tau0[idx] = 1.0
-                            cloud_bot[idx] = np.log10(self.args_instance.press[-1])
-                            cloud_top[idx] = cloudparams[1,idx]
-                            cloud_height[idx] = cloudparams[2,idx]
-                            w0[idx] = cloudparams[3,idx]
-                            taupow[idx] = cloudparams[4,idx]
-                            loga[idx] = 0.0
-                            b[idx] = 0.5
-                elif  cloud_opatype[idx] == 'Mie':
-                     if cloud_distype[idx] == "slab":
-                        cloud_tau0[idx] =  cloudparams[0,idx]
-                        cloud_top[idx] = cloudparams[1,idx]
-                        cloud_height[idx] = cloudparams[2,idx]
-                        cloud_bot[idx] = cloud_top[idx] + cloud_height[idx]
-                        w0[idx] = 0.5
-                        taupow[idx] = 0.0
-                        loga[idx] = cloudparams[3,idx]
-                        b[idx] = cloudparams[4,idx]
-                     elif cloud_distype[idx] == "deck":
-                        cloud_tau0[idx] = 1.0
-                        cloud_bot[idx] = np.log10(self.args_instance.press[self.args_instance.press.size-1])
-                        cloud_top[idx] = cloudparams[1,idx]
-                        cloud_height[idx] = cloudparams[2,idx]
-                        w0[idx] = +0.5
-                        taupow[idx] =0.0
-                        loga[idx] =  cloudparams[3,idx]
-                        b[idx] =  cloudparams[4,idx]
+                            cloud_tau0_all[idx] = 1.0
+                            cloud_bot_all[idx] = np.log10(self.args_instance.press[-1])
+                            cloud_top_all[idx] = cloudparams[1,idx]
+                            cloud_height_all[idx] = cloudparams[2,idx]
+                            w0_all[idx] = cloudparams[3,idx]
+                            taupow_all[idx] = cloudparams[4,idx]
+                            loga_all[idx] = 0.0
+                            b_all[idx] = 0.5
+                elif  cloud_opatype[idx] == 'mie':
+                    if cloud_distype[idx] == "slab":
+                        cloud_tau0_all[idx] =  cloudparams[0,idx]
+                        # cloud_top_all[idx]= cloudparams[1,idx]
+                        # cloud_height_all[idx]= cloudparams[2,idx]
+                        # cloud_bot_all[idx] = cloud_top_all[idx] + cloud_height_all[idx]
+                        cloud_bot_all[idx]= cloudparams[1,idx]
+                        cloud_height_all[idx]= cloudparams[2,idx]
+                        cloud_top_all[idx] = cloud_bot_all[idx] - cloud_height_all[idx]
+                        w0_all[idx] = 0.5
+                        taupow_all[idx] = 0.0
+                        loga_all[idx] = cloudparams[3,idx]
+                        b_all[idx] = cloudparams[4,idx]
+                        
+                    elif cloud_distype[idx] == "deck":
+                        cloud_tau0_all[idx] = 1.0
+                        cloud_bot_all[idx] = np.log10(self.args_instance.press[self.args_instance.press.size-1])
+                        cloud_top_all[idx] = cloudparams[1,idx]
+                        cloud_height_all[idx] = cloudparams[2,idx]
+                        w0_all[idx] = +0.5
+                        taupow_all[idx] =0.0
+                        loga_all[idx] =  cloudparams[3,idx]
+                        b_all[idx] =  cloudparams[4,idx]
 
-            prior_cloud  = prior_cloud and ((np.all(cloud_tau0 >= 0.0))
-                        and (np.all(cloud_tau0 <= 100.0))
-                        and np.all(cloud_top < cloud_bot)
-                        and np.all(cloud_bot <= np.log10(self.args_instance.press[-1]))
-                        and np.all(np.log10(self.args_instance.press[0]) <= cloud_top)
-                        and np.all(cloud_top < cloud_bot)
-                        and np.all(0. < cloud_height)
-                        and np.all(cloud_height < 7.0)
-                        and np.all(0.0 < w0)
-                        and np.all(w0 <= 1.0)
-                        and np.all(-10.0 < taupow)
-                        and np.all(taupow < +10.0)
-                        and np.all( -3.0 < loga)
-                        and np.all (loga < 3.0)
-                        and np.all(b < 1.0)
-                        and np.all(b > 0.0))
+            prior_cloud  = prior_cloud and ((np.all(cloud_tau0_all >= 0.0))
+                        and (np.all(cloud_tau0_all <= 100.0))
+                        and np.all(cloud_top_all < cloud_bot_all)
+                        and np.all(cloud_bot_all <= np.log10(self.args_instance.press[-1]))
+                        and np.all(np.log10(self.args_instance.press[0]) <= cloud_top_all)
+                        and np.all(cloud_top_all < cloud_bot_all)
+                        and np.all(0. < cloud_height_all)
+                        and np.all(cloud_height_all < 7.0)
+                        and np.all(0.0 < w0_all)
+                        and np.all(w0_all <= 1.0)
+                        and np.all(-10.0 < taupow_all)
+                        and np.all(taupow_all < +10.0)
+                        and np.all( -3.0 < loga_all)
+                        and np.all (loga_all < 3.0)
+                        and np.all(b_all < 1.0)
+                        and np.all(b_all > 0.0))
 
 
         # Combine all priors
-        post_prior = prior_T and prior_gas and prior_MR and priors_tolerance_params and prior_cloud
-        return post_prior,diff,pp
+        post_prior = prior_T and prior_gas and prior_MR and prior_tolerance_params and prior_cloud
+
+        post_check_info = (
+            f"prior_T: {prior_T}, "
+            f"prior_gas: {prior_gas}, "
+            f"prior_MR: {prior_MR}, "
+            f"prior_tolerance_params: {prior_tolerance_params}, "
+        )
+
+        if self.re_params.dictionary['cloud']:
+            post_check_info += f"prior_cloud: {prior_cloud}"
+        else:
+            post_check_info += "prior_cloud: None"
+
+        return post_prior,diff,pp,post_check_info
     
 
     def priors(self,dic):
 
-        prior_re_params=self.get_priorranges(dic)
-        prior_post,diff,pp=self.post_processing_prior()
+        re_params_priorranges=self.get_priorranges(dic)
+        prior_re_params=self.get_retrieval_param_priors(self.all_params,self.params_instance,re_params_priorranges)
+        prior_post,diff,pp,post_check_info=self.post_processing_prior()
         self.statement=(prior_re_params and prior_post)
 
-        if self.statement == True:
+        self.post_check_info=post_check_info
 
+        if self.statement == True:
             if self.args_instance.proftype == 1 or self.args_instance.proftype==77:
                 logbeta = -5.0
                 beta=10.**logbeta
@@ -396,9 +554,14 @@ class Priors:
             "- Post-processing Priors:\n"
             "  * T-profile check: (min(T) > 1.0) and (max(T) < 6000.)\n" 
             "  * Gas profile check: (np.sum(10.**(invmr)) < 1.0) and valid gas profiles\n"
-            "  * Mass and Radius check: (1.0 < M < 80 and 0.5 < Rj < 2.0)\n"
+            # "  * Mass and Radius check: (1.0 < M < 80 and 0.5 < Rj < 2.0)\n"
+            "  * Mass and Radius check:\n"
+            f"({self.Mass_priorange[0]} < M < {self.Mass_priorange[1]}) and "
+            f"({self.R_priorange[0]} < Rj < {self.R_priorange[1]})\n"
             "  * Tolerance parameters: ((0.01*np.min(obspec[2,:]**2)) < 10.**tolerance_parameter < (100.*np.max(obspec[2,:]**2)))\n"
             "  *all cloud parameters should be within range\n"
+            "  * Prior check results:\n"
+            f"{self.post_check_info}\n"
         )
 
 
@@ -565,7 +728,6 @@ def priormap_dic(theta,re_params):
        #         tolerance_parameter_2_index = params_instance._fields.index('tolerance_parameter_2')
        #         phi[tolerance_parameter_2_index] = (theta[tolerance_parameter_2_index] * (maxerr2 - minerr2)) + minerr2
 
-            
         
     elif (fwhm < 0.0):
         if (fwhm == -1 or fwhm == -3 or fwhm == -4 or fwhm == -8):

@@ -16,6 +16,7 @@ import TPmod
 from collections import namedtuple
 from mpi4py import MPI
 import h5py
+import settings
 
 __author__ = "Fei Wang"
 __copyright__ = "Copyright 2024 - Fei Wang"
@@ -39,8 +40,6 @@ class Instrument:
         Spectral resolution  file
     wavelength_range : float
         Maximum wavelength (um)
-    ndata : float
-        number of instruments
     R_file : str
         path to the R vs wl file
     
@@ -51,17 +50,18 @@ class Instrument:
         loads the R vs wl file
     """
     
-    def __init__(self, fwhm=None, wavelength_range=None, ndata=None,wavpoints=None, R_file=None):
+    def __init__(self, fwhm=None, wavelength_range=None, R_file=None,obspec=None):
         self.fwhm  = fwhm 
         self.wavelength_range = wavelength_range
-        self.ndata = ndata
-        self.wavpoints = wavpoints
         self.R_file = R_file
         self.R_data = None
         self.R = None
         self.wl = None
         self.logf_flag = None
         self.scales = None
+        self.obspec = obspec
+        self.obs_wl = None
+        self.R_interp = None
         
         # only load R if the user provides it
         if R_file:
@@ -83,6 +83,13 @@ class Instrument:
             self.logf_flag = data[:,2]
             self.scales = data[:,3]
             self.R_data = {'R': self.R, 'wl': self.wl, 'logf_flag': self.logf_flag, 'scales': self.scales}
+            
+            
+            self.obs_wl = self.obspec[0, :]
+            self.R_interp = np.interp(self.obs_wl,self.wl,self.R)
+            self.R= self.R_interp
+            self.wl = self.obs_wl
+            
         except Exception as e:
             print(f'no such file: {e}')
 
@@ -94,8 +101,6 @@ class Instrument:
             'params': {
                 'fwhm': self.fwhm,
                 'wavelength_range': self.wavelength_range,
-                'ndata': self.ndata,
-                'wavpoints': self.wavpoints,
                 'R_file': self.R_file,
                 'R_data': self.R_data
             }
@@ -105,8 +110,6 @@ class Instrument:
         string = 'Instrument: \n------------\n' +\
             '- fwhm : ' + "%s" % (self.fwhm) + '\n' +\
             '- wavelength_range : ' + "%s" % (self.wavelength_range) + '\n' +\
-            '- ndata : ' + "%s" % (self.ndata) + ' \n'  +\
-            '- wavpoints : ' + "%s" % (self.wavpoints) + ' \n' +\
             '- R_file : ' + "%s" % (self.R_file) + '\n' +\
             '- R_data : ' + "%s" % (self.R_data) + ' \n'
         return string
@@ -152,7 +155,7 @@ class ModelConfig:
         Update the model configuration dictionary with the current attributes.
     """
 
-    def __init__(self, samplemode, do_fudge, use_disort=0, malk=0, mch4=0, do_bff=1, fresh=0,cloudpath=None,xpath="../Linelists/", xlist="data/gaslistRox.dat", dist=None, pfile="data/LSR1835_eqpt.dat"):
+    def __init__(self, samplemode, do_fudge, use_disort=0, malk=0, mch4=0, do_bff=1, fresh=0,cloudpath=None,xpath="../Linelists/", xlist="data/gaslistRox.dat", dist=None, pfile="data/LSR1835_eqpt.dat",do_scales=True,do_shift=True):
         self.samplemode = samplemode
         self.use_disort = use_disort
         self.do_fudge = do_fudge
@@ -163,6 +166,8 @@ class ModelConfig:
         self.xpath = xpath
         self.xlist = xlist
         self.cloudpath = cloudpath
+        self.do_scales=do_scales
+        self.do_shift=do_shift
         
         self.dist = dist
         self.dist_err = 0
@@ -219,7 +224,10 @@ class ModelConfig:
                 'xpath': self.xpath,
                 'xlist': self.xlist,
                 'dist': self.dist,
-                'pfile': self.pfile
+                'pfile': self.pfile,
+                'cloudpath':self.cloudpath,
+                'do_scales':self.do_scales,
+                'do_shift':self.do_shift
             }
         }
 
@@ -287,6 +295,8 @@ class ModelConfig:
             f"- dist : {self.dist}\n"
             f"- pfile : {self.pfile}\n"
             f"- cloudpath : {self.cloudpath}\n"
+            f"- do_scales : {self.do_scales}\n"
+            f"- do_shift : {self.do_shift}\n"
             f"\n"
         )
         if self.samplemode.lower() == 'mcmc':
@@ -485,8 +495,12 @@ class Retrieval_params:
         Full width at half maximum of the spectral lines. 
     do_fudge : int, optional
         Flag indicating whether to apply tolerance_parameter to the data. 
-    ndata : int
-        number of instruments
+    vrad:bool
+     Flag indicating whether to apply vrad to do doppler shift to spectral lines
+     -defalut False
+    vsini
+     Flag indicating whether to apply rotationally broaden to modelspec
+     -defalut False
     ptype : int
         Type of pressure-temperature profile.
     do_clouds : int, optional
@@ -523,7 +537,7 @@ class Retrieval_params:
         String representation of the class instance.
     """
     
-    def __init__(self, samplemode,chemeq=None, gaslist=None, gastype_list=None,fwhm=None,do_fudge=1,ptype=None,do_clouds=1,npatches=None,cloud_name=None,cloud_type=None,cloudpatch_index=None,particle_dis=None, instrument=None):
+    def __init__(self, samplemode,chemeq=None, gaslist=None, gastype_list=None,fwhm=None,do_fudge=1,ptype=None,do_clouds=1,npatches=None,cloud_name=None,cloud_type=None,cloudpatch_index=None,particle_dis=None, instrument=None,vrad=False,vsini=False):
         self.samplemode = samplemode
         self.chemeq = chemeq
         self.gaslist = gaslist
@@ -538,6 +552,8 @@ class Retrieval_params:
         self.cloudpatch_index=cloudpatch_index
         self.particle_dis=particle_dis
         self.instrument=instrument
+        self.vrad=vrad
+        self.vsini=vsini
         
         self.dictionary = self.retrieval_para_dic_gen(chemeq, gaslist, gastype_list,fwhm,do_fudge, ptype,do_clouds,npatches,cloud_name,cloud_type,cloudpatch_index,particle_dis)
         
@@ -717,7 +733,7 @@ class Retrieval_params:
                           'lndelta':
                            {'initialization':None,
                             'distribution':['normal',0.5,0.5],
-                            'range':[-20,0],
+                            'range':[-5,5],
                             'prior':None},
 
                           'T1':
@@ -1081,7 +1097,7 @@ class Retrieval_params:
                     'distribution': ['normal', 0, 1],
                     'range':[0,1],
                     'prior': None
-                },
+                }}
                 #'scale1': {
                 #    'initialization': None,
                 #    'distribution': ['normal', 0, 0.001],
@@ -1097,13 +1113,31 @@ class Retrieval_params:
                 #     'distribution': ['normal', 0.5, 0.1],
                 #     'prior': None
                 # },
-                'dlambda': {
-                    'initialization': None,
-                    'distribution': ['normal', 0, 0.001],
-                    'range':[-0.01,0.01],
-                    'prior': None
-                }
-            }
+
+            if self.vrad==False:
+                dictionary['params']['dlambda']={
+                        'initialization': None,
+                        'distribution': ['normal', 0, 0.001],
+                        'range':[-0.01,0.01],
+                        'prior': None
+                    }
+            elif self.vrad==True:
+                dictionary['params']['vrad']={
+                        'initialization': None,
+                        'distribution': ['normal', 0, 2],
+                        'range':[-250,250],
+                        'prior': None
+                    }
+            
+            if self.vsini==True:
+                dictionary['params']['vsini']={
+                        'initialization': None,
+                        'distribution': ['uniform', 0, 100],
+                        'range':[0,100],
+                        'prior': None
+                    }
+                
+
             if getattr(self, "instrument", None) is not None and getattr(self.instrument, "scales", None) is not None:
                 scales_parameter_max = int(np.max(self.instrument.scales))
                 if scales_parameter_max > 0:
@@ -1114,11 +1148,6 @@ class Retrieval_params:
                         'range':[0.1,10],
                         'prior': None
                         }
-                      
-                  #for i in range(1, scales_parameter_max+1):
-                  #    dictionary['params'][f'scale{i}']['initialization'] =1.0 +1e3*np.random.randn()
-                      
-               
                 
         elif self.samplemode.lower() == 'multinest':
             dictionary['params'] = {
@@ -1133,14 +1162,37 @@ class Retrieval_params:
                         'distribution': ['normal', 0, 1],
                         'range':[0.5,2.5],
                         'prior': None
-                    },
-                    'dlambda': {
+                    }}
+            
+            if self.vrad==False:
+                dictionary['params']['dlambda']={
                         'initialization': None,
                         'distribution': ['normal', 0, 0.001],
                         'range':[-0.01,0.01],
                         'prior': None
                     }
-                }
+            elif self.vrad==True:
+                dictionary['params']['vrad']={
+                        'initialization': None,
+                        'distribution': ['normal', 0, 2],
+                        'range':[-250,250],
+                        'prior': None
+                    }
+                
+            if self.vsini==True:
+                dictionary['params']['vsini']={
+                        'initialization': None,
+                        'distribution': ['uniform', 0, 100],
+                        'range':[0,100],
+                        'prior': None
+                    }
+
+                    # 'dlambda': {
+                    #     'initialization': None,
+                    #     'distribution': ['normal', 0, 0.001],
+                    #     'range':[-0.01,0.01],
+                    #     'prior': None
+                    # }
                     
             if getattr(self, "instrument", None) is not None and getattr(self.instrument, "scales", None) is not None:
                     scales_parameter_max = int(np.max(self.instrument.scales))
@@ -1231,12 +1283,12 @@ class Retrieval_params:
              gas_dic= {'params':
                        {'mh':
                            {'initialization':None,
-                            'distribution':['normal',-1,3],
+                            'distribution':['normal',0,0.1],
                             'range':[-1,2],
                             'prior':None},
                        'co':
                            {'initialization':None,
-                            'distribution':['normal',0.25,2.25],
+                            'distribution':['uniform',0.25,2.5],
                             'range':[0.25,2.5],
                             'prior':None}
                       }}
@@ -1403,20 +1455,24 @@ def get_all_parametres(dic):
     gas=[]
     gas_values=[]
     
-    for i in range(len(gaslist)):
-        gas.append(gaslist[i])
-        gas_values.append(dic['gas'][gaslist[i]]['params']['log_abund']['initialization'])
-        if  gastype_values[i]=='N':
-            gas.append("p_ref_%s"%gaslist[i])
-            gas.append("alpha_%s"%gaslist[i])
-            gas_values.append(dic['gas'][gaslist[i]]['params']['p_ref']['initialization'])
-            gas_values.append(dic['gas'][gaslist[i]]['params']['alpha']['initialization'])    
+    if gaslist[0]=='params':
+        gas+=list(dic['gas']['params'].keys())
+        gas_values+=[info['initialization'] for key, info in dic['gas']['params'].items() if 'initialization' in info]
 
-        elif gastype_values[i]=='H':
-            gas.append("p_ref_%s"%gaslist[i])
-            gas_values.append(dic['gas'][gaslist[i]]['params']['p_ref']['initialization'])
-       
+    else:
+        for i in range(len(gaslist)):
+            gas.append(gaslist[i])
+            gas_values.append(dic['gas'][gaslist[i]]['params']['log_abund']['initialization'])
+            if  gastype_values[i]=='N':
+                gas.append("p_ref_%s"%gaslist[i])
+                gas.append("alpha_%s"%gaslist[i])
+                gas_values.append(dic['gas'][gaslist[i]]['params']['p_ref']['initialization'])
+                gas_values.append(dic['gas'][gaslist[i]]['params']['alpha']['initialization'])    
 
+            elif gastype_values[i]=='H':
+                gas.append("p_ref_%s"%gaslist[i])
+                gas_values.append(dic['gas'][gaslist[i]]['params']['p_ref']['initialization'])
+        
             
 
     refinement_params = list(dic['refinement_params']['params'].keys())
@@ -1568,7 +1624,7 @@ def MC_P0_gen(updated_dic,model_config_instance,args_instance):
         params_instance = params_master(*all_params_values)
         T_1_index=params_instance._fields.index('T_1')
         T_13_index=params_instance._fields.index('T_13')
-        BTprof = np.loadtxt("BTtemp800_45_13.dat")
+        BTprof = np.loadtxt("data/BTtemp800_45_13.dat")
 
         for i in range(0, 13):  # 13 layer points ====> Total: 13 + 13 (gases+) +no cloud = 26
             p0[:,T_1_index+i] = (BTprof[i] - 200.) + (150. * np.random.randn(nwalkers).reshape(nwalkers))
@@ -1716,7 +1772,9 @@ def get_opacities(gaslist,w1,w2,press,xpath='../Linelists',xlist='gaslistR10K.da
 
     gasnames = np.asfortranarray(gasnames,dtype='c')
 
-    return inlinetemps,inwavenum,linelist,gasnames,gasmass,nwave
+    return linelist
+
+    # return inlinetemps,inwavenum,linelist,gasnames,gasmass,nwave
     
     
     
@@ -1975,43 +2033,49 @@ def shared_memory_array(rank, comm, shape,datatype='d'):
     return array, win
 
 
-# def get_gasdetails(gaslist,w1,w2,xpath='../Linelists',xlist='gaslistR10K.dat'):
-#     # Now we'll get the opacity files into an array
-#     ngas = len(gaslist)
+def get_gasdetails(gaslist,w1,w2,xpath='../Linelists',xlist='gaslistR10K.dat'):
+    # Now we'll get the opacity files into an array
 
-#     totgas = 0
-#     gasdata = []
-#     with open(xlist) as fa:
-#         for line_aa in fa.readlines():
-#             if len(line_aa) == 0:
-#                 break
-#             totgas = totgas +1 
-#             line_aa = line_aa.strip()
-#             gasdata.append(line_aa.split())
+    ngas = len(gaslist)
+    totgas = 0
+    gasdata = []
+    with open(xlist) as fa:
+        for line_aa in fa.readlines():
+            if len(line_aa) == 0:
+                break
+            totgas = totgas +1 
+            line_aa = line_aa.strip()
+            gasdata.append(line_aa.split())
 
-    
-#     list1 = []
-#     for i in range(0,ngas):
-#         for j in range(0,totgas):
-#             if (gasdata[j][1].lower() == gaslist[i].lower()):
-#                 list1.append(gasdata[j])
+    list1 = []
+    for i in range(0,ngas):
+        for j in range(0,totgas):
+            if (gasdata[j][1].lower() == gaslist[i].lower()):
+                list1.append(gasdata[j])
 
-#     gasnum = np.asfortranarray(np.array([i[0] for i in list1[0:ngas]],dtype='i'))
-    
-#     lists = [xpath+i[3] for i in list1[0:ngas]]
 
+    lists = [xpath+i[3] for i in list1[0:ngas]]
+    gasmass = np.asfortranarray(np.array([i[2] for i in list1[0:ngas]],dtype='float32'))
+
+
+    # convert gaslist into fortran array of ascii strings for fortran code 
+    gasnames = np.empty((len(gaslist), 10), dtype='c')
+    for i in range(0,len(gaslist)):
+        gasnames[i,0:len(gaslist[i])] = gaslist[i]
+
+    gasnames = np.asfortranarray(gasnames,dtype='c')
+  
+
+    # get the basic framework from water list
+    rawwavenum, inpress, inlinetemps, inlinelist = pickle.load(open(lists[0], "rb"))
+
+    wn1 = 10000. / w2
+    wn2 = 10000. / w1
+    inwavenum = np.asfortranarray(rawwavenum[np.where(np.logical_not(np.logical_or(rawwavenum[:] > wn2, rawwavenum[:] < wn1)))],dtype='float64')
  
-#     # get the basic framework from water list
-#     rawwavenum, inpress, inlinetemps, inlinelist = pickle.load(open(lists[0], "rb"))
+    nwave = inwavenum.size
 
-#     wn1 = 10000. / w2
-#     wn2 = 10000. / w1
-#     inwavenum = np.asfortranarray(rawwavenum[np.where(np.logical_not(np.logical_or(rawwavenum[:] > wn2, rawwavenum[:] < wn1)))],dtype='float64')
- 
-#     nwave = inwavenum.size
-
-#     return inlinetemps,inwavenum,gasnum,nwave
-
+    return inlinetemps,inwavenum,gasnames,gasmass,nwave
 
 
 class ArgsGen:
@@ -2088,13 +2152,14 @@ class ArgsGen:
         Generate the required model arguments.
     """
 
-    def __init__(self, re_params, model, instrument, obspec):
+    def __init__(self, re_params, model, instrument, obspec,Mass_priorange=[1.0,80.0],R_priorange=[0.5,2.0]):
         self.re_params = re_params
         self.model = model
         self.instrument = instrument
         self.obspec = obspec
-        #self.fwhm = self.instrument.fwhm
-        #self.logf = self.instrument.logf
+        self.Mass_priorange= Mass_priorange
+        self.R_priorange= R_priorange
+
         # Generate all necessary model arguments on initialization
         self.generate()
 
@@ -2107,7 +2172,7 @@ class ArgsGen:
         self.coarsePress = pow(10, logcoarsePress)
         self.press = pow(10, logfinePress)
         
-        # Retrieve model parameters
+        # model parameters
         self.dist = self.model.dist
         self.dist_err = self.model.dist_err
         self.use_disort = self.model.use_disort
@@ -2117,16 +2182,22 @@ class ArgsGen:
         self.do_fudge = self.model.do_fudge
         self.pfile = self.model.pfile
         self.do_bff = self.model.do_bff
+        self.do_scales= self.model.do_scales
+        self.do_shift= self.model.do_shift
         self.chemeq = self.re_params.chemeq
-        
-        # Process gas list
-        self.gaslist = list(self.re_params.dictionary['gas'].keys())
-        gaslist_lower = [gas.lower() for gas in self.gaslist]
-        
-        if gaslist_lower[-1] == 'k_na':
-            self.gaslist = list(self.gaslist[:-1]) + ['k', 'na']
-        elif gaslist_lower[-1] == 'k_na_cs':
-            self.gaslist = list(self.gaslist[:-1]) + ['k', 'na', 'cs']
+   
+        if self.chemeq==0:
+            # Process gas list
+            self.gaslist = list(self.re_params.dictionary['gas'].keys())
+            gaslist_lower = [gas.lower() for gas in self.gaslist]
+            
+            if gaslist_lower[-1] == 'k_na':
+                self.gaslist = list(self.gaslist[:-1]) + ['k', 'na']
+            elif gaslist_lower[-1] == 'k_na_cs':
+                self.gaslist = list(self.gaslist[:-1]) + ['k', 'na', 'cs']
+        else:
+            self.gaslist = self.re_params.gaslist
+
         
         # Retrieve instrument parameters
         self.fwhm = self.instrument.fwhm
@@ -2181,8 +2252,15 @@ class ArgsGen:
             self.prof = tfit(np.log10(self.coarsePress))
         
         # Get opacities, CIA data
-        self.inlinetemps, self.inwavenum, self.linelist,self.gasnames,self.gasmass, self.nwave = get_opacities(
-            self.gaslist, self.w1, self.w2, self.press, self.xpath, self.xlist, self.malk)
+        # self.inlinetemps, self.inwavenum, self.linelist,self.gasnames,self.gasmass, self.nwave = get_opacities(
+        #     self.gaslist, self.w1, self.w2, self.press, self.xpath, self.xlist, self.malk)
+
+        # self.tmpcia, self.ciatemps = ciamod.read_cia("data/CIA_DS_aug_2015.dat", self.inwavenum)
+        # self.cia = np.asfortranarray(np.empty((4, self.ciatemps.size, self.nwave)), dtype='float32')
+        # self.cia[:, :, :] = self.tmpcia[:, :, :self.nwave]
+        # self.ciatemps = np.asfortranarray(self.ciatemps, dtype='float32')
+
+        self.inlinetemps,self.inwavenum,self.gasnames,self.gasmass,self.nwave=get_gasdetails(self.gaslist, self.w1, self.w2,self.xpath, self.xlist)
 
         self.tmpcia, self.ciatemps = ciamod.read_cia("data/CIA_DS_aug_2015.dat", self.inwavenum)
         self.cia = np.asfortranarray(np.empty((4, self.ciatemps.size, self.nwave)), dtype='float32')
@@ -2192,7 +2270,6 @@ class ArgsGen:
         # BFF and Chemical grids
         self.bff_raw, self.ceTgrid, self.metscale, self.coscale, self.gases_myP = sort_bff_and_CE(
             self.chemeq, "data/chem_eq_tables_P3K.pic", self.press, self.gaslist)
-
         
     def __str__(self):
 

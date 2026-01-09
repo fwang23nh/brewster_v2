@@ -5,6 +5,13 @@ import emcee
 import os
 from rotBroadInt import rot_int_cmj as rotBroad
 from collections import namedtuple
+import numpy as np
+import scipy as sp
+from bensconv import prism_non_uniform
+from bensconv import conv_uniform_R
+from bensconv import conv_uniform_FWHM
+from bensconv import conv_non_uniform_R
+    
 
 
 
@@ -90,14 +97,14 @@ def get_nchain(runname, start_iter, end_iter, results_path='./'):
 
 
 
-def proc_spec(shiftspec,theta,fwhm,chemeq,gaslist,obspec,instrument,all_params):
-    import numpy as np
-    import scipy as sp
-    from bensconv import prism_non_uniform
-    from bensconv import conv_uniform_R
-    from bensconv import conv_uniform_FWHM
-    from bensconv import conv_non_uniform_R
-    
+def proc_spec(runargs,shiftspec,theta,all_params):
+
+    fwhm=runargs.fwhm
+    chemeq=runargs.chemeq
+    gaslist=runargs.gaslist
+    obspec=runargs.obspec
+
+
     params_master = namedtuple("params", all_params)
     params_instance = params_master(*theta)
 
@@ -128,15 +135,20 @@ def proc_spec(shiftspec,theta,fwhm,chemeq,gaslist,obspec,instrument,all_params):
         
     modspec = np.array([shiftspec[0,::-1],shiftspec[1,::-1]])
 
+
+    if hasattr(params_instance, "vrad"):
+        rotspec = rotBroad(modspec[0],modspec[1],params_instance.vsini)
+        modspec[1,:] = rotspec
+
     # If we've set a value for FWHM that we're using... 
     
     if (fwhm == 555.0): #this convolves with non uni R using the R file
         spec = np.zeros_like(obspec[0,:])
         #get the resolving power, the flag, and its maximum value, the scale, and its maximum value
-        R = instrument.R
+        R = runargs.R
         #log_f_param = instrument.logf_flag
         #log_f_param_max=int(np.max(log_f_param))
-        scales_param = instrument.scales
+        scales_param = runargs.scales
         scales_param_max = int(np.max(scales_param))
         
         
