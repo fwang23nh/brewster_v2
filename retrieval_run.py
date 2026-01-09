@@ -69,10 +69,11 @@ def brewster_reterieval_run(re_params,model_config_instance,io_config_instance):
     # Now we'll get the opacity files into an array
         settings.linelist[:,:,:,:] = utils.get_opacities(args_instance.gaslist,args_instance.w1,args_instance.w2,args_instance.press,args_instance.xpath,args_instance.xlist,args_instance.malk)
 
+    #send empty clouddata (clear atmosphere) to settings for model_spec calculation
+    settings.cloudata=args_instance.cloudata
 
     # set up shared memory array for clouddata
     if hasattr(args_instance, "cloudata") and args_instance.cloudata.size > 0:
-        cloudata = args_instance.cloudata
         ncloud = len(args_instance.cloudname_set)
         nmiewave= args_instance.miewave.size
         nmierad= args_instance.mierad.size
@@ -96,7 +97,8 @@ def brewster_reterieval_run(re_params,model_config_instance,io_config_instance):
             pickle.dump(args_instance,open(io_config_instance.outdir+io_config_instance.runname+"_runargs.pic","wb"))
             pickle.dump((settings.linelist,settings.cia),open(io_config_instance.outdir+io_config_instance.runname+"_opacities.pic","wb"))
 
-            if hasattr(args_instance, "cloudata") and args_instance.cloudata.size > 0:
+            # if hasattr(args_instance, "cloudata") and args_instance.cloudata.size > 0:
+            if hasattr(settings, "cloudata") and settings.cloudata.size > 0:
                 pickle.dump((settings.cloudata),open(io_config_instance.outdir+io_config_instance.runname+"_cloudata.pic","wb"))
 
             with open(io_config_instance.outdir+io_config_instance.runname+'_configs.pkl', 'wb') as file:

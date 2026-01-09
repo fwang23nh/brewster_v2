@@ -31,6 +31,7 @@ import settings
 import gas_nonuniform
 import Priors
 from rotBroadInt import rot_int_cmj as rotBroad
+from specops import proc_spec
 
 
 __author__ = "Fei Wang"
@@ -41,8 +42,6 @@ __version__ = "0.2"
 __maintainer__ = ""
 __email__ = ""
 __status__ = "Development"
-
-
 
 
 def lnprob(theta,re_params):
@@ -77,11 +76,13 @@ def lnlike(theta,re_params):
     obspec=args_instance.obspec
     proftype=args_instance.proftype
     do_fudge=args_instance.do_fudge
+    do_shift=args_instance.do_shift
+    do_scales=args_instance.do_scales
 
     # get the spectrum
     # for MCMC runs we don't want diagnostics
     gnostics = 0
-    shiftspec, photspec,tauspec,cfunc = modelspec(theta,re_params,args_instance,gnostics)
+    trimspec, photspec,tauspec,cfunc = modelspec(theta,re_params,args_instance,gnostics)
 
 
     # Get the scaling factors for the spectra. What is the FWHM? Negative number: preset combination of instruments
@@ -154,12 +155,11 @@ def lnlike(theta,re_params):
             # This is a place holder value so the code doesn't break
             logf = np.log10(0.1*(max(obspec[2,10::3]))**2)
 
-    modspec = np.array([shiftspec[0,::-1],shiftspec[1,::-1]])
-
-    if hasattr(params_instance, "vrad"):
-        rotspec = rotBroad(modspec[0],modspec[1],params_instance.vsini)
-        modspec[1,:] = rotspec
-
+    #modspec = np.array([shiftspec[0,::-1],shiftspec[1,::-1]])
+    
+    # if hasattr(params_instance, "vrad"):
+    #     rotspec = rotBroad(trimspec[0],trimspec[1],params_instance.vsini)
+    #     trimspec[1,:] = rotspec
 
     # If we've set a value for FWHM that we're using...
     if (fwhm > 0.00 and fwhm < 1.00):
@@ -280,34 +280,28 @@ def lnlike(theta,re_params):
         #the columns of the R file as follows: R, wl, tol_flag,scale_flag
 
         log_f_param = args_instance.logf_flag
-        log_f_param_max = int(np.max(log_f_param))
        
         scales_param = args_instance.scales
-        scales_param_max = int(np.max(scales_param))
        
         lnLik = 0.0
+        
+        outspec=proc_spec(inputspec=trimspec, theta=params_instance, re_params=re_params, args_instance=args_instance, do_scales=do_scales, do_shift=do_shift)
        
         region_flags = np.unique(np.vstack((log_f_param, scales_param)).T, axis=0)#get unique values as a 2 column array [logf,scales]
+       
         #for i,j in region_flags:
         for logf_flag_val, scale_flag_val in region_flags: #loop thru them, so we get each flags
             or_indices = np.where( (log_f_param == logf_flag_val) & (scales_param == scale_flag_val) ) #getting wl regions where both conditions are met
 
-            obs_wl_i = obspec[0, :]
-            spec_i = conv_non_uniform_R(modspec[1, :], modspec[0, :], args_instance.R[or_indices], obs_wl_i[or_indices])
-
-        # IF THERE ARE SCALE PARAMETERS
-            if scale_flag_val > 0:
-                scale_name = f"scale{int(scale_flag_val)}"
-                if scale_name in params_instance._fields:
-                    scale_value = getattr(params_instance, scale_name)
-                    spec_i = scale_value * spec_i  
 
             if (do_fudge == 1) and (logf_flag_val > 0):
                 s_i = obspec[2, or_indices]**2 + 10.**logf[int(logf_flag_val)-1]
             else:
                 s_i = obspec[2, or_indices]**2
+                
+            #spec_i=outspec[or_indices]
 
-            lnLik_i = -0.5 * np.sum(((obspec[1, or_indices] - spec_i[:])**2) / s_i + np.log(2.*np.pi*s_i))
+            lnLik_i = -0.5 * np.sum(((obspec[1, or_indices] - outspec[or_indices])**2) / s_i + np.log(2.*np.pi*s_i))
             lnLik += lnLik_i
        
        
@@ -876,7 +870,7 @@ def modelspec(theta,re_params,args_instance,gnostics):
 
 
     #now we can call the forward model
-    outspec,tmpclphotspec,tmpophotspec,cf = forwardmodel.marv(temp,logg,R2D2,args_instance.gasnames,args_instance.gasmass,logVMR,pcover,cloudmap,args_instance.cloud_opaname,cloudsize,args_instance.cloudata,args_instance.miewave,args_instance.mierad,cloudrad,cloudsig,cloudprof,args_instance.inlinetemps,press,args_instance.inwavenum,settings.linelist,settings.cia,args_instance.ciatemps,args_instance.use_disort,clphot,ophot,make_cf,args_instance.do_bff,bff)
+    outspec,tmpclphotspec,tmpophotspec,cf = forwardmodel.marv(temp,logg,R2D2,args_instance.gasnames,args_instance.gasmass,logVMR,pcover,cloudmap,args_instance.cloud_opaname,cloudsize,settings.cloudata,args_instance.miewave,args_instance.mierad,cloudrad,cloudsig,cloudprof,args_instance.inlinetemps,press,args_instance.inwavenum,settings.linelist,settings.cia,args_instance.ciatemps,args_instance.use_disort,clphot,ophot,make_cf,args_instance.do_bff,bff)
 
     # Trim to length where it is defined.
     nwave = args_instance.inwavenum.size
@@ -886,19 +880,22 @@ def modelspec(theta,re_params,args_instance,gnostics):
     other_phot_press = tmpophotspec[0:npatches,:nwave].reshape(npatches,nwave)
     cfunc = np.zeros([npatches,nwave,nlayers],dtype='d')
     cfunc = cf[:npatches,:nwave,:nlayers].reshape(npatches,nwave,nlayers)
-
-    # now shift wavelen by delta_lambda
-    shiftspec = np.empty_like(trimspec)
-
-    if hasattr(params_instance, "vrad"):
-        vrad = params_instance.vrad
-        dlam = trimspec[0,:] * vrad/3e5
-    else:
-        dlam = params_instance.dlambda
-
-    shiftspec[0,:] =  trimspec[0,:] + dlam
-    shiftspec[1,:] =  trimspec[1,:]
-
+    
+    trimspec[0,:] =  trimspec[0,::-1]
+    trimspec[1,:] =  trimspec[1,::-1]
+    
+#     # now shift wavelen by delta_lambda
+#     shiftspec = np.empty_like(trimspec)
+# 
+#     if hasattr(params_instance, "vrad"):
+#         vrad = params_instance.vrad
+#         dlam = trimspec[0,:] * vrad/3e5
+#     else:
+#         dlam = params_instance.dlambda
+# 
+#     shiftspec[0,:] =  trimspec[0,:] + dlam
+#     shiftspec[1,:] =  trimspec[1,:]
+    
     # print("VMR")
     # print(logVMR)
     # print("----------------")
@@ -908,7 +905,7 @@ def modelspec(theta,re_params,args_instance,gnostics):
     # print("cloudrad,cloudsig,cloudprof")
     # print(cloudrad,cloudsig,cloudprof)
 
-    return shiftspec, cloud_phot_press,other_phot_press,cfunc
+    return trimspec, cloud_phot_press,other_phot_press,cfunc
 
 
 

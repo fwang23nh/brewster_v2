@@ -27,6 +27,7 @@ import utils
 import settings
 import gas_nonuniform
 import test_module
+from specops import proc_spec
 
 
 
@@ -39,6 +40,7 @@ def NoCloud_Tdwarf(xpath,xlist):
      ndata=1
      wavpoints=None
      R_file=None
+     obspec = []
 
      ##gas
      chemeq=0
@@ -61,7 +63,7 @@ def NoCloud_Tdwarf(xpath,xlist):
      do_fudge=0
      samplemode='mcmc'
 
-     instrument_instance = utils.Instrument(fwhm,wavelength_range,ndata,wavpoints,R_file)
+     instrument_instance = utils.Instrument(fwhm=fwhm, wavelength_range=wavelength_range, R_file=R_file,obspec=obspec)
      re_params = utils.Retrieval_params(samplemode,chemeq,gaslist,gastype_list,fwhm,do_fudge,ptype,do_clouds,npatches,cloud_name,cloud_type,cloudpatch_index,particle_dis,instrument_instance)
      model_config_instance = utils.ModelConfig(samplemode,do_fudge,cloudpath=cloudpath)
      io_config_instance = utils.IOConfig()
@@ -76,25 +78,25 @@ def NoCloud_Tdwarf(xpath,xlist):
      model_config_instance.update_dictionary()
 
 
-     obspec = []#np.asfortranarray(np.loadtxt("LSR1835_data_realcalib_new_trimmed.dat",dtype='d',unpack='true')) # obs is not actually using
+     # obspec = []#np.asfortranarray(np.loadtxt("LSR1835_data_realcalib_new_trimmed.dat",dtype='d',unpack='true')) # obs is not actually using
 
      args_instance = utils.ArgsGen(re_params,model_config_instance,instrument_instance,obspec)
      settings.init(args_instance)
      settings.cia = args_instance.cia
      settings.linelist= utils.get_opacities(args_instance.gaslist,args_instance.w1,args_instance.w2,args_instance.press,args_instance.xpath,args_instance.xlist,args_instance.malk)
+     settings.cloudata = args_instance.cloudata
      args_instance=settings.runargs
 
      all_params,all_params_values =utils.get_all_parametres(re_params.dictionary) 
      params_master = namedtuple('params',all_params)
-     print(all_params)
-     print(model_config_instance.do_fudge)
      theta=[-3.27,-3.36,-7.27,-8.28,-4.73,-8.71,-5.36]+[4.89]+[1.50901046e-19]+[0.00258329]
      params_instance = params_master(*theta)
 
      gnostics=0
-     shiftspec, cloud_phot_press,other_phot_press,cfunc=test_module.modelspec(params_instance,re_params,args_instance,gnostics)
+     trimspec, cloud_phot_press,other_phot_press,cfunc=test_module.modelspec(params_instance,re_params,args_instance,gnostics)
 
-     modspec = np.array([shiftspec[0,::-1],shiftspec[1,::-1]])
+
+     modspec=proc_spec(inputspec=trimspec, theta=params_instance, re_params=re_params, args_instance=args_instance, do_scales=True, do_shift=True)
      benchspec = np.loadtxt('data/test_data/No_cloud_800K_model_benchmark_SPEC.dat',skiprows=3,unpack=True)
      outspec = prism_non_uniform(benchspec,modspec,3.3)
 
@@ -123,6 +125,7 @@ def NoCloud_Tdwarf(xpath,xlist):
 # def MieClouds_Ldwarf(xpath,xlist):
 #      fwhm=555
 #      R_file = 'examples/example_data/code_test_R_file.txt'
+#      obspec = np.asfortranarray(np.loadtxt("LSR1835_data_realcalib_new_trimmed.dat",dtype='d',unpack='true'))
 #      wavelength_range=[1,15]
 #      ndata=1
 
@@ -151,7 +154,7 @@ def NoCloud_Tdwarf(xpath,xlist):
 
 #      do_fudge = 1
 #      samplemode='mcmc'
-#      instrument_instance = utils.Instrument(fwhm,wavelength_range,ndata,R_file)
+#      instrument_instance = utils.Instrument(fwhm=fwhm, wavelength_range=wavelength_range, R_file=R_file,obspec=obspec)
 #      rfile = np.loadtxt(R_file)
 #      instrument_instance.scales = rfile[:, 3]
 #      instrument_instance.logf_flag = rfile[:,2]
@@ -170,7 +173,7 @@ def NoCloud_Tdwarf(xpath,xlist):
 #      model_config_instance.dist=11.35
 #      model_config_instance.update_dictionary()
 
-#      # obspec = np.asfortranarray(np.loadtxt("LSR1835_data_realcalib_new_trimmed.dat",dtype='d',unpack='true'))
+
 
 #      obspec= np.loadtxt('data/test_data/Mie_cloud_1800K_model_benchmark_SPEC.dat',skiprows=3,unpack=True)
 #      args_instance = utils.ArgsGen(re_params,model_config_instance,instrument_instance,obspec)

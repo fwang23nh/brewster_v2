@@ -155,7 +155,7 @@ class ModelConfig:
         Update the model configuration dictionary with the current attributes.
     """
 
-    def __init__(self, samplemode, do_fudge, use_disort=0, malk=0, mch4=0, do_bff=1, fresh=0,cloudpath=None,xpath="../Linelists/", xlist="data/gaslistRox.dat", dist=None, pfile="data/LSR1835_eqpt.dat"):
+    def __init__(self, samplemode, do_fudge, use_disort=0, malk=0, mch4=0, do_bff=1, fresh=0,cloudpath=None,xpath="../Linelists/", xlist="data/gaslistRox.dat", dist=None, pfile="data/LSR1835_eqpt.dat",do_scales=True,do_shift=True):
         self.samplemode = samplemode
         self.use_disort = use_disort
         self.do_fudge = do_fudge
@@ -166,6 +166,8 @@ class ModelConfig:
         self.xpath = xpath
         self.xlist = xlist
         self.cloudpath = cloudpath
+        self.do_scales=do_scales
+        self.do_shift=do_shift
         
         self.dist = dist
         self.dist_err = 0
@@ -222,7 +224,10 @@ class ModelConfig:
                 'xpath': self.xpath,
                 'xlist': self.xlist,
                 'dist': self.dist,
-                'pfile': self.pfile
+                'pfile': self.pfile,
+                'cloudpath':self.cloudpath,
+                'do_scales':self.do_scales,
+                'do_shift':self.do_shift
             }
         }
 
@@ -290,6 +295,8 @@ class ModelConfig:
             f"- dist : {self.dist}\n"
             f"- pfile : {self.pfile}\n"
             f"- cloudpath : {self.cloudpath}\n"
+            f"- do_scales : {self.do_scales}\n"
+            f"- do_shift : {self.do_shift}\n"
             f"\n"
         )
         if self.samplemode.lower() == 'mcmc':
@@ -1117,7 +1124,7 @@ class Retrieval_params:
             elif self.vrad==True:
                 dictionary['params']['vrad']={
                         'initialization': None,
-                        'distribution': ['normal', 0, 0.001],
+                        'distribution': ['normal', 0, 2],
                         'range':[-250,250],
                         'prior': None
                     }
@@ -1125,7 +1132,7 @@ class Retrieval_params:
             if self.vsini==True:
                 dictionary['params']['vsini']={
                         'initialization': None,
-                        'distribution': ['normal', 0, 0.001],
+                        'distribution': ['uniform', 0, 100],
                         'range':[0,100],
                         'prior': None
                     }
@@ -1167,7 +1174,7 @@ class Retrieval_params:
             elif self.vrad==True:
                 dictionary['params']['vrad']={
                         'initialization': None,
-                        'distribution': ['normal', 0, 0.001],
+                        'distribution': ['normal', 0, 2],
                         'range':[-250,250],
                         'prior': None
                     }
@@ -1175,7 +1182,7 @@ class Retrieval_params:
             if self.vsini==True:
                 dictionary['params']['vsini']={
                         'initialization': None,
-                        'distribution': ['normal', 0, 0.001],
+                        'distribution': ['uniform', 0, 100],
                         'range':[0,100],
                         'prior': None
                     }
@@ -1276,12 +1283,12 @@ class Retrieval_params:
              gas_dic= {'params':
                        {'mh':
                            {'initialization':None,
-                            'distribution':['normal',-1,3],
+                            'distribution':['normal',0,0.1],
                             'range':[-1,2],
                             'prior':None},
                        'co':
                            {'initialization':None,
-                            'distribution':['normal',0.25,2.25],
+                            'distribution':['uniform',0.25,2.5],
                             'range':[0.25,2.5],
                             'prior':None}
                       }}
@@ -1448,20 +1455,24 @@ def get_all_parametres(dic):
     gas=[]
     gas_values=[]
     
-    for i in range(len(gaslist)):
-        gas.append(gaslist[i])
-        gas_values.append(dic['gas'][gaslist[i]]['params']['log_abund']['initialization'])
-        if  gastype_values[i]=='N':
-            gas.append("p_ref_%s"%gaslist[i])
-            gas.append("alpha_%s"%gaslist[i])
-            gas_values.append(dic['gas'][gaslist[i]]['params']['p_ref']['initialization'])
-            gas_values.append(dic['gas'][gaslist[i]]['params']['alpha']['initialization'])    
+    if gaslist[0]=='params':
+        gas+=list(dic['gas']['params'].keys())
+        gas_values+=[info['initialization'] for key, info in dic['gas']['params'].items() if 'initialization' in info]
 
-        elif gastype_values[i]=='H':
-            gas.append("p_ref_%s"%gaslist[i])
-            gas_values.append(dic['gas'][gaslist[i]]['params']['p_ref']['initialization'])
-       
+    else:
+        for i in range(len(gaslist)):
+            gas.append(gaslist[i])
+            gas_values.append(dic['gas'][gaslist[i]]['params']['log_abund']['initialization'])
+            if  gastype_values[i]=='N':
+                gas.append("p_ref_%s"%gaslist[i])
+                gas.append("alpha_%s"%gaslist[i])
+                gas_values.append(dic['gas'][gaslist[i]]['params']['p_ref']['initialization'])
+                gas_values.append(dic['gas'][gaslist[i]]['params']['alpha']['initialization'])    
 
+            elif gastype_values[i]=='H':
+                gas.append("p_ref_%s"%gaslist[i])
+                gas_values.append(dic['gas'][gaslist[i]]['params']['p_ref']['initialization'])
+        
             
 
     refinement_params = list(dic['refinement_params']['params'].keys())
@@ -2141,13 +2152,14 @@ class ArgsGen:
         Generate the required model arguments.
     """
 
-    def __init__(self, re_params, model, instrument, obspec):
+    def __init__(self, re_params, model, instrument, obspec,Mass_priorange=[1.0,80.0],R_priorange=[0.5,2.0]):
         self.re_params = re_params
         self.model = model
         self.instrument = instrument
         self.obspec = obspec
-        #self.fwhm = self.instrument.fwhm
-        #self.logf = self.instrument.logf
+        self.Mass_priorange= Mass_priorange
+        self.R_priorange= R_priorange
+
         # Generate all necessary model arguments on initialization
         self.generate()
 
@@ -2160,7 +2172,7 @@ class ArgsGen:
         self.coarsePress = pow(10, logcoarsePress)
         self.press = pow(10, logfinePress)
         
-        # Retrieve model parameters
+        # model parameters
         self.dist = self.model.dist
         self.dist_err = self.model.dist_err
         self.use_disort = self.model.use_disort
@@ -2170,16 +2182,22 @@ class ArgsGen:
         self.do_fudge = self.model.do_fudge
         self.pfile = self.model.pfile
         self.do_bff = self.model.do_bff
+        self.do_scales= self.model.do_scales
+        self.do_shift= self.model.do_shift
         self.chemeq = self.re_params.chemeq
-        
-        # Process gas list
-        self.gaslist = list(self.re_params.dictionary['gas'].keys())
-        gaslist_lower = [gas.lower() for gas in self.gaslist]
-        
-        if gaslist_lower[-1] == 'k_na':
-            self.gaslist = list(self.gaslist[:-1]) + ['k', 'na']
-        elif gaslist_lower[-1] == 'k_na_cs':
-            self.gaslist = list(self.gaslist[:-1]) + ['k', 'na', 'cs']
+   
+        if self.chemeq==0:
+            # Process gas list
+            self.gaslist = list(self.re_params.dictionary['gas'].keys())
+            gaslist_lower = [gas.lower() for gas in self.gaslist]
+            
+            if gaslist_lower[-1] == 'k_na':
+                self.gaslist = list(self.gaslist[:-1]) + ['k', 'na']
+            elif gaslist_lower[-1] == 'k_na_cs':
+                self.gaslist = list(self.gaslist[:-1]) + ['k', 'na', 'cs']
+        else:
+            self.gaslist = self.re_params.gaslist
+
         
         # Retrieve instrument parameters
         self.fwhm = self.instrument.fwhm
