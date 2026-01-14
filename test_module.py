@@ -47,7 +47,7 @@ __status__ = "Development"
 def lnprob(theta,re_params):
 
     args_instance=settings.runargs
-    Priors_instance =Priors.Priors(theta,re_params,args_instance.instrument)
+    Priors_instance =Priors.Priors(theta,re_params,args_instance)
     # now check against the priors, if not beyond them, run the likelihood
     lp = Priors_instance.priors
     if not np.isfinite(lp):
@@ -72,7 +72,6 @@ def lnlike(theta,re_params):
     args_instance=settings.runargs
 
     press=args_instance.press
-    fwhm=args_instance.fwhm
     obspec=args_instance.obspec
     proftype=args_instance.proftype
     do_fudge=args_instance.do_fudge
@@ -84,467 +83,38 @@ def lnlike(theta,re_params):
     gnostics = 0
     trimspec, photspec,tauspec,cfunc = modelspec(theta,re_params,args_instance,gnostics)
 
+    lnLik = 0.0
+    wave,outspec=proc_spec(inputspec=trimspec, theta=params_instance, re_params=re_params, args_instance=args_instance, do_scales=do_scales, do_shift=do_shift)
 
-    # Get the scaling factors for the spectra. What is the FWHM? Negative number: preset combination of instruments
-    if (fwhm < 0.0):
-        if (fwhm == -1 or fwhm == -3 or fwhm == -4):
-            scale1 =  params_instance.scale1 
-            scale2 =  params_instance.scale2
-            if (do_fudge == 1):
-                logf = [params_instance.tolerance_parameter_1,params_instance.tolerance_parameter_2,params_instance.tolerance_parameter_3] #theta[ng+5:ng+8]
-            else:
-                # This is a place holder value so the code doesn't break
-                logf = np.log10(0.1*(max(obspec[2,10::3]))**2)
-        elif (fwhm == -2):
-            scale1 = params_instance.r2d2
-            if (do_fudge == 1):
-                logf = [params_instance.tolerance_parameter_1,params_instance.tolerance_parameter_2]
-            else:
-                # This is a place holder value so the code doesn't break
-                logf = np.log10(0.1*(max(obspec[2,10::3]))**2)
-        elif (fwhm == -5):
-            if (do_fudge == 1):
-                logf = params_instance.tolerance_parameter_1
-            else:
-                # This is a place holder value so the code doesn't break
-                logf = np.log10(0.1*(max(obspec[2,10::3]))**2)
-        elif (fwhm == -6):
-            if (do_fudge == 1):
-                logf = params_instance.tolerance_parameter_1
-            else:
-                # This is a place holder value so the code doesn't break
-                logf = np.log10(0.1*(max(obspec[2,10::3]))**2)
-    elif (fwhm == 888):
-        if (do_fudge ==1):
-            logf = [params_instance.tolerance_parameter_1,params_instance.tolerance_parameter_2]
-        else:
-            # This is a place holder value so the code doesn't break
-            logf = np.log10(0.1*(max(obspec[2,10::3]))**2)
-    elif (fwhm == 777):
-        if (do_fudge ==1):
-            logf = params_instance.frac_param
-        else:
-            # This is a place holder value so the code doesn't break
-            logf = np.log10(0.1*(max(obspec[2,10::3]))**2)
-    elif (fwhm == 555):
-        scales_param = args_instance.scales
-        nonzero_scales = sorted(set(scales_param) - {0}) 
-
-        scales = {}
-        for i in nonzero_scales:
-            pname = f"scale{i}"
-            if hasattr(params_instance, pname): #it just checks if it exists, return True boolean
-                scales[pname] = getattr(params_instance, pname) #returns actual value
+    if args_instance.fwhm is not None:
         if (do_fudge == 1):
-            if np.max(args_instance.logf_flag) == 1.0:
-                logf = [params_instance.tolerance_parameter_1]
-            elif np.max(args_instance.logf_flag) == 2.0:
-                logf = [params_instance.tolerance_parameter_1,params_instance.tolerance_parameter_2]
-            elif np.max(args_instance.logf_flag) == 3.0:
-                logf = [params_instance.tolerance_parameter_1, params_instance.tolerance_parameter_2, params_instance.tolerance_parameter_3]
-            elif np.max(args_instance.logf_flag) == 4.0:
-                logf = [params_instance.tolerance_parameter_1,params_instance.tolerance_parameter_2,params_instance.tolerance_parameter_3,params_instance.tolerance_parameter_4]
+            s=obspec[2,::3]**2 + 10.**params_instance.tolerance_parameter_1
         else:
-            # This is a place holder value so the code doesn't break
-            logf = np.log10(0.1*(max(obspec[2,10::3]))**2)
-                
+            s= obspec[2,::3]**2
+
+        lnLik=-0.5*np.sum((((obspec[1,::3] - outspec[::3])**2) / s) + np.log(2.*np.pi*s))
+
     else:
-        if (do_fudge == 1):
-            logf = params_instance.tolerance_parameter_1
-        else:
-            # This is a place holder value so the code doesn't break
-            logf = np.log10(0.1*(max(obspec[2,10::3]))**2)
-
-    #modspec = np.array([shiftspec[0,::-1],shiftspec[1,::-1]])
-    
-    # if hasattr(params_instance, "vrad"):
-    #     rotspec = rotBroad(trimspec[0],trimspec[1],params_instance.vsini)
-    #     trimspec[1,:] = rotspec
-
-    # If we've set a value for FWHM that we're using...
-    if (fwhm > 0.00 and fwhm < 1.00):
-        # this is a uniform FWHM in microns
-        spec = conv_uniform_FWHM(obspec,modspec,fwhm)
-        if (do_fudge == 1):
-            s2=obspec[2,:]**2 + 10.**logf
-        else:
-            s2 = obspec[2,:]**2
-
-        lnLik=-0.5*np.sum((((obspec[1,:] - spec[:])**2) / s2) + np.log(2.*np.pi*s2))       
-    elif (fwhm > 10.00 and fwhm < 500):
-        # this is a uniform resolving power R.
-        Res = fwhm
-        spec = conv_uniform_R(obspec,modspec,Res)
-        if (do_fudge == 1):
-            s2=obspec[2,:]**2 + 10.**logf
-        else:
-            s2 = obspec[2,:]**2
-
-        lnLik=-0.5*np.sum((((obspec[1,:] - spec[:])**2) / s2) + np.log(2.*np.pi*s2))
-    elif (fwhm == 0.0):
-        # Use convolution for Spex
-        spec = prism_non_uniform(obspec,modspec,3.3)
-        if (do_fudge == 1):
-            s2=obspec[2,::3]**2 + 10.**logf
-        else:
-            s2 = obspec[2,::3]**2
-
-        lnLik=-0.5*np.sum((((obspec[1,::3] - spec[::3])**2) / s2) + np.log(2.*np.pi*s2))
-    elif (fwhm == 1.0):
-        # Use convolution for JWST-NIRSpec PRISM
-        spec = prism_non_uniform(obspec,modspec,2.2)
-        if (do_fudge == 1):
-            s2=obspec[2,::2]**2 + 10.**logf
-        else:
-            s2 = obspec[2,::2]**2
-
-        lnLik=-0.5*np.sum((((obspec[1,::2] - spec[::2])**2) / s2) + np.log(2.*np.pi*s2))
-    elif (fwhm == 2.0):
-        # combo of JWST-NIRSpec PRISM + G395H grism
-        # single scaling & single fudge factor
-        spec = np.zeros_like(obspec[0,:])
-        # first convolution for JWST-NIRSpec PRISM
-        or1  = np.where(obspec[0,:] < 2.9)
-        spec[or1] = prism_non_uniform(obspec[:,or1],modspec,2.2)
-        # now 1st grism bit
-        dL = 0.0015
-        or2  = np.where(np.logical_and(obspec[0,:] > 2.9,obspec[0,:] < 3.69))
-        spec[or2] =  conv_uniform_FWHM(obspec[:,or2],modspec,dL)
-        # a bit more prism
-        or3 = np.where(np.logical_and(obspec[0,:] > 3.69,obspec[0,:] < 3.785))
-        spec[or3] = prism_non_uniform(obspec[:,or3],modspec,2.2)
-        # 2nd bit of grism
-        or4 = np.where(np.logical_and(obspec[0,:] > 3.785,obspec[0,:] < 5.14))
-        spec[or4] =  conv_uniform_FWHM(obspec[:,or4],modspec,dL)
-        # the rest of prism
-        or5 = np.where(obspec[0,:] > 5.14)
-        spec[or5] = prism_non_uniform(obspec[:,or5],modspec,2.2)
-        if (do_fudge == 1):
-            s2=obspec[2,:]**2 + 10.**logf
-        else:
-            s2 = obspec[2,:]**2
-
-        lnLik=-0.5*np.sum((((obspec[1,:] - spec[:])**2) / s2) + np.log(2.*np.pi*s2))
-        
-    elif (fwhm == 888):
-        #Non-uniform R, NIRSpec + MIRI, two tolerance parameters
-        print(f"obspec shape: {obspec.shape}")
-        print(f"modspec shape: {modspec.shape}")
-        print(f"modspec[1] shape: {modspec[1].shape}") 
-        print(f"modspec[0] shape: {modspec[0].shape}")
-
-
-        or1 = np.where(obspec[0,:]<4.634)
-        #print('or1.shape', or1.shape)
-        or2 = np.where(obspec[0,:]>4.634)
-       # print('modspec[1, or2].shape: ',modspec[1, or2].shape
-        #print('or2.shape', or2.shape)
-        print('modspec[1,or2] shape: ',modspec[1, or2].shape)
-        print('obspec [0,or2] shape: ',obspec[0, or2].shape)
-        
-        spec1 = conv_non_uniform_R(modspec[1,or1], modspec[0,or1], args_instance.R, obspec[0,or1])
-        
-        spec2 = conv_non_uniform_R(modspec[1,or2], modspec[0,or2], args_instance.R, obspec[0,or2])
-
-
-        if (do_fudge == 1):
-            print(f"logf type: {type(logf)}, shape: {np.shape(logf)}")
-
-            s2 = obspec[2,or1]**2 + 10.**logf[0]
-            s3 = obspec[2,or2]**2 + 10.**logf[1]
-        else:
-            s2 = obspec[2,or1]**2
-            s3 = obspec[2,or2]**2 
-        
-        lnLik1=-0.5*np.sum((((obspec[1,or1] - spec1[:])**2) / s2) + np.log(2.*np.pi*s2)) 
-        lnLik2=-0.5*np.sum((((obspec[1,or2] - spec2[:])**2) / s3) + np.log(2.*np.pi*s3))
-        lnLik = lnLik1 + lnLik2
-        
-        
-        
-    elif(fwhm == 777): #STILL NEEDS TO BE TESTED
-        #Non_uniform R, tolerance parameter as a fraction of error,  so we are allowing the tolerance parameter to be different at each datapoint
-        
-        spec1 = conv_non_uniform_R(modspec[1,:], modspec[0,:], args_instance.R, obspec[0,:])
-        
-        if (do_fudge == 1):
-            s2 = obspec[2,:]**2 + (params_instance.frac_param*obspec[2,:])**2
-        else:
-            s2 = obspec[2,:]**2
-            
-        lnLik1=-0.5*np.sum((((obspec[1,:] - spec1[:])**2) / s2) + np.log(2.*np.pi*s2)) 
-        
-        
-    elif(fwhm == 555):
         #Non-uniform R, the user provides the R file with flags for the number and location of the tolerance and scale parameters
         #the columns of the R file as follows: R, wl, tol_flag,scale_flag
-
         log_f_param = args_instance.logf_flag
-       
         scales_param = args_instance.scales
-       
-        lnLik = 0.0
-        
-        outspec=proc_spec(inputspec=trimspec, theta=params_instance, re_params=re_params, args_instance=args_instance, do_scales=do_scales, do_shift=do_shift)
-       
         region_flags = np.unique(np.vstack((log_f_param, scales_param)).T, axis=0)#get unique values as a 2 column array [logf,scales]
-       
+        
         #for i,j in region_flags:
         for logf_flag_val, scale_flag_val in region_flags: #loop thru them, so we get each flags
             or_indices = np.where( (log_f_param == logf_flag_val) & (scales_param == scale_flag_val) ) #getting wl regions where both conditions are met
 
-
             if (do_fudge == 1) and (logf_flag_val > 0):
-                s_i = obspec[2, or_indices]**2 + 10.**logf[int(logf_flag_val)-1]
+                tol_param_name=f'tolerance_parameter_{int(logf_flag_val)}'
+                tol_param_index=params_instance._fields.index(tol_param_name)
+                s_i = obspec[2, or_indices]**2 + 10.**params_instance[tol_param_index]
             else:
                 s_i = obspec[2, or_indices]**2
-                
-            #spec_i=outspec[or_indices]
 
             lnLik_i = -0.5 * np.sum(((obspec[1, or_indices] - outspec[or_indices])**2) / s_i + np.log(2.*np.pi*s_i))
             lnLik += lnLik_i
        
-       
-            
-    elif (fwhm < 0.0):
-        lnLik = 0.0
-        # This is for multi-instrument cases
-        # -1: spex + akari + IRS
-        # -2: spex + IRS
-        # -3: spex + Lband + IRS
-        if (fwhm == -1):
-
-            # Spex
-            or1  = np.where(obspec[0,:] < 2.5)
-            spec1 = prism_non_uniform(obspec[:,or1],modspec,3.3)
-
-            # AKARI IRC
-            # dispersion constant across order 0.0097um
-            # R = 100 at 3.6um for emission lines
-            # dL ~constant at 3.6 / 120
-            dL = 0.03
-            or2 = np.where(np.logical_and(obspec[0,:] > 2.5,obspec[0,:] < 5.0))
-            spec2 = scale1 * conv_uniform_FWHM(obspec[:,or2],modspec,dL)
-
-            # Spitzer IRS
-            # R roughly constant within orders, and orders both appear to
-            # have R ~ 100
-            R = 100.0
-            or3 = np.where(obspec[0,:] > 5.0)
-            spec3 = scale2 * conv_uniform_R(obspec[:,or3],modspec,R)
-
-            if (do_fudge == 1):
-                s1 = obspec[2,or1]**2 + 10.**logf[0]
-                s2 = obspec[2,or2]**2 + 10.**logf[1]
-                s3 = obspec[2,or3]**2 + 10.**logf[2]
-            else:
-                s1 = obspec[2,or1]**2
-                s2 = obspec[2,or2]**2
-                s3 = obspec[2,or3]**2
-
-
-            lnLik1=-0.5*np.sum((((obspec[1,or1] - spec1)**2) / s1) + np.log(2.*np.pi*s1))
-            lnLik2=-0.5*np.sum((((obspec[1,or2] - spec2)**2) / s2) + np.log(2.*np.pi*s2))
-            lnLik3=-0.5*np.sum((((obspec[1,or3] - spec3)**2) / s3) + np.log(2.*np.pi*s3))
-            lnLik = lnLik1 + lnLik2 + lnLik3
-
-        elif (fwhm == -2):
-            # This is just spex + IRS
-            # Spex
-            or1  = np.where(obspec[0,:] < 2.5)
-            spec1 = prism_non_uniform(obspec[:,or1],modspec,3.3)
-
-            # Spitzer IRS
-            # R roughly constant within orders, and orders both appear to
-            # have R ~ 100
-            R = 100.0
-            or3 = np.where(obspec[0,:] > 5.0)
-            spec3 = scale1 * conv_uniform_R(obspec[:,or3],modspec,R)
-
-            if (do_fudge == 1):
-                s1 = obspec[2,or1]**2 + 10.**logf[0]
-                s3 = obspec[2,or3]**2 + 10.**logf[1]
-            else:
-                s1 = obspec[2,or1]**2
-                s3 = obspec[2,or3]**2
-
-
-            lnLik1=-0.5*np.sum((((obspec[1,or1] - spec1)**2) / s1) + np.log(2.*np.pi*s1))
-            lnLik3=-0.5*np.sum((((obspec[1,or3] - spec3)**2) / s3) + np.log(2.*np.pi*s3))
-            lnLik = lnLik1 + lnLik3
-            
-        elif (fwhm == -3):
-            # This is spex + Mike Cushing's L band R = 425 + IRS
-            # Spex
-            or1  = np.where(obspec[0,:] < 2.5)
-            spec1 = prism_non_uniform(obspec[:,or1],modspec,3.3)
-
-            # Mike Cushing supplied L band R = 425
-            # dispersion constant across order 0.0097um
-            # R = 425
-            R = 425
-            or2 = np.where(np.logical_and(obspec[0,:] > 2.5,obspec[0,:] < 5.0))
-            spec2 = scale1 * conv_uniform_R(obspec[:,or2],modspec,R)
-
-            # Spitzer IRS
-            # R roughly constant within orders, and orders both appear to
-            # have R ~ 100
-            R = 100.0
-            or3 = np.where(obspec[0,:] > 5.0)
-            spec3 = scale2 * conv_uniform_R(obspec[:,or3],modspec,R)
-
-            if (do_fudge == 1):
-                s1 = obspec[2,or1]**2 + 10.**logf[0]
-                s2 = obspec[2,or2]**2 + 10.**logf[1]
-                s3 = obspec[2,or3]**2 + 10.**logf[2]
-            else:
-                s1 = obspec[2,or1]**2
-                s2 = obspec[2,or2]**2
-                s3 = obspec[2,or3]**2
-
-
-            lnLik1=-0.5*np.sum((((obspec[1,or1] - spec1)**2) / s1) + np.log(2.*np.pi*s1))
-            lnLik2=-0.5*np.sum((((obspec[1,or2] - spec2)**2) / s2) + np.log(2.*np.pi*s2))
-            lnLik3=-0.5*np.sum((((obspec[1,or3] - spec3)**2) / s3) + np.log(2.*np.pi*s3))
-            lnLik = lnLik1 + lnLik2 + lnLik3
-            
-        elif (fwhm == -4):
-            # This is spex + GNIRS L band R = 600 + IRS
-            # Spex
-            or1  = np.where(obspec[0,:] < 2.5)
-            spec1 = prism_non_uniform(obspec[:,or1],modspec,3.3)
-
-            # Katelyn Allers spectrum of GNIRS R = 600
-            # R = 600 @ 3.5um linearly increading across order
-            # i.e. FWHM - 0.005833
-            dL = 0.005833
-            #dL = 0.0097
-
-            or2 = np.where(np.logical_and(obspec[0,:] > 2.5,obspec[0,:] < 5.0))
-            spec2 = scale1 * conv_uniform_FWHM(obspec[:,or2],modspec,dL)
-
-            # Spitzer IRS
-            # R roughly constant within orders, and orders both appear to
-            # have R ~ 100
-            R = 100.0
-            #mr3 = np.where(modspec[0,:] > 5.0)
-            or3 = np.where(obspec[0,:] > 5.0)
-            spec3 = scale2 * conv_uniform_R(obspec[:,or3],modspec,R)
-
-            if (do_fudge == 1):
-                s1 = obspec[2,or1]**2 + 10.**logf[0]
-                s2 = obspec[2,or2]**2 + 10.**logf[1]
-                s3 = obspec[2,or3]**2 + 10.**logf[2]
-            else:
-                s1 = obspec[2,or1]**2
-                s2 = obspec[2,or2]**2
-                s3 = obspec[2,or3]**2
-
-
-            lnLik1=-0.5*np.sum((((obspec[1,or1] - spec1)**2) / s1) + np.log(2.*np.pi*s1))
-            lnLik2=-0.5*np.sum((((obspec[1,or2] - spec2)**2) / s2) + np.log(2.*np.pi*s2))
-            lnLik3=-0.5*np.sum((((obspec[1,or3] - spec3)**2) / s3) + np.log(2.*np.pi*s3))
-            lnLik = lnLik1 + lnLik2 + lnLik3
-
-        elif (fwhm == -5):
-            # This is JWST NIRSpec + MIRI MRS no scaling + 1 fudge
-            join = np.array([0.,5.1,5.7,7.59,11.6,13.4,15.49,18.01,20.0])
-            pix = np.array([2.2,1.9,2.0,2.2,2.4,3.1,3.0,3.3])
-
-            # Now we just work through the Prism +MRS orders,
-            # using mid point in overlap regions
-            # divided into chunk based on fwhm of res element in pixels
-            spec = np.zeros_like(obspec[0,:])
-                                 
-            for i in range(0,pix.size):
-                bit = np.where(np.logical_and(obspec[0,:] > join[i],obspec[0,:] < join[i+1]))
-                spec[bit] = prism_non_uniform(obspec[:,bit],modspec,pix[i])
-
-         
-            if (do_fudge == 1):
-                s2 = obspec[2,:]**2 + 10.**logf
-            else:
-                s2 = obspec[2,:]**2
-
-            lnLik=-0.5*np.sum((((obspec[1,:] - spec)**2) / s2) + np.log(2.*np.pi*s2))
-
-        elif (fwhm == -6):
-            # This is UKIRT orders 1 and 2 based on Geballe 1996 cuts 
-            # Second Order                           
-            # R ~ 780 x Lambda (linear increase across order)
-            # Order 2 (0.95 - 1.40 um)
-            # FWHM ~ 1.175/780 = 0.001506    
-            dL1 = 0.001506
-            or1  = np.where(obspec[0,:] < 1.585)
-
-            spec1 = conv_uniform_FWHM(obspec[:,or1],modspec,dL1)
-
-            # First Order                            
-            # R ~ 390 x Lambda (linear increase across order)
-            # Order 1 (1.30 - 5.50 um) 
-            # FWHM ~ 3.4/390 = 0.008717
-            dL2 = 0.008717
-            or2 = np.where(obspec[0,:] > 1.585)
-
-            spec2 = conv_uniform_FWHM(obspec[:,or2],modspec,dL2)
-
-            if (do_fudge == 1):
-                s1 = obspec[2,or1]**2 + 10.**logf
-                s3 = obspec[2,or2]**2 + 10.**logf
-            else:
-                s1 = obspec[2,or1]**2
-                s3 = obspec[2,or2]**2
-
-
-            lnLik1=-0.5*np.sum((((obspec[1,or1[0][::7]] - spec1[::7])**2) / s1[0][::7]) + np.log(2.*np.pi*s1[0][::7]))
-            lnLik3=-0.5*np.sum((((obspec[1,or2[0][::3]] - spec2[::3])**2) / s3[0][::3]) + np.log(2.*np.pi*s3[0][::3]))
-            lnLik = lnLik1 + lnLik3
-
-        elif (fwhm == -7):
-            #This is CGS4 NIR + NIRC Lband * CGS4 Mband
-            # CGS4 Second order R = 780xLambda
-            dL1 = 0.001506
-            or1 = np.where(obspec[0, :] < 1.585)
-            spec1 = conv_uniform_FWHM(obspec[:, or1], modspec, dL1)
-
-            # CGS4 First order R = 390xLambda
-            dL2 = 0.008717
-            or2 = np.where(np.logical_and(obspec[0, :] > 1.585, obspec[0, :] < 2.52))
-            spec2 = conv_uniform_FWHM(obspec[:, or2], modspec, dL2)
-
-            # Oppenheimer 1998 NIRC L band spectrum
-            ###EDIT### Central wavelength @ 3.492 with FWHM=1.490 for lw band
-            # Using R=164
-            #dL3 = 0.0213
-            R=164.0
-            or3 = np.where(np.logical_and(obspec[0, :] > 2.52, obspec[0, :] < 4.15))
-            spec3 = scale1 * conv_uniform_R(obspec[:, or3], modspec, R)
-
-            # CGS4 M band
-            # Order 1 using 1".2 slit, 75 line/mm grating, 150 mm focal length camera
-            ###EDIT### R=400xLambda
-            dL4 = 0.0085
-            or4 = np.where(obspec[0, :] > 4.15)
-            spec4 = scale2 * conv_uniform_FWHM(obspec[:, or4], modspec, dL4)
-
-            if (do_fudge == 1):
-                s1 = obspec[2, or1] ** 2 + 10. ** logf[0]
-                s2 = obspec[2, or2] ** 2 + 10. ** logf[0]
-                s3 = obspec[2, or3] ** 2 + 10. ** logf[1]
-                s4 = obspec[2, or4] ** 2 + 10. ** logf[2]
-            else:
-                s1 = obspec[2, or1] ** 2
-                s2 = obspec[2, or2] ** 2
-                s3 = obspec[2, or3] ** 2
-                s4 = obspec[2, or4] ** 2  
-  
-            lnLik1 = -0.5 * np.sum((((obspec[1, or1[0][::7]] - spec1[::7]) ** 2) / s1[0][::7]) + np.log(2. * np.pi * s1[0][::7]))
-            lnLik2 = -0.5 * np.sum((((obspec[1, or2[0][::3]] - spec2[::3]) ** 2) / s2[0][::3]) + np.log(2. * np.pi * s2[0][::3]))
-            lnLik3 = -0.5 * np.sum((((obspec[1, or3] - spec3) ** 2) / s3) + np.log(2. * np.pi * s3))
-            lnLik4 = -0.5 * np.sum((((obspec[1, or4] - spec4) ** 2) / s4) + np.log(2. * np.pi * s4))
-
-            lnLik = lnLik1 + lnLik2 + lnLik3 + lnLik4
-
     if np.isnan(lnLik):
         lnLik = -np.inf
 
@@ -564,7 +134,7 @@ def lnlike(theta,re_params):
                 # put prior on P1 to put it shallower than 100 bar   
                 if  (1 < alpha  < 2. and P1 < 100. and P1 > press[0]
                     and params_instance.T1 > 0.0 and params_instance.T2 > 0.0 and params_instance.T3 > 0.0 and params_instance.Tint >0.0):
-                    T = TPmod.set_prof(proftype,junkP,press,intemp) # allow inversion 
+                    T = TPmod.set_prof(proftype,args_instance.coarsePress,press,intemp) # allow inversion 
 
             # bits for smoothing in prior
             gam = params_instance.gamma
@@ -594,7 +164,6 @@ def modelspec(theta,re_params,args_instance,gnostics):
 
     # Unpack all necessary parameters into local variables
     press=args_instance.press
-    fwhm=args_instance.fwhm
     obspec=args_instance.obspec
     proftype=args_instance.proftype
     do_fudge=args_instance.do_fudge
@@ -628,58 +197,9 @@ def modelspec(theta,re_params,args_instance,gnostics):
         # D = dist * 3.086e16
         R2D2 = R**2. / D**2.
 
-    
-    if (fwhm < 0.0):
-        if (fwhm == -1 or fwhm == -3 or fwhm == -4):
-            if re_params.samplemode=='mcmc':
-                r2d2 = [params_instance.r2d2,params_instance.scale1,params_instance.scale2]  #theta[ng+1:ng+4]
-            # dlam = params_instance.dlambda
-            # if (do_fudge == 1):
-            #     logf =[params_instance.tolerance_parameter_1,params_instance.tolerance_parameter_2,params_instance.tolerance_parameter_3] #theta[ng+5:ng+8]
-            # else:
-            #     # This is a place holder value so the code doesn't break
-            #     logf = np.log10(0.1*(max(obspec[2,10::3]))**2)
-
-        elif (fwhm == -2):
-            if re_params.samplemode=='mcmc':
-                r2d2 = [params_instance.r2d2,params_instance.scale1]  #theta[ng+1:ng+3]
-            # dlam = params_instance.dlambda
-            # if (do_fudge == 1):
-            #     logf =[params_instance.tolerance_parameter_1,params_instance.tolerance_parameter_2] # theta[ng+4:ng+6]
-            # else:
-            #     # This is a place holder value so the code doesn't break
-            #     logf = np.log10(0.1*(max(obspec[2,10::3]))**2)
-
-        elif (fwhm == -5):
-            if re_params.samplemode=='mcmc':
-                r2d2 = params_instance.r2d2
-            # dlam = params_instance.dlambda
-            # if (do_fudge == 1):
-            #     logf = params_instance.tolerance_parameter_1
-            # else:
-            #     # This is a place holder value so the code doesn't break
-            #     logf = np.log10(0.1*(max(obspec[2,10::3]))**2)
-
-        elif (fwhm == -6):
-            if re_params.samplemode=='mcmc':
-                r2d2 = params_instance.r2d2
-            # dlam = params_instance.dlambda
-            # if (do_fudge == 1):
-            #     logf = params_instance.tolerance_parameter_1
-            # else:
-            #     # This is a place holder value so the code doesn't break                                                                      
-            #     logf = np.log10(0.1*(max(obspec[2,10::3]))**2)
-
-    else:
-        if re_params.samplemode=='mcmc':
-            r2d2 = params_instance.r2d2
-        # dlam = params_instance.dlambda
-        # if (do_fudge == 1):
-        #     logf = params_instance.tolerance_parameter_1
-        # else:
-        #     # This is a place holder value so the code doesn't break
-        #     logf = np.log10(0.1*(max(obspec[2,10::3]))**2)
-
+    if re_params.samplemode=='mcmc':
+        R2D2= params_instance.r2d2
+        logg=params_instance.logg
 
         
     npatches = args_instance.cloudmap.shape[0]
@@ -799,13 +319,8 @@ def modelspec(theta,re_params,args_instance,gnostics):
 
     # now need to translate cloudparams in to cloud profile even
     # if do_clouds is zero..
-
     # cloudprof,cloudrad,cloudsig = cloud_dic.atlas(do_clouds,cloudflag,cloudtype,cloudparams,press)
-
     cloudprof,cloudrad,cloudsig = cloud_dic_new.atlas(re_params,cloudparams,press)
-
-
-
     cloudprof = np.asfortranarray(cloudprof,dtype = 'float64')
     cloudrad = np.asfortranarray(cloudrad,dtype = 'float64')
     cloudsig = np.asfortranarray(cloudsig,dtype = 'float64')
@@ -813,28 +328,7 @@ def modelspec(theta,re_params,args_instance,gnostics):
     cloudsize = np.asfortranarray(args_instance.cloudsize,dtype = 'i')
     cloudmap = np.asfortranarray(args_instance.cloudmap,dtype = 'i')
 
-
     # do_clouds = np.asfortranarray(do_clouds,dtype = 'i')
-
-    # get r2d2 sorted for multi-instruments
-    if re_params.samplemode=='mcmc':
-        logg = params_instance.logg
-        if (fwhm < 0.0):
-            if (fwhm == -1 or fwhm == -3 or fwhm == -4):
-                R2D2 = r2d2[0]
-                scale1 = r2d2[1]
-                scale2 = r2d2[2]
-            elif (fwhm == -2):
-                R2D2 = r2d2[0]
-                scale1 = r2d2[1]
-            elif (fwhm == -5):
-                R2D2 = r2d2
-            elif (fwhm == -6):
-                R2D2 = r2d2
-        else:
-            R2D2 = r2d2
-
-
     # Now get the BFF stuff sorted
     if (args_instance.chemeq == 0 and args_instance.do_bff == 1):
         for gas in range(0,3):
@@ -895,15 +389,6 @@ def modelspec(theta,re_params,args_instance,gnostics):
 # 
 #     shiftspec[0,:] =  trimspec[0,:] + dlam
 #     shiftspec[1,:] =  trimspec[1,:]
-    
-    # print("VMR")
-    # print(logVMR)
-    # print("----------------")
-    # print("temp")
-    # print(temp)
-    # print("----------------")
-    # print("cloudrad,cloudsig,cloudprof")
-    # print(cloudrad,cloudsig,cloudprof)
 
     return trimspec, cloud_phot_press,other_phot_press,cfunc
 

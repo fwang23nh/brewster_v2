@@ -323,32 +323,41 @@ class Priors:
         }
 
         if tolerance_params:
-
-            self.logf_flag=self.instrument_instance.logf_flag
-            self.wl=self.instrument_instance.wl
-            # Find indices where the value changes
-            change_indices = np.where(np.diff(self.logf_flag) != 0)[0] + 1
-
-            # Add 0 at the start and len at the end to get full segment boundaries
-            starts = np.insert(change_indices, 0, 0)
-            ends = np.append(change_indices, len(self.logf_flag))
-
-            # Create list of [start, end] for each block
-            index_blocks = [[int(s), int(e - 1)] for s, e in zip(starts, ends)]
-
-            for key, value in tolerance_params.items():
-
-                # Extract integer index from parameter name (e.g., "tolerance_parameter_3" -> 2)
-                idx = int(key.split("_")[-1]) - 1  # zero-based index
-                mask = np.where((self.args_instance.obspec[0, :] >= self.wl[index_blocks[idx][0]]) &
-                (self.args_instance.obspec[0, :] <= self.wl[index_blocks[idx][1]]))
-
+            if self.args_instance.fwhm is not None:
                 statement = (
-                    0.01 * np.min(self.args_instance.obspec[2,mask]**2)
-                    < 10.**value
-                    < 100. * np.max(self.args_instance.obspec[2,mask]**2)
+                    0.01 * np.min(self.args_instance.obspec[2,:]**2)
+                    < 10.**list(tolerance_params.values())[0]
+                    < 100. * np.max(self.args_instance.obspec[2,:]**2)
                 )
                 prior_tolerance_params = prior_tolerance_params and statement
+
+
+            else:
+                self.logf_flag=self.instrument_instance.logf_flag
+                self.wl=self.instrument_instance.wl
+                # Find indices where the value changes
+                change_indices = np.where(np.diff(self.logf_flag) != 0)[0] + 1
+
+                # Add 0 at the start and len at the end to get full segment boundaries
+                starts = np.insert(change_indices, 0, 0)
+                ends = np.append(change_indices, len(self.logf_flag))
+
+                # Create list of [start, end] for each block
+                index_blocks = [[int(s), int(e - 1)] for s, e in zip(starts, ends)]
+
+                for key, value in tolerance_params.items():
+
+                    # Extract integer index from parameter name (e.g., "tolerance_parameter_3" -> 2)
+                    idx = int(key.split("_")[-1]) - 1  # zero-based index
+                    mask = np.where((self.args_instance.obspec[0, :] >= self.wl[index_blocks[idx][0]]) &
+                    (self.args_instance.obspec[0, :] <= self.wl[index_blocks[idx][1]]))
+
+                    statement = (
+                        0.01 * np.min(self.args_instance.obspec[2,mask]**2)
+                        < 10.**value
+                        < 100. * np.max(self.args_instance.obspec[2,mask]**2)
+                    )
+                    prior_tolerance_params = prior_tolerance_params and statement
 
 
 
@@ -688,158 +697,32 @@ def priormap_dic(theta,re_params):
     R_j = ((max_rad - min_rad)*theta[R_index]) + min_rad
     phi[R_index] = R_j
     
-    if (fwhm == 555):
-        log_f_param = args_instance.logf_flag
-        log_f_param_max = int(np.max(log_f_param))
-        
-        scales_param = args_instance.scales
-        nonzero_scales = sorted(set(scales_param) - {0})  
 
-        if nonzero_scales:  
-            for i in nonzero_scales:
-                pname = f"scale{i}"
-                p_index = params_instance._fields.index(pname)
-                phi[p_index] = (theta[p_index] * 1.5) + 0.5
- 
-        # now dlam
-        dlam_index=params_instance._fields.index('dlambda')
-        phi[dlam_index] = (theta[dlam_index] * 0.02) - 0.01
+    
+    scales_param = args_instance.scales
+    nonzero_scales = sorted(set(scales_param) - {0})  
+    if nonzero_scales:  
+        for i in nonzero_scales:
+            pname = f"scale{i}"
+            p_index = params_instance._fields.index(pname)
+            phi[p_index] = (theta[p_index] * 1.5) + 0.5
 
-        if (do_fudge == 1):
-            for i in range(1, log_f_param_max + 1):
-                s_indices = np.where(log_f_param == float(i))
-                minerr = np.log10((0.01 * np.min(obspec[2, s_indices]))**2.)
-                maxerr = np.log10((100 * np.max(obspec[2, s_indices]))**2.)
+    # now dlam
+    dlam_index=params_instance._fields.index('dlambda')
+    phi[dlam_index] = (theta[dlam_index] * 0.02) - 0.01
 
-                tol_param_name=f'tolerance_parameter_{i}'
-                tol_param_index=params_instance._fields.index(tol_param_name)
-                phi[tol_param_index] = (theta[tol_param_index] * (maxerr-minerr)) + minerr
+    log_f_param = args_instance.logf_flag
+    log_f_param_max = int(np.max(log_f_param))
+    if (do_fudge == 1):
+        for i in range(1, log_f_param_max + 1):
+            s_indices = np.where(log_f_param == float(i))
+            minerr = np.log10((0.01 * np.min(obspec[2, s_indices]))**2.)
+            maxerr = np.log10((100 * np.max(obspec[2, s_indices]))**2.)
 
-       # if (do_fudge == 1):
-       #     minerr1 = np.log10((0.01 * np.min(obspec[2, s2]))**2.)
-       #     maxerr1 = np.log10((100 * np.max(obspec[2, s2]))**2.)
-       #     tolerance_parameter_1_index = params_instance._fields.index('tolerance_parameter_1')
-       #     phi[tolerance_parameter_1_index] = (theta[tolerance_parameter_1_index] * (maxerr1 - minerr1)) + minerr1
+            tol_param_name=f'tolerance_parameter_{i}'
+            tol_param_index=params_instance._fields.index(tol_param_name)
+            phi[tol_param_index] = (theta[tol_param_index] * (maxerr-minerr)) + minerr
 
-
-       #     if s3[0].size > 0:
-       #         minerr2 = np.log10((0.01 * np.min(obspec[2, s3]))**2.)
-       #         maxerr2 = np.log10((100 * np.max(obspec[2, s3]))**2.)
-       #         tolerance_parameter_2_index = params_instance._fields.index('tolerance_parameter_2')
-       #         phi[tolerance_parameter_2_index] = (theta[tolerance_parameter_2_index] * (maxerr2 - minerr2)) + minerr2
-
-        
-    elif (fwhm < 0.0):
-        if (fwhm == -1 or fwhm == -3 or fwhm == -4 or fwhm == -8):
-            s1  = np.where(obspec[0,:] < 2.5)
-            s2  = np.where(np.logical_and(obspec[0,:] > 2.5,obspec[0,:] < 5.0))
-            s3 =  np.where(obspec[0,:] > 5.)
-            # scale parameters here - generous factor 2 either side??
-            scale1_index=params_instance._fields.index('scale1')
-            scale2_index=params_instance._fields.index('scale2')
-            phi[scale1_index] = (theta[scale1_index] * 1.5) + 0.5
-            phi[scale2_index] = (theta[scale2_index] * 1.5) + 0.5
-            # now dlam
-            dlam_index=params_instance._fields.index('dlambda')
-            phi[dlam_index] = (theta[dlam_index] * 0.02) - 0.01
-            if (do_fudge == 1):
-                # These are tolerances for each band due to difference SNRs
-                minerr_s1 =np.log10((0.01 *  np.min(obspec[2,s1]))**2.)
-                maxerr_s1 =np.log10((100.*np.max(obspec[2,s1]))**2.)
-                tolerance_parameter_1_index=params_instance._fields.index('tolerance_parameter_1')
-                phi[tolerance_parameter_1_index] = (theta[tolerance_parameter_1_index] * (maxerr_s1 - minerr_s1)) + minerr_s1
-                
-                minerr_s2 =np.log10((0.01 *  np.min(obspec[2,s2]))**2.)
-                maxerr_s2 =np.log10((100.*np.max(obspec[2,s2]))**2.)
-                tolerance_parameter_2_index=params_instance._fields.index('tolerance_parameter_2')
-                phi[tolerance_parameter_2_index] = (theta[tolerance_parameter_2_index] * (maxerr_s2 - minerr_s2)) + minerr_s2
-                
-                minerr_s3 =np.log10((0.01 *  np.min(obspec[2,s3]))**2.)
-                maxerr_s3 = np.log10((100.*np.max(obspec[2,s3]))**2.)
-                tolerance_parameter_3_index=params_instance._fields.index('tolerance_parameter_3')
-                phi[tolerance_parameter_3_index] = (theta[tolerance_parameter_3_index] * (maxerr_s3 - minerr_s3)) + minerr_s3
-
-        elif (fwhm == -2):
-            s1  = np.where(obspec[0,:] < 2.5)
-            s3 =  np.where(obspec[0,:] > 5.)
-            # scale parameter
-            scale1_index=params_instance._fields.index('scale1')
-            phi[scale1_index] = (theta[scale1_index] * 1.5) + 0.5
-            # dlam now:
-            dlam_index=params_instance._fields.index('dlambda')
-            phi[dlam_index] = (theta[dlam_index] * 0.02) - 0.01
-            if (do_fudge == 1):
-                # These are tolerances for each band due to difference SNR
-                minerr_s1 = np.log10((0.01 *  np.min(obspec[2,s1]))**2.)
-                maxerr_s1 = np.log10((100.*np.max(obspec[2,s1]))**2.)
-                tolerance_parameter_1_index=params_instance._fields.index('tolerance_parameter_1')
-                phi[tolerance_parameter_1_index] = (theta[tolerance_parameter_1_index] * (maxerr_s1 - minerr_s1)) + minerr_s1
-                
-                minerr_s3 = np.log10((0.01 *  np.min(obspec[2,s3]))**2.)
-                maxerr_s3 = np.log10((100.*np.max(obspec[2,s3]))**2.)
-                tolerance_parameter_2_index=params_instance._fields.index('tolerance_parameter_2')
-                phi[tolerance_parameter_2_index] = (theta[tolerance_parameter_2_index] * (maxerr_s3 - minerr_s3)) + minerr_s3
-
-        elif (fwhm == -6):
-            ##Geballe NIR CGS4 data
-            s1  = np.where(obspec[0,:] < 1.585)
-            s3  = np.where(obspec[0,:] > 1.585)
-            #not including relative scale factor since data is calibrated to the same photometry
-            #dlam:
-            dlam_index=params_instance._fields.index('dlambda')
-            phi[dlam_index] = (theta[dlam_index] * 0.02) - 0.01
-            #Tolerance parameter (only one):
-            if (do_fudge==1):
-                minerr = np.log10((0.01 *  np.min(obspec[2,:]))**2.)
-                maxerr = np.log10((100.*np.max(obspec[2,:]))**2.)
-                tolerance_parameter_1_index=params_instance._fields.index('tolerance_parameter_1')
-                phi[tolerance_parameter_1_index] = (theta[tolerance_parameter_1_index] * (maxerr - minerr)) + minerr
-
-        elif (fwhm == -7): #Geballe NIR + NIRC + CGS4 MIR
-            s1 = np.where(obspec[0, :] < 1.585)
-            s2 = np.where(obspec[0, :] > 1.585)
-            s3 = np.where(np.logical_and(obspec[0, :] > 2.52, obspec[0, :] < 4.2))  #NIRC
-            s4 = np.where(obspec[0, :] > 4.2) #CGS4
-            # scale parameter
-            scale1_index=params_instance._fields.index('scale1')
-            scale2_index=params_instance._fields.index('scale2')
-            phi[scale1_index] = (theta[scale1_index] * 1.5) + 0.5
-            phi[scale2_index] = (theta[scale2_index] * 1.5) + 0.5
-            #dlam
-            dlam_index=params_instance._fields.index('dlambda')
-            phi[dlam_index] = (theta[dlam_index] * 0.02) - 0.01
-            if (do_fudge == 1):
-                # These are tolerances for each band due to difference SNRs
-                minerr_s1 =np.log10((0.01 *  np.min(obspec[2,s1]))**2.)
-                maxerr_s1 =np.log10((100.*np.max(obspec[2,s1]))**2.)
-                tolerance_parameter_1_index=params_instance._fields.index('tolerance_parameter_1')
-                phi[tolerance_parameter_1_index] = (theta[tolerance_parameter_1_index] * (maxerr_s1 - minerr_s1)) + minerr_s1
-                
-                minerr_s2 =np.log10((0.01 *  np.min(obspec[2,s2]))**2.)
-                maxerr_s2 =np.log10((100.*np.max(obspec[2,s2]))**2.)
-                tolerance_parameter_2_index=params_instance._fields.index('tolerance_parameter_2')
-                phi[tolerance_parameter_2_index] = (theta[tolerance_parameter_2_index] * (maxerr_s2 - minerr_s2)) + minerr_s2
-                
-                minerr_s3 =np.log10((0.01 *  np.min(obspec[2,s3]))**2.)
-                maxerr_s3 = np.log10((100.*np.max(obspec[2,s3]))**2.)
-                tolerance_parameter_3_index=params_instance._fields.index('tolerance_parameter_3')
-                phi[tolerance_parameter_3_index] = (theta[tolerance_parameter_3_index] * (maxerr_s3 - minerr_s3)) + minerr_s3
-
-
-    else:
-        # this just copes with normal, single instrument data
-        # so do dlam next
-        dlam_index=params_instance._fields.index('dlambda')
-        phi[dlam_index] = (theta[dlam_index] * 0.02) - 0.01
-        # now fudge
-        if (do_fudge == 1):
-            # logf here
-            minerr =np.log10((0.01 *  np.min(obspec[2,:]))**2.)
-            maxerr = np.log10((100.*np.max(obspec[2,:]))**2.)
-            tolerance_parameter_1_index=params_instance._fields.index('tolerance_parameter_1')
-            phi[tolerance_parameter_1_index] = (theta[tolerance_parameter_1_index] * (maxerr - minerr)) + minerr
-
- 
     if (proftype == 1):
 
         intemp_keys = list(re_params.dictionary['pt']['params'].keys())

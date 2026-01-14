@@ -17,6 +17,9 @@ from collections import namedtuple
 from mpi4py import MPI
 import h5py
 import settings
+from collections import defaultdict
+import re
+import emcee
 
 __author__ = "Fei Wang"
 __copyright__ = "Copyright 2024 - Fei Wang"
@@ -50,8 +53,7 @@ class Instrument:
         loads the R vs wl file
     """
     
-    def __init__(self, fwhm=None, wavelength_range=None, R_file=None,obspec=None):
-        self.fwhm  = fwhm 
+    def __init__(self, wavelength_range=None, R_file=None,obspec=None, fwhm=None):
         self.wavelength_range = wavelength_range
         self.R_file = R_file
         self.R_data = None
@@ -62,6 +64,7 @@ class Instrument:
         self.obspec = obspec
         self.obs_wl = None
         self.R_interp = None
+        self.fwhm  = fwhm 
         
         # only load R if the user provides it
         if R_file:
@@ -99,19 +102,19 @@ class Instrument:
         """
         return {
             'params': {
-                'fwhm': self.fwhm,
                 'wavelength_range': self.wavelength_range,
                 'R_file': self.R_file,
-                'R_data': self.R_data
+                'R_data': self.R_data,
+                 'fwhm': self.fwhm
             }
         }
 
     def __str__(self):
         string = 'Instrument: \n------------\n' +\
-            '- fwhm : ' + "%s" % (self.fwhm) + '\n' +\
             '- wavelength_range : ' + "%s" % (self.wavelength_range) + '\n' +\
             '- R_file : ' + "%s" % (self.R_file) + '\n' +\
-            '- R_data : ' + "%s" % (self.R_data) + ' \n'
+            '- R_data : ' + "%s" % (self.R_data) + ' \n'+\
+            '- fwhm : ' + "%s" % (self.fwhm) + '\n'
         return string
 
 
@@ -537,7 +540,7 @@ class Retrieval_params:
         String representation of the class instance.
     """
     
-    def __init__(self, samplemode,chemeq=None, gaslist=None, gastype_list=None,fwhm=None,do_fudge=1,ptype=None,do_clouds=1,npatches=None,cloud_name=None,cloud_type=None,cloudpatch_index=None,particle_dis=None, instrument=None,vrad=False,vsini=False):
+    def __init__(self, samplemode,chemeq=None, gaslist=None, gastype_list=None,do_fudge=1,ptype=None,do_clouds=1,npatches=None,cloud_name=None,cloud_type=None,cloudpatch_index=None,particle_dis=None, instrument=None,vrad=False,vsini=False,fwhm=None):
         self.samplemode = samplemode
         self.chemeq = chemeq
         self.gaslist = gaslist
@@ -1098,22 +1101,7 @@ class Retrieval_params:
                     'range':[0,1],
                     'prior': None
                 }}
-                #'scale1': {
-                #    'initialization': None,
-                #    'distribution': ['normal', 0, 0.001],
-                #    'prior': None
-                #},
-                #'scale2': {
-                #    'initialization': None,
-                #    'distribution': ['normal', 0, 0.001],
-                #    'prior': None
-                #},
-                # 'frac_param': {
-                #     'initialization': None,
-                #     'distribution': ['normal', 0.5, 0.1],
-                #     'prior': None
-                # },
-
+ 
             if self.vrad==False:
                 dictionary['params']['dlambda']={
                         'initialization': None,
@@ -1128,7 +1116,6 @@ class Retrieval_params:
                         'range':[-250,250],
                         'prior': None
                     }
-            
             if self.vsini==True:
                 dictionary['params']['vsini']={
                         'initialization': None,
@@ -1137,7 +1124,6 @@ class Retrieval_params:
                         'prior': None
                     }
                 
-
             if getattr(self, "instrument", None) is not None and getattr(self.instrument, "scales", None) is not None:
                 scales_parameter_max = int(np.max(self.instrument.scales))
                 if scales_parameter_max > 0:
@@ -1186,14 +1172,7 @@ class Retrieval_params:
                         'range':[0,100],
                         'prior': None
                     }
-
-                    # 'dlambda': {
-                    #     'initialization': None,
-                    #     'distribution': ['normal', 0, 0.001],
-                    #     'range':[-0.01,0.01],
-                    #     'prior': None
-                    # }
-                    
+          
             if getattr(self, "instrument", None) is not None and getattr(self.instrument, "scales", None) is not None:
                     scales_parameter_max = int(np.max(self.instrument.scales))
                     if scales_parameter_max > 0:
@@ -1208,60 +1187,26 @@ class Retrieval_params:
             raise ValueError("Unsupported samplemode. Please choose 'mcmc' or 'multinest'.")
             
         # Remove 'scale1' and 'scale2' if fwhm condition is not met
-    
-        if (self.fwhm >=0 and self.fwhm <=500) or (self.fwhm in [-5,-6]):
 
-            #del dictionary['params']['scale1']
-            #del dictionary['params']['scale2']
+        if self.fwhm is None:
+            ndata=int(np.max(self.instrument.logf_flag))
+    
+        if self.fwhm is not None:
             if self.do_fudge==1:
                 ndata=1
-
-        if self.fwhm in [-2]:
-            # del dictionary['params']['scale1']
-            if self.do_fudge==1:
-                ndata=2
-
-        if self.fwhm in [-1, -3, -4]:
-            if self.do_fudge==1:
-                ndata=3
-            
-        if self.fwhm in [555, 888]:
-            #if int(np.max(self.instrument.scales)) == 0:
-            #   scale_delete = [k for k in dictionary['params'] if k.startswith('scale')]
-            #   for k in scale_delete:
-            #   # del dictionary['params'][k]
-            #       del dictionary['params'][k]
-
-            # scales_max = int(np.max(self.instrument.scales))
-            # scale_keys = [k for k in dictionary['params'] if k.startswith('scale')]
-
-            # if scales_max == 0:
-            # # no scales remains
-            #     for k in scale_keys:
-            #         del dictionary['params'][k]
-            # else:
-            # # only keep scale1 ... scale_n
-            #     for k in scale_keys:
-            #         i = int(k.replace('scale', ''))
-            #         if i > scales_max:
-            #             del dictionary['params'][k]
-                
-            if self.do_fudge==1:
-                ndata=int(np.max(self.instrument.logf_flag))
-            
-            
-        if self.fwhm in [777]:
-            # del dictionary['params']['scale1']
-            # del dictionary['params']['scale2']
-
-            dictionary['params']['frac_param'] =  {
-            'initialization': None,
-            'distribution': ['normal', 0.5, 0.1],
-            'range':[0.1,1],
-            'prior': None
-        }
-            if self.do_fudge==1:
+            else:
                 ndata=0
+
+        # if self.fwhm in [777]:
+
+        #     dictionary['params']['frac_param'] =  {
+        #     'initialization': None,
+        #     'distribution': ['normal', 0.5, 0.1],
+        #     'range':[0.1,1],
+        #     'prior': None
+        # }
+        #     if self.do_fudge==1:
+        #         ndata=0
 
         # Add tolerance parameters after 'dlambda'
         if self.do_fudge==1:
@@ -1344,8 +1289,25 @@ class Retrieval_params:
                 
             else:
                 cloud_type_name.append('Mie scattering cloud '+cloud_type[i].lower()+'--'+cloud_name[i])
-                    
-        return cloud_type_name
+
+        # ---- Deduplicate with suffixes (start from _1) ----
+        counts = defaultdict(int)
+        result = []
+
+        for s in cloud_type_name:
+            counts[s] += 1
+            if counts[s] == 1:
+                result.append(s)
+            else:
+                # insert suffix before .mieff if present
+                if '.mieff' in s:
+                    base, ext = s.rsplit('.mieff', 1)
+                    result.append(f"{base}_{counts[s]-1}.mieff{ext}")
+                else:
+                    result.append(f"{s}_{counts[s]}")
+
+        return result        
+        # return cloud_type_name
         
   
 
@@ -1365,12 +1327,9 @@ class Retrieval_params:
                 for j in range(len(cloudpatch_index)):
                     if i + 1 in cloudpatch_index[j]:
                         dic = self.cloud_dic_gen(do_clouds, cloud_type_name[j], particle_dis[j])
-
                         patch_key = f"patch {i + 1}"
-
                         if patch_key not in cloud_dic:
                             cloud_dic[patch_key] = {}
-
                         cloud_dic[patch_key][cloud_type_name[j]] = dic["patch"]
 
                 # if i+1 > len(cloudpatch_index):
@@ -1700,8 +1659,6 @@ def cloud_para_gen(dic):
         return cloudname_set,cloud_opaname,cloudmap,np.array(cloudsize) 
 
 
-
-
 def get_opacities(gaslist,w1,w2,press,xpath='../Linelists',xlist='gaslistR10K.dat',malk=0):
     # Now we'll get the opacity files into an array
     ngas = len(gaslist)
@@ -1715,7 +1672,6 @@ def get_opacities(gaslist,w1,w2,press,xpath='../Linelists',xlist='gaslistR10K.da
             totgas = totgas +1 
             line_aa = line_aa.strip()
             gasdata.append(line_aa.split())
-
 
     list1 = []
     for i in range(0,ngas):
@@ -2222,8 +2178,9 @@ class ArgsGen:
             for i in range(len(self.cloudname_set)):
                 val = self.cloudname_set[i]
                 if isinstance(val, str) and 'Mie' in val:
+                    cloudspecies = re.sub(r'_\d+(?=\.mieff$)', '',self.cloudname_set[i].split('--', 1)[1])
                     self.cloudata[i]= np.asfortranarray(
-                            get_clouddata(self.cloudname_set[i].split('--')[1], self.model.cloudpath)[0])
+                            get_clouddata(cloudspecies, self.model.cloudpath)[0])
                             
         if not self.re_params.dictionary['cloud']:
             self.miewave = np.array([])
@@ -2324,3 +2281,129 @@ class ArgsGen:
         # cloudflag: {self.cloudflag}
 
 
+
+
+
+def get_endchain(runname,fin,results_path='./'):
+    if (fin == 1):
+        pic = results_path+runname+".pk1"
+        sampler = pickle_load(pic)
+        nwalkers = sampler.chain.shape[0]
+        niter = sampler.chain.shape[1]
+        ndim = sampler.chain.shape[2]
+        flatprobs = sampler.lnprobability[:,:].reshape((-1))
+        max_like = flatprobs[np.argmax(flatprobs)]
+        print("maximum likelihood = ", max_like)
+        flatendchain = sampler.chain[:,niter-2000:,:].reshape((-1,ndim))
+        if (emcee.__version__ == '3.0rc2'):
+            flatendprobs = sampler.lnprobability[niter-2000:,:].reshape((-1))
+        else:
+            flatendprobs = sampler.lnprobability[:, niter-2000:].reshape((-1))
+        theta_max_end = flatendchain[np.argmax(flatendprobs)]
+        max_end_like = np.amax(flatendprobs)
+        print("maximum likelihood in final 2K iterations= ", max_end_like)
+        print("Mean autocorrelation time: {0:.3f} steps"
+              .format(np.mean(sampler.get_autocorr_time(discard=0,c=10,quiet=True))))
+
+    elif(fin ==0):
+        pic = results_path+runname+"_snapshot.pic"
+        chain,probs = pickle_load(pic)
+        nwalkers = chain.shape[0]
+        ntot = chain.shape[1]
+        ndim = chain.shape[2]
+        niter = int(np.count_nonzero(chain) / (nwalkers*ndim))
+        flatprobs = probs[:,:].reshape((-1))
+        max_like = flatprobs[np.argmax(probs)]
+        print("Unfinished symphony. Number of successful iterations = ", niter)
+        print("maximum likelihood = ", max_like)
+        flatendchain = chain[:,(niter-2000):niter,:].reshape((-1,ndim))
+        if (emcee.__version__ == '3.0rc2'):
+            flatendprobs = probs[niter-2000:,:].reshape((-1))
+        else:
+            flatendprobs = probs[:, niter-2000:].reshape((-1))
+        theta_max_end = flatendchain[np.argmax(flatendprobs)]
+        max_end_like = np.amax(flatendprobs)
+        print("maximum likelihood in final 2K iterations= ", max_end_like)
+    else:
+        print("File extension not recognised")
+        stop
+        
+    return flatendchain, flatendprobs,ndim
+    
+def get_nchain(runname, start_iter, end_iter, results_path='./'):
+    #if fin == 0:
+    pic = results_path + runname + "_snapshot.pic"
+    chain, probs = pickle_load(pic)
+        
+    nwalkers, ntot, ndim = chain.shape
+    niter = int(np.count_nonzero(chain) / (nwalkers * ndim))
+        
+    if start_iter < 0 or end_iter > niter or start_iter >= end_iter:
+        raise ValueError("Invalid iteration range specified.")
+        
+    print(f"Extracting iterations {start_iter} to {end_iter}")
+        
+    flatprobs = probs.reshape(-1)
+    max_like = flatprobs[np.argmax(probs)]
+    print("Unfinished symphony. Number of successful iterations =", niter)
+    print("Maximum likelihood =", max_like)
+        
+    flat_chain_segment = chain[:, start_iter:end_iter, :].reshape((-1, ndim))
+        
+    if emcee.__version__ == '3.0rc2':
+        flat_probs_segment = probs[start_iter:end_iter, :].reshape((-1))
+    else:
+        flat_probs_segment = probs[:, start_iter:end_iter].reshape((-1))
+        
+    theta_max_segment = flat_chain_segment[np.argmax(flat_probs_segment)]
+    max_segment_like = np.amax(flat_probs_segment)
+    print("Maximum likelihood in selected iterations =", max_segment_like)
+    #else:
+     #   raise ValueError("File extension not recognised")
+        
+    return flat_chain_segment, flat_probs_segment, ndim
+
+
+
+class MacOSFile(object):
+
+    def __init__(self, f):
+        self.f = f
+
+    def __getattr__(self, item):
+        return getattr(self.f, item)
+
+    def read(self, n):
+        # print("reading total_bytes=%s" % n, flush=True)
+        if n >= (1 << 31):
+            buffer = bytearray(n)
+            idx = 0
+            while idx < n:
+                batch_size = min(n - idx, 1 << 31 - 1)
+                # print("reading bytes [%s,%s)..." % (idx, idx + batch_size), end="", flush=True)
+                buffer[idx:idx + batch_size] = self.f.read(batch_size)
+                # print("done.", flush=True)
+                idx += batch_size
+            return buffer
+        return self.f.read(n)
+
+    def write(self, buffer):
+        n = len(buffer)
+        print("writing total_bytes=%s..." % n, flush=True)
+        idx = 0
+        while idx < n:
+            batch_size = min(n - idx, 1 << 31 - 1)
+            print("writing bytes [%s, %s)... " % (idx, idx + batch_size), end="", flush=True)
+            self.f.write(buffer[idx:idx + batch_size])
+            print("done.", flush=True)
+            idx += batch_size
+
+
+def pickle_dump(obj, file_path):
+    with open(file_path, "wb") as f:
+        return pickle.dump(obj, MacOSFile(f), protocol=pickle.HIGHEST_PROTOCOL)
+
+
+def pickle_load(file_path):
+    with open(file_path, "rb") as f:
+        return pickle.load(MacOSFile(f))

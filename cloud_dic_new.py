@@ -192,7 +192,7 @@ def atlas(re_params,cloudparams,press):
         if (cloud_distype[j] == "slab"):
             # 5 entries for cloudparams are:
             # 0) total tau for cloud at 1 micron
-            # 1) log top pressure
+            # 1) log cloud base pressure
             # 2) pressure thickness in dex
             # 3) rg
             # 4) rsig
@@ -200,8 +200,13 @@ def atlas(re_params,cloudparams,press):
             tau = cloudparams[0,j]
             p2 = 10.**cloudparams[1,j]
             dP = cloudparams[2,j]
-     
             p1 = p2 / 10.**dP
+            
+            # tau = cloudparams[0,j]
+            # p1 = 10.**cloudparams[1,j]
+            # dP = cloudparams[2,j]
+            # p2 = p1 * 10.**dP
+
             rad = cloudparams[3,j]
             sig = cloudparams[4,j]
             pdiff = np.empty(nlayers,dtype='f')

@@ -101,7 +101,7 @@ def brewster_reterieval_run(re_params,model_config_instance,io_config_instance):
             if hasattr(settings, "cloudata") and settings.cloudata.size > 0:
                 pickle.dump((settings.cloudata),open(io_config_instance.outdir+io_config_instance.runname+"_cloudata.pic","wb"))
 
-            with open(io_config_instance.outdir+io_config_instance.runname+'_configs.pkl', 'wb') as file:
+            with open(io_config_instance.outdir+io_config_instance.runname+'_configs.pic', 'wb') as file:
                 pickle.dump({
                     're_params': re_params,
                     'model_config': model_config_instance,
@@ -250,14 +250,7 @@ def brewster_reterieval_run(re_params,model_config_instance,io_config_instance):
                 lnLik=test_module.lnlike(theta,re_params)
                 return lnLik
             return log_likelihood
-        
-        # # Create the Prior function with additional parameters
-        # def prior_call(re_params):
-        #     def prior(cube, ndim, nparams):
-        #         theta=cube[:ndim]
-        #         phi=test_module.priormap_dic(theta,re_params)
-        #         return phi
-        #     return prior
+
 
         def prior_call(re_params):
             def prior(cube, ndim, nparams):
