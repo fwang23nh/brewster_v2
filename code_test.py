@@ -35,10 +35,8 @@ from specops import proc_spec
 
 def NoCloud_Tdwarf(xpath,xlist):
     
-     fwhm=0
+     fwhm=3.3
      wavelength_range=[1,2.5]
-     ndata=1
-     wavpoints=None
      R_file=None
      obspec = []
 
@@ -52,7 +50,6 @@ def NoCloud_Tdwarf(xpath,xlist):
 
      do_clouds=0
      npatches=1
-
      cloud_name = ['clear']
      cloud_type = ['none']
      cloudpatch_index=[[1]]
@@ -63,8 +60,8 @@ def NoCloud_Tdwarf(xpath,xlist):
      do_fudge=0
      samplemode='mcmc'
 
-     instrument_instance = utils.Instrument(fwhm=fwhm, wavelength_range=wavelength_range, R_file=R_file,obspec=obspec)
-     re_params = utils.Retrieval_params(samplemode,chemeq,gaslist,gastype_list,fwhm,do_fudge,ptype,do_clouds,npatches,cloud_name,cloud_type,cloudpatch_index,particle_dis,instrument_instance)
+     instrument_instance = utils.Instrument(wavelength_range=wavelength_range, R_file=R_file,obspec=obspec,fwhm=fwhm)
+     re_params = utils.Retrieval_params(samplemode,chemeq,gaslist,gastype_list,do_fudge,ptype,do_clouds,npatches,cloud_name,cloud_type,cloudpatch_index,particle_dis,instrument_instance,fwhm=fwhm)
      model_config_instance = utils.ModelConfig(samplemode,do_fudge,cloudpath=cloudpath)
      io_config_instance = utils.IOConfig()
 
@@ -94,11 +91,10 @@ def NoCloud_Tdwarf(xpath,xlist):
 
      gnostics=0
      trimspec, cloud_phot_press,other_phot_press,cfunc=test_module.modelspec(params_instance,re_params,args_instance,gnostics)
-
-
-     modspec=proc_spec(inputspec=trimspec, theta=params_instance, re_params=re_params, args_instance=args_instance, do_scales=True, do_shift=True)
      benchspec = np.loadtxt('data/test_data/No_cloud_800K_model_benchmark_SPEC.dat',skiprows=3,unpack=True)
-     outspec = prism_non_uniform(benchspec,modspec,3.3)
+     args_instance.obspec=benchspec
+     wav,outspec=proc_spec(inputspec=trimspec, theta=params_instance, re_params=re_params, args_instance=args_instance, do_scales=True, do_shift=True)
+
 
      difference_spectrum = outspec / benchspec[1,:]
      print('*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-')
