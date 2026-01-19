@@ -1964,6 +1964,21 @@ def shared_memory_array(rank, comm, shape,datatype='d'):
     https://stackoverflow.com/questions/32485122/shared-memory-in-mpi4py
     
     '''
+
+    """
+    datatype:
+        'd' -> float64
+        'f' -> float32
+    """
+
+    if datatype == 'd':
+        mpi_type = MPI.DOUBLE
+        np_type  = np.float64
+    elif datatype == 'f':
+        mpi_type = MPI.FLOAT
+        np_type  = np.float32
+    else:
+        raise ValueError("datatype must be 'd' (float64) or 'f' (float32)")
     
     # Create a shared array of size given by product of each dimension
     size = np.prod(shape)
@@ -1984,7 +1999,7 @@ def shared_memory_array(rank, comm, shape,datatype='d'):
     # Create a numpy array whose data points to the shared memory
     buf, itemsize = win.Shared_query(0) 
     assert itemsize == MPI.DOUBLE.Get_size() 
-    array =  np.ndarray(buffer=buf, dtype=datatype, shape=shape,order='F')
+    array =  np.ndarray(buffer=buf, dtype=np_type, shape=shape,order='F')
     
     return array, win
 

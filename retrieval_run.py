@@ -49,7 +49,7 @@ def brewster_reterieval_run(re_params,model_config_instance,io_config_instance):
     rank = node_comm.Get_rank()
 
     # set up shared memory array for cia
-    settings.cia, _ = utils.shared_memory_array(rank, node_comm, (4,args_instance.ciatemps.size,args_instance.nwave),'float32')
+    settings.cia, _ = utils.shared_memory_array(rank, node_comm, (4,args_instance.ciatemps.size,args_instance.nwave), datatype='f')
 
     if (rank == 0):
         # cia = np.asfortranarray(np.empty((4,ciatemps.size,nwave)),dtype='float32')
@@ -63,7 +63,7 @@ def brewster_reterieval_run(re_params,model_config_instance,io_config_instance):
     ngas = len(args_instance.gaslist)
     npress= args_instance.press.size
     ntemps = args_instance.inlinetemps.size
-    settings.linelist, _ = utils.shared_memory_array(rank, node_comm, (ngas,npress,ntemps,args_instance.nwave))
+    settings.linelist, _ = utils.shared_memory_array(rank, node_comm, (ngas,npress,ntemps,args_instance.nwave), datatype='f')
 
     if (rank == 0):
     # Now we'll get the opacity files into an array
