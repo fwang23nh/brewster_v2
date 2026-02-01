@@ -29,8 +29,44 @@ __status__ = "Development"
 
 
 def set_prof(proftype, coarsePress,press,intemp):
-    temp = np.zeros_like(press)
+    """
+    Construct a temperature-pressure (T-P) profile on a fine pressure grid.
 
+    This routine supports multiple analytic / spline-based profile parameterizations
+    commonly used in exoplanet / brown dwarf atmospheric retrievals.
+
+    Parameters
+    ----------
+    proftype : int
+        Profile type selector:
+        - 1        : 13 spline interpolation from coarse T-P profile
+        - 2        : Madhusudhan & Seager 2009 parameterised profile, no inversion (a1, a2, P1, P3, T3)
+        - 3        : Madhusudhan & Seager 2009 with an inversion (a1, a2, P1, P2, P3, T3)
+        - 7 or 77  : Mollière / petitRADTRANS hybrid radiative-convective profile
+    coarsePress : ndarray
+        Coarse pressure grid (used only for proftype 1 or 9).
+    press : ndarray
+        Fine pressure grid on which the temperature profile is returned.
+        Must be strictly positive and monotonic.
+    intemp : ndarray
+        Parameter vector defining the temperature profile. Interpretation depends
+        on `proftype` (see code branches for exact ordering).
+
+    Returns
+    -------
+    temp : ndarray
+        Temperature profile on the fine `press` grid (K), clipped to [100, 4000] K.
+
+    Notes
+    -----
+    - Final temperatures are smoothed with a 5-layer Gaussian kernel.
+    - Temperatures are clipped to the range 100-4000 K to avoid unphysical values
+      and opacity table limits.
+    - Several optional diagnostics issue warnings when parameters fall outside
+      typical physical ranges.
+    """
+
+    temp = np.zeros_like(press)
     if (proftype == 1 or proftype == 9):
         # interp temp onto finer grid coarsePress => press
         # spline fit with max smoothing

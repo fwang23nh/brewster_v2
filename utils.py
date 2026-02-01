@@ -20,6 +20,7 @@ import settings
 from collections import defaultdict
 import re
 import emcee
+import warnings
 
 __author__ = "Fei Wang"
 __copyright__ = "Copyright 2024 - Fei Wang"
@@ -146,7 +147,7 @@ class ModelConfig:
     dist : float, optional
         Distance parameter (default: None)
     pfile : str, optional
-        Pt file (default: "LSR1835_eqpt.dat")
+        Pt file (default: None)
 
     Methods
     -------
@@ -158,7 +159,7 @@ class ModelConfig:
         Update the model configuration dictionary with the current attributes.
     """
 
-    def __init__(self, samplemode, do_fudge, use_disort=0, malk=0, mch4=0, do_bff=1, fresh=0,cloudpath=None,xpath="../Linelists/", xlist="data/gaslistRox.dat", dist=None, pfile="data/LSR1835_eqpt.dat",do_scales=True,do_shift=True):
+    def __init__(self, samplemode, do_fudge, use_disort=0, malk=0, mch4=0, do_bff=1, fresh=0,cloudpath=None,xpath="../Linelists/", xlist=None, dist=None, pfile="data/LSR1835_eqpt.dat",do_scales=True,do_shift=True):
         self.samplemode = samplemode
         self.use_disort = use_disort
         self.do_fudge = do_fudge
@@ -462,23 +463,6 @@ cloud_dic = {
     "SiO": 20,
     "mixto": 99
 }
-
-
-
-def dp_customized_distribution(x):
-    return np.abs(0.1 * np.random.randn(x))
-
-
-def hansen_b_customized_distribution(x):
-    return np.abs(0.2+0.05 * np.random.randn(x))
-
-
-# def tolerance_parameter_customized_distribution(x):
-
-#     args_instance=settings.runargs
-
-#     return np.log10((np.random.rand(x)* (max(args_instance.obspec[2,:]**2)*(0.1 - 0.01))) + (0.01*min(args_instance.obspec[2,10::3]**2))) 
-
 
 
 
@@ -1332,10 +1316,6 @@ class Retrieval_params:
                             cloud_dic[patch_key] = {}
                         cloud_dic[patch_key][cloud_type_name[j]] = dic["patch"]
 
-                # if i+1 > len(cloudpatch_index):
-                #     patch_key = f"patch {i + 1}"
-                #     cloud_dic[patch_key] = {}
-
             return cloud_dic
         else:
             return {}
@@ -1404,10 +1384,52 @@ class Retrieval_params:
             f'{s}'
             f'- added_params: {list(add_params_keys)}\n'
         )
+    
+
+
+
+def dp_customized_distribution(x):
+    return np.abs(0.1 * np.random.randn(x))
+
+
+def hansen_b_customized_distribution(x):
+    return np.abs(0.2+0.05 * np.random.randn(x))
+
             
 
 def get_all_parametres(dic):
 
+    """
+    Flatten a nested retrieval parameter dictionary into an ordered list of 
+    parameter names and initial values.
+
+    This function extracts parameters from multiple sections:
+      - Gas parameters (either free chemistry or chemical equilibrium)
+      - Refinement parameters
+      - Temperature profile (PT) parameters
+      - Cloud parameters (including patchy clouds)
+      - Any user-added parameters
+
+    Parameters
+    ----------
+    dic : dict
+        Nested dictionary of retrieval parameters, typically structured as:
+        dic['gas'], dic['refinement_params'], dic['pt'], dic['cloud'], dic['added_params'].
+        Each parameter entry should have a 'params' dict with 'initialization'.
+
+    Returns
+    -------
+    all_params : list of str
+        Ordered list of parameter names, flattened across all sections.
+
+    all_params_values : list
+        Corresponding list of initial values for each parameter.
+
+    """
+
+    # -------------------------------
+    # Gas parameters
+    # -------------------------------
     gaslist = list(dic['gas'].keys())
     gastype_values = [info['gastype'] for key, info in dic['gas'].items() if 'gastype' in info]
     
@@ -1433,15 +1455,22 @@ def get_all_parametres(dic):
                 gas_values.append(dic['gas'][gaslist[i]]['params']['p_ref']['initialization'])
         
             
-
+    # -------------------------------
+    # Refinement parameters
+    # -------------------------------
     refinement_params = list(dic['refinement_params']['params'].keys())
     refinement_params_values = [dic['refinement_params']['params'][p]['initialization'] for p in refinement_params]
 
+    # -------------------------------
+    # Temperature profile (PT) parameters
+    # -------------------------------
     pt = list(dic['pt']['params'].keys())
     pt_values = [dic['pt']['params'][p]['initialization'] for p in pt]
     
     
-    
+    # -------------------------------
+    # Cloud parameters
+    # -------------------------------
     cloud = []
     cloud_values = []
     if 'cloud' in dic:
@@ -1458,6 +1487,9 @@ def get_all_parametres(dic):
     all_params = gas + refinement_params + pt + cloud
     all_params_values = gas_values + refinement_params_values + pt_values + cloud_values
 
+    # -------------------------------
+    # Added / user-defined parameters
+    # -------------------------------
     if 'added_params' in dic.keys():
         added_dic = list(dic['added_params'].keys())
         added_values = [dic['added_params'][p]['initialization'] for p in added_dic]
@@ -1465,7 +1497,9 @@ def get_all_parametres(dic):
         all_params += added_dic
         all_params_values += added_values
 
-
+    # -------------------------------
+    # Remove duplicate parameters, preserving first occurrence
+    # -------------------------------
     unique_params = {}
     for param, value in zip(all_params, all_params_values):
         if param not in unique_params:
@@ -1476,15 +1510,43 @@ def get_all_parametres(dic):
 
 
 def update_dictionary(dic, params_instance):
-  
-    
-    # ordered_params = {}
-    # for field in params_instance._fields:
-    #     if field in dic['refinement_params']['params']:
-    #         ordered_params[field] = dic['refinement_params']['params'][field]
-    # dic['refinement_params']['params'] = ordered_params
+     
+    """
+    Update the retrieval dictionary with current parameter values.
 
+    This function writes back values from a `params_instance` (typically a namedtuple
+    of all parameters, e.g., from MCMC or MultiNest) into the nested `dic` structure.
+    It handles:
+      - Gas parameters (free or chemical equilibrium)
+      - Refinement parameters
+      - PT (temperature profile) parameters
+      - Added user parameters
+      - Cloud parameters (patchy or single fcld parameter)
+
+    Parameters
+    ----------
+    dic : dict
+        Nested dictionary of retrieval parameters (same format as used in
+        `get_all_parametres`).
+
+    params_instance : namedtuple
+        Flattened parameter instance, with attribute names matching `all_params` from
+        `get_all_parametres`.
+
+    Returns
+    -------
+    dic : dict
+        Same dictionary object, updated in-place with `params_instance` values.
+
+    Warnings
+    --------
+    - If a parameter exists in `dic` but not in `params_instance`, a warning is raised.
+    - Parameters in `params_instance` but not in `dic` are ignored.
+    """
+
+    # -------------------------------
     # Update gas parameters
+    # -------------------------------
     gastype_values = [info['gastype'] for key, info in dic['gas'].items() if 'gastype' in info]
     gaslist=list(dic['gas'].keys())
     for i in range(len(gaslist)):
@@ -1496,23 +1558,28 @@ def update_dictionary(dic, params_instance):
         if gastype_values[i]=='H':
             dic['gas'][gaslist[i]]['params']['p_ref']['initialization'] = getattr(params_instance, "p_ref_%s"%gaslist[i])
 
-    
+    # -------------------------------
     # Update refinement parameters
+    # -------------------------------
     for param in dic['refinement_params']['params'].keys():
         dic['refinement_params']['params'][param]['initialization'] = getattr(params_instance, param)
     
-    # Update pt parameters
+    # -------------------------------
+    # Update PT parameters
+    # -------------------------------
     for param in dic['pt']['params'].keys():
         dic['pt']['params'][param]['initialization'] = getattr(params_instance, param)
 
-
-    # Update added parameters 
+    # -------------------------------
+    # Update added parameters
+    # -------------------------------
     if 'added_params' in dic.keys():
         for param in dic['added_params'].keys():
             dic['added_params'][param]['initialization'] = getattr(params_instance, param)
     
+    # -------------------------------
     # Update cloud parameters
-    
+    # -------------------------------
     if 'cloud' in dic and dic['cloud']:
         if 'patch 1' in dic['cloud']:
             for cloud_type in dic['cloud']['patch 1'].keys():
@@ -1536,6 +1603,23 @@ def update_dictionary(dic, params_instance):
 
 
 def get_distribution_values(dic):
+    """
+    Recursively extract all 'distribution' entries from a dictionary.
+
+    Parameters
+    ----------
+    dic : dict
+        Dictionary containing retrieval parameters. The dictionary may contain
+        arbitrary levels of nesting (dicts or lists), with some dicts including
+        a 'distribution' key.
+
+    Returns
+    -------
+    distribution_values : list
+        List of all values associated with the 'distribution' keys found in `dic`.
+        Each value is usually a list like ['uniform', 0.0, 1.0] or ['normal', 0, 0.1].
+    """
+
     distribution_values = []
 
     def recurse(d):
@@ -1555,14 +1639,48 @@ def get_distribution_values(dic):
 
 def MC_P0_gen(updated_dic,model_config_instance,args_instance):
 
+    """
+    Generate initial positions (p0) for MCMC walkers based on parameter distributions.
+
+    Parameters
+    ----------
+    updated_dic : dict
+        Flattened retrieval dictionary with 'distribution' info for all parameters.
+    
+    model_config_instance : object
+        Configuration object with attributes:
+          - nwalkers : int, number of MCMC walkers
+          - ndim : int, total number of parameters
+    
+    args_instance : object
+        Arguments instance containing retrieval settings (e.g., proftype, coarsePress, press).
+
+    Returns
+    -------
+    p0 : ndarray, shape (nwalkers, ndim)
+        Initial positions for all walkers in the MCMC chain.
+        Values are drawn according to the parameter distributions in `updated_dic`.
+
+    Notes
+    -----
+    - Supports 'normal', 'uniform', and 'customized' distributions.
+    - For temperature profile (proftype=1), ensures all initial temperatures are physically valid (>1 K).
+    """
+
     nwalkers=model_config_instance.nwalkers
     ndim=model_config_instance.ndim
     p0 = np.empty([nwalkers,ndim])
     
-    
+    # Get all distributions for parameters
     all_distributions=get_distribution_values(updated_dic)
-  
+
+    # if len(all_distributions) != ndim:
+    #     warnings.warn(f"Number of distributions ({len(all_distributions)}) "
+    #                   f"does not match ndim ({ndim}).", RuntimeWarning)
     
+    # -------------------------------
+    # Initialize walkers based on distributions
+    # -------------------------------
     for i in range(model_config_instance.ndim):
         if all_distributions[i][0]=='normal':
             mu,sigma=all_distributions[i][1:]
@@ -1576,6 +1694,9 @@ def MC_P0_gen(updated_dic,model_config_instance,args_instance):
             f = all_distributions[i][1]
             p0[:, i] = f(nwalkers).reshape(nwalkers)
 
+    # -------------------------------
+    # Special initialization for temperature profiles (proftype = 1)
+    # -------------------------------
     if args_instance.proftype==1:
 
         all_params,all_params_values =get_all_parametres(updated_dic) 
@@ -1602,10 +1723,48 @@ def MC_P0_gen(updated_dic,model_config_instance,args_instance):
     
     
 def cloud_para_gen(dic):
+    """
+    Generate cloud-related parameters from the retrieval dictionary.
 
+    This function extracts:
+      - Cloud names
+      - Cloud optical property names
+      - Mapping of clouds to patches
+      - Cloud particle size type codes
 
+    Parameters
+    ----------
+    dic : dict
+        Nested dictionary containing cloud definitions under 'cloud'.
+        Expected format:
+            dic['cloud']['patch 1'][cloud_name]['particle_dis']
 
-    # Determine number of patches and clouds
+    Returns
+    -------
+    cloudname_set : list of str
+        Unique cloud names across all patches (excluding 'clear').
+
+    cloud_opaname : ndarray, shape (nclouds,)
+        Cloud opacity file names (or derived names) for each cloud.
+
+    cloudmap : ndarray, shape (npatches, nclouds)
+        Binary map indicating presence (1) or absence (0) of each cloud in each patch.
+
+    cloudsize : ndarray, shape (nclouds,)
+        Particle size type for each cloud:
+          - 0 : unknown / default
+          - 1 : Hansen distribution
+          - 2 : log-normal distribution
+
+    Notes
+    -----
+    - If 'cloud' key is missing or empty, returns default arrays of zeros.
+    - Supports multiple patches (patch 1, patch 2, etc.).
+    - Excludes entries containing 'clear' in the cloud name.
+    """
+    # -------------------------------
+    # Case of no clouds
+    # -------------------------------
     if 'cloud' not in dic or not dic['cloud']:
 
         npatches = 1
@@ -1614,8 +1773,9 @@ def cloud_para_gen(dic):
         return np.zeros([nclouds]), np.zeros([nclouds]),np.zeros((npatches, nclouds)),np.zeros([nclouds])
     
     else:
-    
-        # Determine number of patches and clouds
+    # -------------------------------
+    # Determine number of patches
+    # -------------------------------
         patch_numbers = [
         int(k.split(' ')[1])
         for k in list(dic['cloud'].keys())
@@ -1623,6 +1783,9 @@ def cloud_para_gen(dic):
     ]
         npatches = max(patch_numbers)
 
+        # -------------------------------
+        # Identify unique clouds and their particle sizes
+        # -------------------------------
         cloudname_set = [] #Used a set (cloudname_set) to automatically remove duplicates.
         cloudsize =[]
         for i in range(npatches):
@@ -1637,7 +1800,9 @@ def cloud_para_gen(dic):
                     else:
                         cloudsize.append(0)
 
-
+        # -------------------------------
+        # Determine cloud optical property names
+        # -------------------------------
         nclouds = len(cloudname_set)
         cloud_opaname= np.zeros([nclouds], dtype=object, order='F')
 
@@ -1647,7 +1812,9 @@ def cloud_para_gen(dic):
             else:
                 cloud_opaname[i] = cloudname_set[i].split(' ')[0]
 
-
+        # -------------------------------
+        # Create cloud map for patches
+        # -------------------------------
         cloudmap = np.zeros((npatches, nclouds), dtype=int,order='F')
         # Populate arrays
         for idx, cloud in enumerate(cloudname_set):
@@ -1660,11 +1827,52 @@ def cloud_para_gen(dic):
 
 
 def get_opacities(gaslist,w1,w2,press,xpath='../Linelists',xlist='gaslistR10K.dat',malk=0):
+    """
+    Load and interpolate gas opacity data for the requested wavelength and pressure ranges.
+    Parameters
+    ----------
+    gaslist : list of str
+        Names of gases to load opacities for.
+
+    w1, w2 : float
+        Wavelength range in microns [w1, w2] over which to extract opacities.
+
+    press : ndarray
+        Pressure array (Pa or bar, consistent with pickle data) to interpolate the opacity data onto.
+
+    xpath : str, optional
+        Path to directory containing opacity files. Default is '../Linelists'.
+
+    xlist : str, optional
+        File listing available opacity files and gas names. Default is 'gaslistR10K.dat'.
+
+    malk : int, optional
+        Special substitutions for alkali lines:
+          - 0 : no change
+          - 1 : use Mike's K_/Na_ files
+          - 2 : use 2021 K_/Na_ files
+          
+    Returns
+    -------
+    linelist : ndarray, shape (ngas, npress, ntemps, nwave)
+        Interpolated opacity values on the requested pressure grid and wavelength range.
+        Values are in log10(cm^2/molecule) or similar units. NaNs are replaced by -50.0.
+
+    Notes
+    -----
+    - The function reads pickled opacity files. Each file must contain a tuple:
+      (rawwavenum, inpress, inlinetemps, inlinelist)
+    - The linelist is interpolated in log10 space for both pressure and opacity.
+    - The function can optionally modify gas names for alkali line updates (malk).
+    """
+    
     # Now we'll get the opacity files into an array
     ngas = len(gaslist)
-
     totgas = 0
     gasdata = []
+    # -------------------------------
+    # Read the gas list file
+    # -------------------------------
     with open(xlist) as fa:
         for line_aa in fa.readlines():
             if len(line_aa) == 0:
@@ -1673,6 +1881,9 @@ def get_opacities(gaslist,w1,w2,press,xpath='../Linelists',xlist='gaslistR10K.da
             line_aa = line_aa.strip()
             gasdata.append(line_aa.split())
 
+    # -------------------------------
+    # Match requested gases to available entries
+    # -------------------------------
     list1 = []
     for i in range(0,ngas):
         for j in range(0,totgas):
@@ -1694,7 +1905,9 @@ def get_opacities(gaslist,w1,w2,press,xpath='../Linelists',xlist='gaslistR10K.da
     lists = [xpath+i[3] for i in list1[0:ngas]]
     gasmass = np.asfortranarray(np.array([i[2] for i in list1[0:ngas]],dtype='float32'))
 
-
+    # -------------------------------
+    # Load the first gas file for wavelength and temperature grid
+    # -------------------------------
     # get the basic framework from water list
     rawwavenum, inpress, inlinetemps, inlinelist = pickle.load(open(lists[0], "rb"))
 
@@ -1707,6 +1920,9 @@ def get_opacities(gaslist,w1,w2,press,xpath='../Linelists',xlist='gaslistR10K.da
     r1 = np.amin(np.where(np.logical_not(np.logical_or(rawwavenum[:] > wn2, rawwavenum[:] < wn1))))
     r2 = np.amax(np.where(np.logical_not(np.logical_or(rawwavenum[:] > wn2, rawwavenum[:] < wn1))))
 
+    # -------------------------------
+    # Interpolate linelist for each gas
+    # -------------------------------
     # Here we are interpolating the linelist onto our fine pressure scale.
     # pickles have linelist as 4th entry....
     linelist = (np.zeros([ngas,npress,ntemps,nwave],order='F')).astype('float32', order='F')
@@ -1830,6 +2046,51 @@ def get_k_opacities(gaslist,w1,w2,press,xpath='../K_tables',xlist='gaslist_ck.da
 
 
 def sort_bff_and_CE(chemeq,ce_table,press,gaslist):
+    """
+    Sort and interpolate chemical equilibrium (CE) and bound-free (BFF) opacity tables.
+
+    Parameters
+    ----------
+    chemeq : int
+        Flag for chemical equilibrium treatment:
+        - 0: Only ion fractions (fixed metallicity)
+        - 1: Full chemical equilibrium with requested gases
+
+    ce_table : str
+        Path to pickled chemical equilibrium table file. The pickle must contain:
+        (metscale, coscale, Tgrid, Pgrid, gasnames, abunds)
+
+    press : ndarray
+        Pressure grid for the current model (Pa or bar, consistent with pickle data).
+
+    gaslist : list of str
+        List of gas names to extract from the CE table.
+
+    Returns
+    -------
+    bff_raw : ndarray, shape (nT, n_layers, 3)
+        BFF opacity values interpolated onto the model pressure grid.
+        The 3 channels correspond to pre-selected species (e.g., e-, H, H-).
+
+    Tgrid : ndarray
+        Temperature grid from the CE table.
+
+    metscale : ndarray
+        Metallicity scale from the CE table.
+
+    coscale : ndarray
+        C/O ratio scale from the CE table.
+
+    gases_myP : ndarray, shape (nmet, nco, nT, n_layers, ngas+3)
+        Interpolated abundances for requested gases and ions over the model pressure grid.
+
+    Notes
+    -----
+    - For chemeq=0, only a subset of ion fractions is used (BFF raw).
+    - For chemeq=1, all requested gases are interpolated, including optional 'h_mins'.
+    - The function exits if any requested gas is missing from the CE table.
+    """
+
 
     # Sort out the BFF opacity stuff and chemical equilibrium tables:
     metscale,coscale,Tgrid,Pgrid,gasnames,abunds = pickle.load( open(ce_table, "rb" ) )
@@ -1920,12 +2181,38 @@ def sort_bff_and_CE(chemeq,ce_table,press,gaslist):
 
 
 def get_clouddata(cloudname,cloudpath = "../Clouds/"):
-
     """
-    A function to get the clouddata from the cloud path, and put into memory. 
-    The result should be a array like cloudnum (update name) with npatch, nclouda and each of these having miewave, mierad, qext, qscat, cos_qscat
+    Load cloud optical properties from a pickled cloud file and convert to Fortran-contiguous arrays.
 
+    Parameters
+    ----------
+    cloudname : str
+        Name of the cloud file (without extension) to load.
+    cloudpath : str, optional
+        Directory path where cloud files are stored. Default is "../Clouds/".
+
+    Returns
+    -------
+    cloud : list of np.ndarray
+        List containing 3 arrays in Fortran order (float64):
+        - qscat_f : scattering efficiency
+        - qext_f : extinction efficiency
+        - cos_qscat_f : cosine of scattering angle
+
+    miewave_f : np.ndarray
+        Wavelength grid of the cloud particles, Fortran-contiguous, dtype=float64.
+
+    mierad_f : np.ndarray
+        Particle radii grid, Fortran-contiguous, dtype=float64.
+
+    Notes
+    -----
+    - Pickled cloud files are expected to contain 5 arrays in order:
+      (miewave, mierad, qscat, qext, cos_qscat)
+    - Arrays are converted to Fortran order (column-major) to be compatible with Fortran routines.
+    - Only qscat, qext, and cos_qscat are returned in the `cloud` list as required by the forward model.
     """
+
 
     with open(cloudpath + f'{cloudname}.pic', 'rb') as f:
         miewave, mierad, qscat, qext, cos_qscat = pickle.load(f)
@@ -2000,12 +2287,46 @@ def shared_memory_array(rank, comm, shape,datatype='d'):
     buf, itemsize = win.Shared_query(0) 
     assert itemsize == MPI.DOUBLE.Get_size() 
     array =  np.ndarray(buffer=buf, dtype=np_type, shape=shape,order='F')
-    
+
     return array, win
 
 
 def get_gasdetails(gaslist,w1,w2,xpath='../Linelists',xlist='gaslistR10K.dat'):
-    # Now we'll get the opacity files into an array
+    """
+    Load gas opacity file details and prepare arrays for Fortran routines.
+
+    Parameters
+    ----------
+    gaslist : list of str
+        List of gas names to load (e.g., ['H2O', 'CO']).
+    w1 : float
+        Minimum wavelength (microns) of interest.
+    w2 : float
+        Maximum wavelength (microns) of interest.
+    xpath : str, optional
+        Path to directory containing gas opacity files. Default is '../Linelists'.
+    xlist : str, optional
+        ASCII file listing gas opacity files and metadata. Default is 'gaslistR10K.dat'.
+
+    Returns
+    -------
+    inlinetemps : np.ndarray
+        Array of temperatures in the opacity files (K).
+    inwavenum : np.ndarray
+        Wavenumber grid corresponding to the wavelength range [w1, w2], Fortran-contiguous.
+    gasnames : np.ndarray
+        Gas names as fixed-length ASCII array, Fortran-contiguous, dtype='c'.
+    gasmass : np.ndarray
+        Gas molecular weights, Fortran-contiguous, dtype=float32.
+    nwave : int
+        Number of wavelength points in the selected range.
+
+    Notes
+    -----
+    - The function reads the first gas opacity file to get the base wavenumber and temperature grids.
+    - Converts wavelength range [w1, w2] into wavenumber range [wn1, wn2].
+    - Outputs arrays are prepared for use with Fortran routines in the forward model.
+    """
 
     ngas = len(gaslist)
     totgas = 0
@@ -2180,9 +2501,9 @@ class ArgsGen:
         
         # Profile type and cloud parameters
         self.proftype = self.re_params.ptype
-        # self.cloudflag, self.cloudtype, self.do_clouds,self.cloudnames = cloud_para_gen(self.re_params.dictionary)
-        
 
+        
+        # Get cloud data
         if self.re_params.dictionary['cloud']:
             self.cloudname_set,self.cloud_opaname,self.cloudmap,self.cloudsize=cloud_para_gen(self.re_params.dictionary)
 
@@ -2206,15 +2527,6 @@ class ArgsGen:
             self.cloudsize = []
             self.cloudmap = np.zeros((1, 1), dtype=int)
 
-        # # Initialize clouddata as a nested list to hold arrays
-        # self.cloudata = np.zeros((*self.cloudflag.shape, 3, len(self.miewave), len(self.mierad)), order='F')
-
-        # for i in range(len(self.cloudflag)):
-        #     for j in range(len(self.cloudflag[0])):
-        #         val = self.cloudflag[i][j]
-        #         if isinstance(val, str) and 'Mie' in val:
-        #             self.cloudata[i][j] = np.asfortranarray(
-        #                 get_clouddata(self.cloudnames[i][j], self.model.cloudpath)[0])
 
         # Generate temperature profile
         self.prof = np.full(13, 100.0)
@@ -2224,16 +2536,7 @@ class ArgsGen:
             self.prof = tfit(np.log10(self.coarsePress))
         
         # Get opacities, CIA data
-        # self.inlinetemps, self.inwavenum, self.linelist,self.gasnames,self.gasmass, self.nwave = get_opacities(
-        #     self.gaslist, self.w1, self.w2, self.press, self.xpath, self.xlist, self.malk)
-
-        # self.tmpcia, self.ciatemps = ciamod.read_cia("data/CIA_DS_aug_2015.dat", self.inwavenum)
-        # self.cia = np.asfortranarray(np.empty((4, self.ciatemps.size, self.nwave)), dtype='float32')
-        # self.cia[:, :, :] = self.tmpcia[:, :, :self.nwave]
-        # self.ciatemps = np.asfortranarray(self.ciatemps, dtype='float32')
-
         self.inlinetemps,self.inwavenum,self.gasnames,self.gasmass,self.nwave=get_gasdetails(self.gaslist, self.w1, self.w2,self.xpath, self.xlist)
-
         self.tmpcia, self.ciatemps = ciamod.read_cia("data/CIA_DS_aug_2015.dat", self.inwavenum)
         self.cia = np.asfortranarray(np.empty((4, self.ciatemps.size, self.nwave)), dtype='float32')
         self.cia[:, :, :] = self.tmpcia[:, :, :self.nwave]
@@ -2297,9 +2600,38 @@ class ArgsGen:
 
 
 
-
-
 def get_endchain(runname,fin,results_path='./'):
+    """
+    Retrieve and process the final MCMC chain from a run.
+
+    Parameters
+    ----------
+    runname : str
+        Base name of the run to load.
+    fin : int
+        Flag indicating whether the run finished:
+        - 1: Finished run (load .pk1 file)
+        - 0: Unfinished run (load snapshot)
+    results_path : str, optional
+        Path to the folder containing the saved chains (default is './').
+
+    Returns
+    -------
+    flatendchain : np.ndarray
+        Flattened chain of the last 2000 iterations (n_samples x ndim).
+    flatendprobs : np.ndarray
+        Flattened log-probabilities corresponding to `flatendchain`.
+    ndim : int
+        Number of parameters in the chain.
+
+    Notes
+    -----
+    - Prints maximum likelihood values overall and for the last 2K iterations.
+    - Prints mean autocorrelation time for finished chains.
+    - Supports both emcee version <3.0 and 3.0rc2.
+    - If the chain has fewer than 2000 iterations, slices will adjust automatically.
+    """
+        
     if (fin == 1):
         pic = results_path+runname+".pk1"
         sampler = pickle_load(pic)
@@ -2340,12 +2672,39 @@ def get_endchain(runname,fin,results_path='./'):
         max_end_like = np.amax(flatendprobs)
         print("maximum likelihood in final 2K iterations= ", max_end_like)
     else:
-        print("File extension not recognised")
-        stop
+        raise ValueError("File extension/flag `fin` not recognised. Must be 0 or 1.")
         
     return flatendchain, flatendprobs,ndim
     
 def get_nchain(runname, start_iter, end_iter, results_path='./'):
+    """
+    Extract a segment of an MCMC chain from an unfinished run snapshot.
+    Parameters
+    ----------
+    runname : str
+        Base name of the run to load.
+    start_iter : int
+        First iteration to extract (0-indexed).
+    end_iter : int
+        Last iteration to extract (exclusive).
+    results_path : str, optional
+        Path to the folder containing the snapshot file (default './').
+
+    Returns
+    -------
+    flat_chain_segment : np.ndarray
+        Flattened chain for the selected iterations (n_samples x ndim).
+    flat_probs_segment : np.ndarray
+        Flattened log-probabilities corresponding to `flat_chain_segment`.
+    ndim : int
+        Number of parameters in the chain.
+
+    Notes
+    -----
+    - Works only with unfinished run snapshots (`*_snapshot.pic`).
+    - Supports both emcee <3.0 and 3.0rc2 for reshaping probabilities.
+    - Prints maximum likelihood overall and for the selected iteration segment.
+    """
     #if fin == 0:
     pic = results_path + runname + "_snapshot.pic"
     chain, probs = pickle_load(pic)
@@ -2422,3 +2781,25 @@ def pickle_dump(obj, file_path):
 def pickle_load(file_path):
     with open(file_path, "rb") as f:
         return pickle.load(MacOSFile(f))
+    
+
+
+def get_cloud_params(dic):
+    cloud = []
+    cloud_values = []
+    if 'cloud' in dic:
+        if 'fcld' in dic['cloud']:
+            cloud.append('fcld')
+            cloud_values.append(dic['cloud']['fcld']['initialization'])
+        for patch_key in dic['cloud']:
+            if patch_key.startswith('patch'):
+                for cloud_key in dic['cloud'][patch_key]:
+                    for param_key in dic['cloud'][patch_key][cloud_key]['params']:
+                        cloud.append(f"{param_key}")
+                        cloud_values.append(dic['cloud'][patch_key][cloud_key]['params'][param_key]['initialization'])
+
+    unique_params = {}
+    for param, value in zip(cloud, cloud_values):
+        if param not in unique_params:
+            unique_params[param] = value
+    return list(unique_params.keys())

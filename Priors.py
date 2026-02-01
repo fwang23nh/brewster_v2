@@ -574,61 +574,6 @@ class Priors:
         )
 
 
-
-# 1. T_profile check (min(T) > 1.0) and (max(T) < 6000.) 
-    
-
-#     intemp_keys = list(re_params.dictionary['pt']['params'].keys())
-#     intemp = np.array([getattr(params_instance, key) for key in intemp_keys])
-#     T = TPmod.set_prof(proftype,junkP,press,intemp)
-
-
-
-# 2. gas_profile check
-
-
-#      (np.sum(10.**(invmr)) < 1.0),  np.all(gas_profile > -25.0) and np.all(gas_profile < 0.0)
-    
-#     gastype_values = [info['gastype'] for key, info in re_params.dictionary['gas'].items() if 'gastype' in info]
-#     count_N = gastype_values.count('N')
-
-#     if count_N>0:
-#     gas_profile = np.full((count_N, press.size), -1.0)
-#     gas_profile_index =0
-#     for i in range(len(gastype_values)):
-#         if  gastype_values[i]=="N":
-#             P_gas= getattr(params_instance, "p_ref_%s"%gas_keys[i])
-#             gas_alpha= getattr(params_instance, "alpha_%s"%gas_keys[i])
-#             t_gas= getattr(params_instance, gas_keys[i])
-#             if (0. < gas_alpha < 1. and -12.0 < t_gas < 0.0  and np.log10(press[0]) <= P_gas <= 2.4):
-#                 gas_profile[gas_profile_index,:]=gas_nonuniform.non_uniform_gas(press,P_gas,t_gas,gas_alpha)
-#             else:
-#                 gas_profile[gas_profile_index,:]=-30
-#             gas_profile_index+=1
-
-#         if  gastype_values[i]=="H":
-#                 P_hgas= getattr(params_instance, "p_ref_%s"%gas_keys[i])
-
-# 3. Mass and R prior  
-
-#         and  1.0 < M < 80  and  0.5 < Rj < 2.0
-
-#         D = 3.086e+16 * dist
-#         R = -1.0
-#         if (r2d2 > 0.):
-#             R = np.sqrt(r2d2) * D
-#         g = (10.**logg)/100.
-#         M = (R**2 * g/(6.67E-11))/1.898E27
-#         Rj = R / 69911.e3
-
-
-# 4. tolerance_parameter_1   
-
-
-#  ((0.01*np.min(obspec[2,:]**2)) < 10.**tolerance_parameter < (100.*np.max(obspec[2,:]**2)))
-
-
-
 def priormap_dic(theta,re_params):
 
     all_params,all_params_values =utils.get_all_parametres(re_params.dictionary) 
@@ -636,7 +581,6 @@ def priormap_dic(theta,re_params):
     params_instance = params_master(*theta)
 
     args_instance=settings.runargs
-
     # Unpack all necessary parameters into local variables
     press=args_instance.press
     fwhm=args_instance.fwhm

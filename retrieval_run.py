@@ -38,11 +38,41 @@ def tolerance_parameter_customized_distribution(x):
 
 
 def brewster_reterieval_run(re_params,model_config_instance,io_config_instance):
+    """
+    Main driver routine for running a Brewster atmospheric retrieval.
+
+    This function sets up shared-memory MPI infrastructure, loads opacities
+    and cloud data, initializes samplers, and runs either an MCMC (emcee)
+    or MultiNest retrieval depending on `re_params.samplemode`.
+
+    Parameters
+    ----------
+    re_params : object
+        Retrieval parameter container holding model dictionary, priors, and sample mode.
+    model_config_instance : object
+        Configuration object controlling sampler dimensions, walkers, iterations, etc.
+    io_config_instance : object
+        I/O configuration (output directory, run name, pickle options, filenames).
+    # instrument_instance : object
+    #     Configuration object controlling observational data, R_file, etc.
+      
+
+    Notes
+    -----
+    - Uses MPI shared memory to distribute large opacity and CIA arrays efficiently.
+    - Supports two sampling modes:
+        * 'mcmc'     → emcee EnsembleSampler with MPIPool
+        * 'multinest' → PyMultiNest nested sampling
+    - Writes periodic snapshots and diagnostics during MCMC runs.
+    """
+
 
     args_instance=settings.runargs
     all_params,all_params_values =utils.get_all_parametres(re_params.dictionary)
 
-
+    # ------------------------------------------------------------------
+    # MPI INITIALIZATION AND SHARED MEMORY SETUP
+    # ------------------------------------------------------------------
     # Now we set up the MPI bits
     world_comm = MPI.COMM_WORLD
     node_comm = world_comm.Split_type(MPI.COMM_TYPE_SHARED)
@@ -105,7 +135,7 @@ def brewster_reterieval_run(re_params,model_config_instance,io_config_instance):
                 pickle.dump({
                     're_params': re_params,
                     'model_config': model_config_instance,
-                    'io_config': io_config_instance,
+                    'io_config': io_config_instance
                 }, file)
 
             if(io_config_instance.make_arg_pickle == 1):
@@ -114,6 +144,9 @@ def brewster_reterieval_run(re_params,model_config_instance,io_config_instance):
     world_comm.Barrier()
 
         
+    # ------------------------------------------------------------------
+    # MCMC MODE (emcee)
+    # ------------------------------------------------------------------
 
     if re_params.samplemode=='mcmc':
 
@@ -205,13 +238,14 @@ def brewster_reterieval_run(re_params,model_config_instance,io_config_instance):
 
         pool.close()
         save_object(sampler, io_config_instance.outdir+io_config_instance.finalout)
-    
-        
+
+    # ------------------------------------------------------------------
+    # MULTINEST MODE
+    # ------------------------------------------------------------------
     if re_params.samplemode=='multinest':
 
         model_config_instance.ndim=len(all_params)
         model_config_instance.nparam=len(all_params)
-        
         
         def initialize_mnest():
             mnest_args = {'LogLikelihood':'',

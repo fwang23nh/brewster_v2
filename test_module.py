@@ -46,6 +46,30 @@ __status__ = "Development"
 
 def lnprob(theta,re_params):
 
+    """
+    Compute the log-posterior probability ln P(theta | data).
+
+    This function evaluates the log-prior and log-likelihood for a given
+    parameter vector and returns their sum. If the parameters violate the
+    prior bounds or lead to non-finite values, the posterior is set to -inf.
+
+    Parameters
+    ----------
+    theta : array_like
+        Model parameter vector at which to evaluate the posterior.
+        Typically a 1D array of length N_params.
+
+    re_params : object or dict
+        retrieval parameters dictionary  passed to the Priors and likelihood
+        functions.
+
+    Returns
+    -------
+    lnprb : float
+        Log-posterior probability (log-prior + log-likelihood). Returns -np.inf
+        if the parameters are rejected by the priors or if NaNs occur.
+    """
+
     args_instance=settings.runargs
     Priors_instance =Priors.Priors(theta,re_params,args_instance)
     # now check against the priors, if not beyond them, run the likelihood
@@ -63,6 +87,32 @@ def lnprob(theta,re_params):
 
 def lnlike(theta,re_params):
 
+    """
+    Compute the log-likelihood  for a given parameter vector.
+
+    This function generates a model spectrum for the current parameter set,
+    processes it into the observed space, and evaluates a Gaussian log-likelihood
+    against the observed spectrum. It supports both uniform and non-uniform
+    spectral resolution, optional tolerance parameters, and additional
+    smoothing priors in MultiNest mode for temperature–pressure profiles.
+
+    Parameters
+    ----------
+    theta : array_like
+        Model parameter vector (1D array) containing all free parameters in the
+        order defined by `re_params`.
+
+    re_params : object
+        Retrieval parameter container. Must contain:
+        - dictionary : parameter definitions and metadata
+        - samplemode : sampler type (e.g. "mcmc,multinest")
+        ...
+
+    Returns
+    -------
+    lnlike : float
+        Log-likelihood value. Returns -np.inf if NaNs are encountered.
+    """
 
     all_params,all_params_values =utils.get_all_parametres(re_params.dictionary) 
     #make instrument instance as input parameter
@@ -71,6 +121,7 @@ def lnlike(theta,re_params):
     params_instance = params_master(*theta)
     args_instance=settings.runargs
 
+    # configuration arguments
     press=args_instance.press
     obspec=args_instance.obspec
     proftype=args_instance.proftype
@@ -78,14 +129,17 @@ def lnlike(theta,re_params):
     do_shift=args_instance.do_shift
     do_scales=args_instance.do_scales
 
-    # get the spectrum
+    # ---- Generate the forward model spectrum ----
     # for MCMC runs we don't want diagnostics
     gnostics = 0
     trimspec, photspec,tauspec,cfunc = modelspec(theta,re_params,args_instance,gnostics)
 
     lnLik = 0.0
+
+    # Process the model spectrum into observed space (scaling, shifting, etc.)
     wave,outspec=proc_spec(inputspec=trimspec, theta=params_instance, re_params=re_params, args_instance=args_instance, do_scales=do_scales, do_shift=do_shift)
 
+    # ---- Case 1: Uniform spectral resolution (FWHM) ----
     if args_instance.fwhm is not None:
         if (do_fudge == 1):
             s=obspec[2,::3]**2 + 10.**params_instance.tolerance_parameter_1
@@ -94,6 +148,7 @@ def lnlike(theta,re_params):
 
         lnLik=-0.5*np.sum((((obspec[1,::3] - outspec[::3])**2) / s) + np.log(2.*np.pi*s))
 
+    # ---- Case 2: Non-uniform spectral resolution (user-supplied R file) ----
     else:
         #Non-uniform R, the user provides the R file with flags for the number and location of the tolerance and scale parameters
         #the columns of the R file as follows: R, wl, tol_flag,scale_flag
@@ -118,6 +173,8 @@ def lnlike(theta,re_params):
     if np.isnan(lnLik):
         lnLik = -np.inf
 
+
+    # ---- Additional smoothing / prior terms for MultiNest temperature profiles ----
     samplemode=re_params.samplemode.lower()
     if samplemode=="multinest":
         if proftype==1 or proftype==77:
@@ -156,6 +213,51 @@ def lnlike(theta,re_params):
 
 def modelspec(theta,re_params,args_instance,gnostics):
 
+    """
+    Generate a forward model spectrum and associated diagnostic products.
+
+    This function builds the atmospheric state (T-P profile, gas abundances,
+    cloud properties, gravity and radius scaling), calls the radiative transfer
+    forward model, and returns the trimmed spectrum together with cloud and
+    gas photospheric pressures and contribution functions.
+
+    It supports both chemical-equilibrium and fixed-VMR chemistry, multiple
+    temperature-pressure profile types, patchy cloud coverage, and optional
+    diagnostic outputs.
+
+    Parameters
+    ----------
+    theta : array_like
+        Model parameter vector (1D array) containing all free parameters.
+
+    re_params : object
+        Retrieval parameter container. Must include:
+        - dictionary : parameter definitions
+        - samplemode : "mcmc" or "multinest"
+
+    args_instance : object
+        Runtime configuration containing observational data, grids, cloud maps,
+        chemistry flags, and forward-model configuration.
+
+    gnostics : int
+        Diagnostic flag:
+        - 0 : no contribution functions / photospheres computed (fast, default for MCMC)
+        - 1 : compute cloud photosphere, gas photosphere, and contribution functions
+
+    Returns
+    -------
+    trimspec : ndarray, shape (2, nwave)
+        Trimmed model spectrum [wavelength, flux], reversed into ascending order.
+
+    cloud_phot_press : ndarray, shape (npatches, nwave)
+        Pressure at which cloud optical depth reaches unity (cloud photosphere).
+
+    other_phot_press : ndarray, shape (npatches, nwave)
+        Pressure at which non-cloud optical depth reaches unity (gas photosphere).
+
+    cfunc : ndarray, shape (npatches, nwave, nlayers)
+        Contribution function as a function of patch, wavelength, and pressure layer.
+    """
 
     all_params,all_params_values =utils.get_all_parametres(re_params.dictionary) 
     params_master = namedtuple('params',all_params)
@@ -172,12 +274,13 @@ def modelspec(theta,re_params,args_instance,gnostics):
  
         
     nlayers = press.size
+    # ---- Chemistry: free chemistry 
     if args_instance.chemeq == 0:
         gas_keys = re_params.dictionary['gas'].keys()
         gas_keys=list(gas_keys)
         invmr=np.array([getattr(params_instance, key) for key in gas_keys])
 
-
+   # ---- Chemistry: chemical equilibrium
     else:
         mh  = params_instance.mh
         co =  params_instance.co
@@ -187,7 +290,7 @@ def modelspec(theta,re_params,args_instance,gnostics):
         cfit = interp1d(args_instance.coscale,gases_myM,axis=0)
         invmr = cfit(co)
 
-
+    # ---- Radius, gravity, and distance scaling ----
     if re_params.samplemode=='multinest':
         M= params_instance.M
         R= params_instance.R* 69911e3
@@ -201,7 +304,7 @@ def modelspec(theta,re_params,args_instance,gnostics):
         R2D2= params_instance.r2d2
         logg=params_instance.logg
 
-        
+    # ---- Patchy cloud coverage ----   
     npatches = args_instance.cloudmap.shape[0]
     if (npatches > 1):
         prat =  params_instance.fcld
@@ -210,16 +313,13 @@ def modelspec(theta,re_params,args_instance,gnostics):
     else:
         pcover = 1.0
         
-    # use correct unpack method depending on situation
-    # if ((npatches > 1) and np.all(do_clouds != 0)):
-    #     cloudparams = cloud_dic.unpack_patchy(re_params,params_instance,cloudtype,cloudflag,do_clouds)
-    # else:
-    #     cloudparams = cloud_dic.unpack_default(re_params,params_instance,cloudtype,cloudflag,do_clouds)
-
-
+   
+   # ---- Unpack cloud parameters ----
     cloudparams=cloud_dic_new.cloud_unpack(re_params,params_instance)
     ndim = len(theta)
 
+
+    # ---- Unpack temperature–pressure profile parameters----
     intemp_keys = list(re_params.dictionary['pt']['params'].keys())
     intemp = np.array([getattr(params_instance, key) for key in intemp_keys])
 
@@ -238,17 +338,16 @@ def modelspec(theta,re_params,args_instance,gnostics):
     else:
         raise ValueError("not valid profile type %s" %proftype)
 
-    # set the profile
+     # Generate temperature profile
     temp = TPmod.set_prof(proftype,args_instance.coarsePress,press,intemp)
 
+    # ---- Gas abundance profiles ----
     ngas = len(args_instance.gaslist)
     bff = np.zeros([3,nlayers],dtype="float64")
-
-
     # check if its a fixed VMR or a profile from chem equilibrium
     # VMR is log10(VMR) !!!
     if args_instance.chemeq == 1:
-        # this case is a profile
+        # Chemical equilibrium: profile already defined on T–P grid
         ng = invmr.shape[2]
         ngas = ng - 3
         logVMR = np.zeros([ngas,nlayers],dtype='d')
@@ -262,12 +361,13 @@ def modelspec(theta,re_params,args_instance,gnostics):
         
 
     else:
-        # This case is fixed VMR
+        # Fixed VMR case
         # chemeq = 0
         logVMR = np.empty((ngas,nlayers),dtype='d')
         alkratio = 16.2 #  from Asplund et al (2009)
 
         tmpvmr = np.empty(ngas,dtype='d')
+        # Alkali splitting (Na / K / Cs special cases)
         if (args_instance.gaslist[len(args_instance.gaslist)-1] == 'na' and args_instance.gaslist[len(args_instance.gaslist)-2] == 'k'):
             tmpvmr[0:(ngas-2)] = invmr[0:-1]
             tmpvmr[ngas-2] = np.log10(10.**invmr[-1] / (alkratio+1.)) # K
@@ -282,17 +382,12 @@ def modelspec(theta,re_params,args_instance,gnostics):
             tmpvmr[ngas-3] = np.log10(10.**invmr[-1] - 10.**tmpvmr[ngas-2] - 10.**tmpvmr[ngas-1]) #K
         else:
             tmpvmr[0:ngas] = invmr[0:ngas]
-            
+        
+        # Broadcast vertically
         for i in range(0,ngas):
             logVMR[i,:] = tmpvmr[i]
 
-        # # set H- in the high atmosphere    
-        # if (gaslist[gasnum.size-1] == 'hmins'):
-        #     logVMR[ngas-1,0:P_hmins_index]=tmpvmr[ngas-1]
-        #     logVMR[ngas-1,P_hmins_index:]=-100
-
-        # # set non-uniform gas profile 
-        
+       # ---- Non-uniform vertical gas profiles ----
         gastype_values = [info['gastype'] for key, info in re_params.dictionary['gas'].items() if 'gastype' in info]
             
         for i in range(len(gastype_values)):
@@ -316,10 +411,9 @@ def modelspec(theta,re_params,args_instance,gnostics):
                 logVMR[i,0:p_gas_index]=tmpvmr[i]
                 logVMR[i,p_gas_index:]=-100
 
-
+    # ---- Cloud profiles ----
     # now need to translate cloudparams in to cloud profile even
     # if do_clouds is zero..
-    # cloudprof,cloudrad,cloudsig = cloud_dic.atlas(do_clouds,cloudflag,cloudtype,cloudparams,press)
     cloudprof,cloudrad,cloudsig = cloud_dic_new.atlas(re_params,cloudparams,press)
     cloudprof = np.asfortranarray(cloudprof,dtype = 'float64')
     cloudrad = np.asfortranarray(cloudrad,dtype = 'float64')
@@ -328,8 +422,7 @@ def modelspec(theta,re_params,args_instance,gnostics):
     cloudsize = np.asfortranarray(args_instance.cloudsize,dtype = 'i')
     cloudmap = np.asfortranarray(args_instance.cloudmap,dtype = 'i')
 
-    # do_clouds = np.asfortranarray(do_clouds,dtype = 'i')
-    # Now get the BFF stuff sorted
+    # ----  Now get the BFF stuff sorted ----
     if (args_instance.chemeq == 0 and args_instance.do_bff == 1):
         for gas in range(0,3):
             for i in range(0,nlayers):

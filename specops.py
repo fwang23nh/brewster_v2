@@ -8,20 +8,68 @@ from rotBroadInt import rot_int_cmj as rotBroad
 
 def proc_spec(inputspec,theta,re_params, args_instance, do_scales=True,do_shift=True):
 
+    """
+    Apply wavelength shifts, rotational broadening, instrumental convolution,
+    and optional scaling to a model spectrum.
+
+    This function takes a high-resolution model spectrum and maps it into the
+    observed space by:
+      1. Applying wavelength shifts (delta-lambda and/or radial velocity)
+      2. Applying rotational broadening (vsini)
+      3. Convolving with the instrumental line-spread function
+      4. Applying multiplicative scale factors
+
+    Parameters
+    ----------
+    inputspec : ndarray, shape (2, N)
+        Input model spectrum with:
+        - inputspec[0, :] = wavelength array
+        - inputspec[1, :] = flux array
+
+    theta : array_like
+        Current parameter vector.
+
+    re_params : object
+        Retrieval parameter container defining parameter ordering.
+
+    args_instance : object
+        configuration containing observational spectrum, resolution
+        information, and region flags.
+
+    do_scales : bool, optional
+        If True, apply multiplicative scale parameters (default: True).
+
+    do_shift : bool, optional
+        If True, apply wavelength shifts and rotational broadening (default: True).
+
+    Returns
+    -------
+    wave_obs : ndarray, shape (Nobs,)
+        Observed wavelength grid (copied from args_instance.obspec).
+
+    outspec : ndarray, shape (Nobs,)
+        Processed model spectrum on the observed grid.
+    """
+
     all_params,all_params_values =utils.get_all_parametres(re_params.dictionary)
     params_master = namedtuple('params',all_params)
     params_instance = params_master(*theta)
 
     modspec = None 
-    
+
+    # ------------------------------------------------------------------
+    # Step 1: Apply wavelength shifts and rotational broadening
+    # ------------------------------------------------------------------
     if do_shift == True:
-        
+
+        # --- Constant wavelength offset (delta-lambda) ---
         if hasattr(params_instance, "dlambda"):
             dlam = params_instance.dlambda
             modspec = np.empty_like(inputspec)
             modspec[0,:] =  inputspec[0,:] + dlam
             modspec[1,:] =  inputspec[1,:]
-            
+
+        # --- Radial velocity Doppler shift ---
         if hasattr(params_instance, "vrad"):
             vrad = params_instance.vrad
             dlam = inputspec[0,:] * vrad/3e5
@@ -32,7 +80,8 @@ def proc_spec(inputspec,theta,re_params, args_instance, do_scales=True,do_shift=
                 modspec = np.empty_like(inputspec)
                 modspec[0,:] = inputspec[0,:] + dlam
                 modspec[1,:] = inputspec[1,:]
-        
+
+        # --- Rotational broadening ---
         if hasattr(params_instance, "vsini"):
             vsini = params_instance.vsini
             rotspec = rotBroad(modspec[0],modspec[1],vsini)
@@ -40,14 +89,18 @@ def proc_spec(inputspec,theta,re_params, args_instance, do_scales=True,do_shift=
     
 
     else:
+        # No shifting or broadening requested
         modspec=inputspec
+
+    # ------------------------------------------------------------------
+    # Step 2: Instrumental convolution and regional scaling
+    # ------------------------------------------------------------------
 
     if args_instance.fwhm is not None:
         # Use convolution for Spex
         outspec= prism_non_uniform(args_instance.obspec,modspec,args_instance.fwhm)
     else:
-        #this convolves with non uni R using the R file 
-        R = args_instance.R   
+        # Non-uniform resolution using user-supplied R file
         log_f_param = args_instance.logf_flag       
         scales_param = args_instance.scales
         outspec= np.zeros_like(args_instance.obspec[1,:])
@@ -71,32 +124,6 @@ def proc_spec(inputspec,theta,re_params, args_instance, do_scales=True,do_shift=
     return args_instance.obspec[0,:],outspec 
    
    
-''' 
-    if (do_scales == True) and (np.max(instrument.scales)>0.0):
-        outspecs = []
-        scales = instrument.scales
-        scales_max = int(np.max(scales))
-        #scale factor code goes here and returns outspec
-        #nasty for loop similar to the tolerance parameter
-        for i in range(1, scales_max+1):
-            if i == 1:
-                #scale1 = params_instance.scale1
-                #spec = scale1 * convspec #nope?
-                spec = convspec
-                #scale1 = 1.0 #dummy value ??               
-            else:
-                scale_param = getattr(params_instance, f"scale{i-1}")
-                spec = scale_param * convspec            
-            outspecs.append(spec)
-            #outspec[i, except the first one] = scale_factor * convolved_stuff 
-            #outspec = np.concatenate(outspec_i)
-        outspec = np.concatenate(outspecs, axis=0)
-    else:
-        outspec = convspec
-    
-    return outspec
-'''
-
 
 #**************************************************************************
 
@@ -106,7 +133,6 @@ def proc_spec(inputspec,theta,re_params, args_instance, do_scales=True,do_shift=
 #**************************************************************************
 
 def prism_non_uniform(obspec,modspec,resel):
-
 
     fluxout = prism(np.asfortranarray(obspec),np.asfortranarray(modspec),resel)[0:obspec[0,:].size]
 
@@ -126,21 +152,9 @@ def conv_uniform_R(obspec,modspec,R):
 
     fluxout = convr(np.asfortranarray(obspec),np.asfortranarray(modspec),R)[0:obspec[0,:].size]
     
-
     return fluxout
     
     
-    
-    
-##############################################################################
-##############################################################################
-##############################################################################
-##############################################################################
-##############################################################################
-##############################################################################
-
-
-
 
 def conv_non_uniform_R(model_flux, model_wl, R, obs_wl):
     """
