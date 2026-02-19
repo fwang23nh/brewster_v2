@@ -293,11 +293,9 @@ class Priors:
                         P_gas = getattr(self.params_instance, f"p_ref_{gas_keys[i]}")
                         gas_alpha = getattr(self.params_instance, f"alpha_{gas_keys[i]}")
                         t_gas = getattr(self.params_instance, gas_keys[i])
-                        if (0. < gas_alpha < 1. and -12.0 < t_gas < 0.0 and 
-                            np.log10(self.args_instance.press[0]) <= P_gas <= np.log10(self.args_instance.press[1])):
-                            gas_profile[gas_profile_index, :] = gas_nonuniform.non_uniform_gas(
-                                self.args_instance.press, P_gas, t_gas, gas_alpha
-                            )
+
+                        if (np.log10(self.args_instance.press[0]) <= P_gas <= np.log10(self.args_instance.press[-1])):
+                            gas_profile[gas_profile_index, :] = gas_nonuniform.non_uniform_gas(self.args_instance.press, P_gas, t_gas, gas_alpha)
                         else:
                             gas_profile[gas_profile_index, :] = -30
                         gas_profile_index += 1

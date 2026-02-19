@@ -39,7 +39,7 @@ class Instrument:
     Parameters
     ----------
     data : str
-        Telescope observing modes: 'IFS', 'Imaging'
+        observational data
     R_file : float
         Spectral resolution  file
     wavelength_range : float
@@ -159,7 +159,7 @@ class ModelConfig:
         Update the model configuration dictionary with the current attributes.
     """
 
-    def __init__(self, samplemode, do_fudge, use_disort=0, malk=0, mch4=0, do_bff=1, fresh=0,cloudpath=None,xpath="../Linelists/", xlist=None, dist=None, pfile="data/LSR1835_eqpt.dat",do_scales=True,do_shift=True):
+    def __init__(self, samplemode, do_fudge, use_disort=0, malk=0, mch4=0, do_bff=1, fresh=0,cloudpath=None,xpath="../Linelists/", xlist=None, dist=None, pfile="data/LSR1835_eqpt.dat",do_scales=True,do_shift=True,do_conv=True):
         self.samplemode = samplemode
         self.use_disort = use_disort
         self.do_fudge = do_fudge
@@ -172,6 +172,8 @@ class ModelConfig:
         self.cloudpath = cloudpath
         self.do_scales=do_scales
         self.do_shift=do_shift
+        self.do_conv=do_conv
+        
         
         self.dist = dist
         self.dist_err = 0
@@ -231,7 +233,8 @@ class ModelConfig:
                 'pfile': self.pfile,
                 'cloudpath':self.cloudpath,
                 'do_scales':self.do_scales,
-                'do_shift':self.do_shift
+                'do_shift':self.do_shift,
+                'do_conv':self.do_conv
             }
         }
 
@@ -301,6 +304,7 @@ class ModelConfig:
             f"- cloudpath : {self.cloudpath}\n"
             f"- do_scales : {self.do_scales}\n"
             f"- do_shift : {self.do_shift}\n"
+            f"- do_conv : {self.do_conv}\n"
             f"\n"
         )
         if self.samplemode.lower() == 'mcmc':
@@ -579,7 +583,7 @@ class Retrieval_params:
                            "alpha":
                             {'initialization':None,
                              'distribution':['uniform',0,1],
-                             'range':[0,1],
+                             'range':[-5,5],
                              'prior': None}    
                            }}
         elif gastype=='H':
@@ -2476,6 +2480,7 @@ class ArgsGen:
         self.do_bff = self.model.do_bff
         self.do_scales= self.model.do_scales
         self.do_shift= self.model.do_shift
+        self.do_conv= self.model.do_conv
         self.chemeq = self.re_params.chemeq
    
         if self.chemeq==0:
