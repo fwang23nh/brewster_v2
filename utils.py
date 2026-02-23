@@ -1246,55 +1246,53 @@ class Retrieval_params:
         return gas_dic
     
 
-    def cloud_type_name_gen(self,cloud_name,cloud_type):
+    def cloud_type_name_gen(self,do_clouds,cloud_name,cloud_type):
         cloud_type_name=[]
-        
-        
-        
+
         #for i in range(len(cloud_name)):
         
-        
-        if not cloud_name:  # No clouds at all
+        if do_clouds==0:  # No clouds at all
             return ['clear']  # or return empty list if code can handle it
-    
-        for i in range(len(cloud_name)):
-            name = cloud_name[i]
-            ctype = cloud_type[i]
-
-            if isinstance(name, list):
-                name = name[0]
-            if isinstance(ctype, list):
-                ctype = ctype[0]
         
-            if cloud_name[i].lower()=='clear':
-                cloud_type_name.append('clear')
-            elif cloud_name[i].lower()=='powerlaw':
-                
-                cloud_type_name.append('powerlaw cloud '+cloud_type[i].lower())
-                
-            elif cloud_name[i].lower()=='grey':
-                cloud_type_name.append('grey cloud '+cloud_type[i].lower())
-                
-            else:
-                cloud_type_name.append('Mie scattering cloud '+cloud_type[i].lower()+'--'+cloud_name[i])
+        else:
+            for i in range(len(cloud_name)):
+                name = cloud_name[i]
+                ctype = cloud_type[i]
+
+                if isinstance(name, list):
+                    name = name[0]
+                if isinstance(ctype, list):
+                    ctype = ctype[0]
+            
+                if cloud_name[i].lower()=='clear':
+                    cloud_type_name.append('clear')
+                elif cloud_name[i].lower()=='powerlaw':
+                    
+                    cloud_type_name.append('powerlaw cloud '+cloud_type[i].lower())
+                    
+                elif cloud_name[i].lower()=='grey':
+                    cloud_type_name.append('grey cloud '+cloud_type[i].lower())
+                    
+                else:
+                    cloud_type_name.append('Mie scattering cloud '+cloud_type[i].lower()+'--'+cloud_name[i])
 
         # ---- Deduplicate with suffixes (start from _1) ----
-        counts = defaultdict(int)
-        result = []
+            counts = defaultdict(int)
+            result = []
 
-        for s in cloud_type_name:
-            counts[s] += 1
-            if counts[s] == 1:
-                result.append(s)
-            else:
-                # insert suffix before .mieff if present
-                if '.mieff' in s:
-                    base, ext = s.rsplit('.mieff', 1)
-                    result.append(f"{base}_{counts[s]-1}.mieff{ext}")
+            for s in cloud_type_name:
+                counts[s] += 1
+                if counts[s] == 1:
+                    result.append(s)
                 else:
-                    result.append(f"{s}_{counts[s]}")
+                    # insert suffix before .mieff if present
+                    if '.mieff' in s:
+                        base, ext = s.rsplit('.mieff', 1)
+                        result.append(f"{base}_{counts[s]-1}.mieff{ext}")
+                    else:
+                        result.append(f"{s}_{counts[s]}")
 
-        return result        
+            return result        
         # return cloud_type_name
         
   
@@ -1341,7 +1339,7 @@ class Retrieval_params:
         gas_dic=self.gas_allparams_gen(chemeq,gaslist,gastype_list)
         refinement_dic=self.refinement_params_dic_gen()
         pt_dic=self.pt_dic_gen(ptype)
-        cloud_type_name=self.cloud_type_name_gen(cloud_name,cloud_type)
+        cloud_type_name=self.cloud_type_name_gen(do_clouds,cloud_name,cloud_type)
         cloud_dic=self.cloud_allparams_gen(do_clouds,npatches,cloud_type_name,cloudpatch_index,particle_dis) 
         retrieval_param["gas"]=gas_dic
         retrieval_param["refinement_params"]=refinement_dic
