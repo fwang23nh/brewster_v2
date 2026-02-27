@@ -274,6 +274,10 @@ class Priors:
             pp=len(self.intemp)
             prior_T_overall=True
 
+        elif self.args_instance.proftype==9:
+            prior_T_params=True
+            prior_T_overall=(min(self.args_instance.prof) > 1.0) and (max(self.args_instance.prof) < 6000.)
+
         prior_T=prior_T_overall and prior_T_params
 
         # 2. Gas profile check
