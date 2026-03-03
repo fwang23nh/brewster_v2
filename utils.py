@@ -1699,26 +1699,26 @@ def MC_P0_gen(updated_dic,model_config_instance,args_instance):
     # -------------------------------
     # Special initialization for temperature profiles (proftype = 1)
     # -------------------------------
-    if args_instance.proftype==1:
+    # if args_instance.proftype==1:
 
-        all_params,all_params_values =get_all_parametres(updated_dic) 
-        params_master = namedtuple('params',all_params)
-        params_instance = params_master(*all_params_values)
-        T_1_index=params_instance._fields.index('T_1')
-        T_13_index=params_instance._fields.index('T_13')
-        BTprof = np.loadtxt("data/BTtemp800_45_13.dat")
+    #     all_params,all_params_values =get_all_parametres(updated_dic) 
+    #     params_master = namedtuple('params',all_params)
+    #     params_instance = params_master(*all_params_values)
+    #     T_1_index=params_instance._fields.index('T_1')
+    #     T_13_index=params_instance._fields.index('T_13')
+    #     BTprof = np.loadtxt("data/BTtemp800_45_13.dat")
 
-        for i in range(0, 13):  # 13 layer points ====> Total: 13 + 13 (gases+) +no cloud = 26
-            p0[:,T_1_index+i] = (BTprof[i] - 200.) + (150. * np.random.randn(nwalkers).reshape(nwalkers))
+    #     for i in range(0, 13):  # 13 layer points ====> Total: 13 + 13 (gases+) +no cloud = 26
+    #         p0[:,T_1_index+i] = (BTprof[i] - 200.) + (150. * np.random.randn(nwalkers).reshape(nwalkers))
 
-        for i in range(0, nwalkers):
-            while True:
-                Tcheck = TPmod.set_prof(args_instance.proftype,args_instance.coarsePress,args_instance.press,p0[i, T_1_index:T_13_index+1])
-                if min(Tcheck) > 1.0:
-                    break
-                else:
-                    for i in range(0,13):
-                        p0[:,T_1_index+i] = BTprof[i] + (50. * np.random.randn(nwalkers).reshape(nwalkers))
+    #     for i in range(0, nwalkers):
+    #         while True:
+    #             Tcheck = TPmod.set_prof(args_instance.proftype,args_instance.coarsePress,args_instance.press,p0[i, T_1_index:T_13_index+1])
+    #             if min(Tcheck) > 1.0:
+    #                 break
+    #             else:
+    #                 for i in range(0,13):
+    #                     p0[:,T_1_index+i] = BTprof[i] + (50. * np.random.randn(nwalkers).reshape(nwalkers))
 
     return p0
 
