@@ -175,6 +175,11 @@ class Priors:
                 T = TPmod.set_prof(self.args_instance.proftype, self.args_instance.coarsePress,self.args_instance.press, self.intemp)
                 prior_T_overall = (min(T) > 1.0) and (max(T) < 6000.)
             
+        elif self.args_instance.proftype==4:
+
+            #Just setting these to True so I can change this later
+            prior_T_overall =True
+            prior_T_params = True
 
         elif self.args_instance.proftype==7:
 

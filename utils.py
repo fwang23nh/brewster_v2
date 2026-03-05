@@ -701,6 +701,53 @@ class Retrieval_params:
                             'prior':None}
                          }}
 
+        elif ptype==4:
+            dictionary={
+                'ptype':ptype,
+                'params':{'Tbottom':
+                           {'initialization':None,
+                            'distribution':['normal',3600,500],
+                            'range':[0,5000],
+                            'prior':None},
+
+                            #gradients from 10^-3 (top) to 10^3 (bottom)
+                          'dtdp1':
+                           {'initialization':None,
+                            'distribution':['normal',0.07,0.07],
+                            'range':[0,1],
+                            'prior':None},
+
+                        'dtdp2':
+                           {'initialization':None,
+                            'distribution':['normal',0.12,0.045],
+                            'range':[0,1],
+                            'prior':None},
+
+                        'dtdp3':
+                           {'initialization':None,
+                            'distribution':['normal',0.2,0.05],
+                            'range':[0,1],
+                            'prior':None},
+
+                        'dtdp4':
+                           {'initialization':None,
+                            'distribution':['normal',0.26,0.05],
+                            'range':[0,1],
+                            'prior':None},
+
+                        'dtdp5':
+                           {'initialization':None,
+                            'distribution':['normal',0.25,0.045],
+                            'range':[0,1],
+                            'prior':None},
+
+                        'dtdp6':
+                           {'initialization':None,
+                            'distribution':['normal',0.25,0.025],
+                            'range':[0,1],
+                            'prior':None},
+                         }}
+
         elif ptype==7 :
 
             dictionary={
@@ -2458,7 +2505,10 @@ class ArgsGen:
     def generate(self):
         # Set up pressure grids in log(bar)
         logcoarsePress = np.arange(-4.0, 2.5, 0.53)
-        logfinePress = np.arange(-4.0, 2.4, 0.1) #np.linspace(-4.0, 2.4, 100)#logfinePress = np.arange(-4.0, 2.4, 0.1) #PRESSURE LAYER CHANGE
+        if self.model.pfile == 4:
+            logfinePress = np.arange(-4.0, 2.4, 0.05)
+        else:
+            logfinePress = np.arange(-4.0, 2.4, 0.1) #np.linspace(-4.0, 2.4, 100)#logfinePress = np.arange(-4.0, 2.4, 0.1) #PRESSURE LAYER CHANGE
         
         # Pressure in bar
         self.coarsePress = pow(10, logcoarsePress)
