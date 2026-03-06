@@ -6,7 +6,7 @@ import utils
 from collections import namedtuple
 from rotBroadInt import rot_int_cmj as rotBroad   
 
-def proc_spec(inputspec,theta,re_params, args_instance, do_scales=True,do_shift=True):
+def proc_spec(inputspec,theta,re_params, args_instance, do_scales=True,do_shift=True,do_conv=True):
 
     """
     Apply wavelength shifts, rotational broadening, instrumental convolution,
@@ -41,6 +41,9 @@ def proc_spec(inputspec,theta,re_params, args_instance, do_scales=True,do_shift=
 
     do_shift : bool, optional
         If True, apply wavelength shifts and rotational broadening (default: True).
+
+    do_conv : bool, optional
+        If True, apply Instrumental convolution on modelspec (default: True).
 
     Returns
     -------
@@ -98,30 +101,43 @@ def proc_spec(inputspec,theta,re_params, args_instance, do_scales=True,do_shift=
 
     if args_instance.fwhm is not None:
         # Use convolution for Spex
-        outspec= prism_non_uniform(args_instance.obspec,modspec,args_instance.fwhm)
-    else:
-        # Non-uniform resolution using user-supplied R file
-        log_f_param = args_instance.logf_flag       
-        scales_param = args_instance.scales
-        outspec= np.zeros_like(args_instance.obspec[1,:])
-        
-        region_flags = np.unique(np.vstack((log_f_param, scales_param)).T, axis=0)#get unique values as a 2 column array [logf,scales]
-        #for i,j in region_flags:
-        for logf_flag_val, scale_flag_val in region_flags: #loop thru them, so we get each flags
-            or_indices = np.where( (log_f_param == logf_flag_val) & (scales_param == scale_flag_val) ) #getting wl regions where both conditions are met
-            obs_wl_i = args_instance.obspec[0, :]
-            spec_i = conv_non_uniform_R(modspec[1, :], modspec[0, :], args_instance.R[or_indices], obs_wl_i[or_indices])
+        if do_conv == True:
+            outspec= prism_non_uniform(args_instance.obspec,modspec,args_instance.fwhm)
+            wave=args_instance.obspec[0,:]
+        else:
+            outspec= modspec[1,:]
+            wave=modspec[0,:]
 
-            if do_scales==True and scale_flag_val > 0:
-                # IF THERE ARE SCALE PARAMETERS
-                    scale_name = f"scale{int(scale_flag_val)}"
-                    if scale_name in params_instance._fields:
-                        scale_value = getattr(params_instance, scale_name)
-                        spec_i = scale_value * spec_i
-                
-            outspec[or_indices] = spec_i 
+
+    else:
+        if do_conv == True:
+            wave=args_instance.obspec[0,:]
+            # Non-uniform resolution using user-supplied R file
+            log_f_param = args_instance.logf_flag       
+            scales_param = args_instance.scales
+            outspec= np.zeros_like(args_instance.obspec[1,:])
             
-    return args_instance.obspec[0,:],outspec 
+            region_flags = np.unique(np.vstack((log_f_param, scales_param)).T, axis=0)#get unique values as a 2 column array [logf,scales]
+            #for i,j in region_flags:
+            for logf_flag_val, scale_flag_val in region_flags: #loop thru them, so we get each flags
+                or_indices = np.where( (log_f_param == logf_flag_val) & (scales_param == scale_flag_val) ) #getting wl regions where both conditions are met
+                obs_wl_i = args_instance.obspec[0, :]
+                spec_i = conv_non_uniform_R(modspec[1, :], modspec[0, :], args_instance.R[or_indices], obs_wl_i[or_indices])
+
+                if do_scales==True and scale_flag_val > 0:
+                    # IF THERE ARE SCALE PARAMETERS
+                        scale_name = f"scale{int(scale_flag_val)}"
+                        if scale_name in params_instance._fields:
+                            scale_value = getattr(params_instance, scale_name)
+                            spec_i = scale_value * spec_i
+                    
+                outspec[or_indices] = spec_i 
+            
+        else:
+            outspec= modspec[1,:]
+            wave=modspec[0,:]
+
+    return wave,outspec 
    
    
 
