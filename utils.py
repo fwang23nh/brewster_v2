@@ -21,6 +21,7 @@ from collections import defaultdict
 import re
 import emcee
 import warnings
+import h5py
 
 __author__ = "Fei Wang"
 __copyright__ = "Copyright 2024 - Fei Wang"
@@ -1828,7 +1829,171 @@ def cloud_para_gen(dic):
         return cloudname_set,cloud_opaname,cloudmap,np.array(cloudsize) 
 
 
+# def get_opacities(gaslist,w1,w2,press,xpath='../Linelists',xlist='gaslistR10K.dat',malk=0):
+#     """
+#     Load and interpolate gas opacity data for the requested wavelength and pressure ranges.
+#     Parameters
+#     ----------
+#     gaslist : list of str
+#         Names of gases to load opacities for.
+
+#     w1, w2 : float
+#         Wavelength range in microns [w1, w2] over which to extract opacities.
+
+#     press : ndarray
+#         Pressure array (Pa or bar, consistent with pickle data) to interpolate the opacity data onto.
+
+#     xpath : str, optional
+#         Path to directory containing opacity files. Default is '../Linelists'.
+
+#     xlist : str, optional
+#         File listing available opacity files and gas names. Default is 'gaslistR10K.dat'.
+
+#     malk : int, optional
+#         Special substitutions for alkali lines:
+#           - 0 : no change
+#           - 1 : use Mike's K_/Na_ files
+#           - 2 : use 2021 K_/Na_ files
+          
+#     Returns
+#     -------
+#     linelist : ndarray, shape (ngas, npress, ntemps, nwave)
+#         Interpolated opacity values on the requested pressure grid and wavelength range.
+#         Values are in log10(cm^2/molecule) or similar units. NaNs are replaced by -50.0.
+
+#     Notes
+#     -----
+#     - The function reads pickled opacity files. Each file must contain a tuple:
+#       (rawwavenum, inpress, inlinetemps, inlinelist)
+#     - The linelist is interpolated in log10 space for both pressure and opacity.
+#     - The function can optionally modify gas names for alkali line updates (malk).
+#     """
+    
+#     # Now we'll get the opacity files into an array
+#     ngas = len(gaslist)
+#     totgas = 0
+#     gasdata = []
+#     # -------------------------------
+#     # Read the gas list file
+#     # -------------------------------
+#     with open(xlist) as fa:
+#         for line_aa in fa.readlines():
+#             if len(line_aa) == 0:
+#                 break
+#             totgas = totgas +1 
+#             line_aa = line_aa.strip()
+#             gasdata.append(line_aa.split())
+
+#     # -------------------------------
+#     # Match requested gases to available entries
+#     # -------------------------------
+#     list1 = []
+#     for i in range(0,ngas):
+#         for j in range(0,totgas):
+#             if (gasdata[j][1].lower() == gaslist[i].lower()):
+#                 list1.append(gasdata[j])
+
+#     if (malk == 1):
+#         for i in range (0,ngas):
+#             list1[i] = [w.replace('K_', 'K_Mike_') for w in list1[i]]
+#             list1[i] = [w.replace('Na_', 'Na_Mike_') for w in list1[i]]
+
+#     if (malk == 2):
+#         for i in range (0,ngas):
+#             list1[i] = [w.replace('K_', 'K_2021_') for w in list1[i]]
+#             list1[i] = [w.replace('Na_', 'Na_2021_') for w in list1[i]]
+
+
+
+#     lists = [xpath+i[3] for i in list1[0:ngas]]
+#     gasmass = np.asfortranarray(np.array([i[2] for i in list1[0:ngas]],dtype='float32'))
+
+#     # -------------------------------
+#     # Load the first gas file for wavelength and temperature grid
+#     # -------------------------------
+#     # get the basic framework from water list
+#     rawwavenum, inpress, inlinetemps, inlinelist = pickle.load(open(lists[0], "rb"))
+
+#     wn1 = 10000. / w2
+#     wn2 = 10000. / w1
+#     inwavenum = np.asfortranarray(rawwavenum[np.where(np.logical_not(np.logical_or(rawwavenum[:] > wn2, rawwavenum[:] < wn1)))],dtype='float64')
+#     ntemps = inlinetemps.size
+#     npress= press.size
+#     nwave = inwavenum.size
+#     r1 = np.amin(np.where(np.logical_not(np.logical_or(rawwavenum[:] > wn2, rawwavenum[:] < wn1))))
+#     r2 = np.amax(np.where(np.logical_not(np.logical_or(rawwavenum[:] > wn2, rawwavenum[:] < wn1))))
+
+#     # -------------------------------
+#     # Interpolate linelist for each gas
+#     # -------------------------------
+#     # Here we are interpolating the linelist onto our fine pressure scale.
+#     # pickles have linelist as 4th entry....
+#     linelist = (np.zeros([ngas,npress,ntemps,nwave],order='F')).astype('float32', order='F')
+#     for gas in range (0,ngas):
+#         inlinelist= pickle.load(open(lists[gas], "rb" ) )[3]
+#         for i in range (0,ntemps):
+#             for j in range (r1,r2+1):
+#                # print(f"gas={gas}, i={i}, j={j}")
+#                # print("inpress shape:", inpress.shape)
+#                # print("inlinelist[:, i, j] shape:", inlinelist[:, i, j].shape)
+#                 pfit = interp1d(np.log10(inpress),np.log10(inlinelist[:,i,j]))
+#                 linelist[gas,:,i,(j-r1)] = np.asfortranarray(pfit(np.log10(press)))
+#     linelist[np.isnan(linelist)] = -50.0
+    
+#     # convert gaslist into fortran array of ascii strings for fortran code 
+#     gasnames = np.empty((len(gaslist), 10), dtype='c')
+#     for i in range(0,len(gaslist)):
+#         gasnames[i,0:len(gaslist[i])] = gaslist[i]
+
+#     gasnames = np.asfortranarray(gasnames,dtype='c')
+
+#     return linelist
+
+
+
+def get_newformat_HDF5(hf, target_name, filename="<unknown>"):
+
+    keys = list(hf.keys())
+
+    if target_name in hf and isinstance(hf[target_name], h5py.Group):
+        g = hf[target_name]
+    else:
+        t = target_name.lower()
+        g = None
+        for k in keys:
+            if isinstance(hf[k], h5py.Group) and k.lower() == t:
+                g = hf[k]
+                break
+
+        if g is None:
+            groups = [k for k in keys if isinstance(hf[k], h5py.Group)]
+            if len(groups) == 1:
+                g = hf[groups[0]]
+            else:
+                raise KeyError(
+                    f"[NEW-FORMAT REQUIRED]\n"
+                    f"File: {filename}\n"
+                    f"Expected group '{target_name}' (case-insensitive) or a single group.\n"
+                    f"Top-level keys: {keys}"
+                )
+
+    required = ['nu', 'log(P)', 'T', 'log(sigma)']
+    missing = [r for r in required if r not in g]
+    if missing:
+        raise KeyError(
+            f"[NEW-FORMAT REQUIRED]\n"
+            f"File: {filename}\n"
+            f"Group: {g.name}\n"
+            f"Missing datasets: {missing}\n"
+            f"Found datasets: {list(g.keys())}"
+        )
+
+    return g
+
+
+
 def get_opacities(gaslist,w1,w2,press,xpath='../Linelists',xlist='gaslistR10K.dat',malk=0):
+
     """
     Load and interpolate gas opacity data for the requested wavelength and pressure ranges.
     Parameters
@@ -1866,9 +2031,12 @@ def get_opacities(gaslist,w1,w2,press,xpath='../Linelists',xlist='gaslistR10K.da
       (rawwavenum, inpress, inlinetemps, inlinelist)
     - The linelist is interpolated in log10 space for both pressure and opacity.
     - The function can optionally modify gas names for alkali line updates (malk).
+
+    - The function now also support HDF5 pacity files.
+
     """
     
-    # Now we'll get the opacity files into an array
+    
     ngas = len(gaslist)
     totgas = 0
     gasdata = []
@@ -1883,72 +2051,141 @@ def get_opacities(gaslist,w1,w2,press,xpath='../Linelists',xlist='gaslistR10K.da
             line_aa = line_aa.strip()
             gasdata.append(line_aa.split())
 
-    # -------------------------------
-    # Match requested gases to available entries
-    # -------------------------------
     list1 = []
     for i in range(0,ngas):
         for j in range(0,totgas):
             if (gasdata[j][1].lower() == gaslist[i].lower()):
                 list1.append(gasdata[j])
 
-    if (malk == 1):
-        for i in range (0,ngas):
-            list1[i] = [w.replace('K_', 'K_Mike_') for w in list1[i]]
-            list1[i] = [w.replace('Na_', 'Na_Mike_') for w in list1[i]]
-
-    if (malk == 2):
-        for i in range (0,ngas):
-            list1[i] = [w.replace('K_', 'K_2021_') for w in list1[i]]
-            list1[i] = [w.replace('Na_', 'Na_2021_') for w in list1[i]]
+    if gasdata[0][3].endswith(".pic"):
 
 
+        if (malk == 1):
+            for i in range (0,ngas):
+                list1[i] = [w.replace('K_', 'K_Mike_') for w in list1[i]]
+                list1[i] = [w.replace('Na_', 'Na_Mike_') for w in list1[i]]
 
-    lists = [xpath+i[3] for i in list1[0:ngas]]
-    gasmass = np.asfortranarray(np.array([i[2] for i in list1[0:ngas]],dtype='float32'))
+        if (malk == 2):
+            for i in range (0,ngas):
+                list1[i] = [w.replace('K_', 'K_2021_') for w in list1[i]]
+                list1[i] = [w.replace('Na_', 'Na_2021_') for w in list1[i]]
+                
 
-    # -------------------------------
-    # Load the first gas file for wavelength and temperature grid
-    # -------------------------------
-    # get the basic framework from water list
-    rawwavenum, inpress, inlinetemps, inlinelist = pickle.load(open(lists[0], "rb"))
+        if len(list1) < ngas:
+            found = [x[1] for x in list1]
+            missing = [g for g in gaslist if g.lower() not in [f.lower() for f in found]]
+            raise ValueError(f"Could not find these gases in xlist: {missing}")
 
-    wn1 = 10000. / w2
-    wn2 = 10000. / w1
-    inwavenum = np.asfortranarray(rawwavenum[np.where(np.logical_not(np.logical_or(rawwavenum[:] > wn2, rawwavenum[:] < wn1)))],dtype='float64')
-    ntemps = inlinetemps.size
-    npress= press.size
-    nwave = inwavenum.size
-    r1 = np.amin(np.where(np.logical_not(np.logical_or(rawwavenum[:] > wn2, rawwavenum[:] < wn1))))
-    r2 = np.amax(np.where(np.logical_not(np.logical_or(rawwavenum[:] > wn2, rawwavenum[:] < wn1))))
 
-    # -------------------------------
-    # Interpolate linelist for each gas
-    # -------------------------------
-    # Here we are interpolating the linelist onto our fine pressure scale.
-    # pickles have linelist as 4th entry....
-    linelist = (np.zeros([ngas,npress,ntemps,nwave],order='F')).astype('float32', order='F')
-    for gas in range (0,ngas):
-        inlinelist= pickle.load(open(lists[gas], "rb" ) )[3]
-        for i in range (0,ntemps):
-            for j in range (r1,r2+1):
-               # print(f"gas={gas}, i={i}, j={j}")
-               # print("inpress shape:", inpress.shape)
-               # print("inlinelist[:, i, j] shape:", inlinelist[:, i, j].shape)
-                pfit = interp1d(np.log10(inpress),np.log10(inlinelist[:,i,j]))
-                linelist[gas,:,i,(j-r1)] = np.asfortranarray(pfit(np.log10(press)))
-    linelist[np.isnan(linelist)] = -50.0
-    
-    # convert gaslist into fortran array of ascii strings for fortran code 
-    gasnames = np.empty((len(gaslist), 10), dtype='c')
-    for i in range(0,len(gaslist)):
-        gasnames[i,0:len(gaslist[i])] = gaslist[i]
+        lists = [xpath+i[3] for i in list1[0:ngas]]
+        gasmass = np.asfortranarray(np.array([i[2] for i in list1[0:ngas]],dtype='float32'))
 
-    gasnames = np.asfortranarray(gasnames,dtype='c')
+        # -------------------------------
+        # Load the first gas file for wavelength and temperature grid
+        # -------------------------------
+        # get the basic framework from water list
+        rawwavenum, inpress, inlinetemps, inlinelist = pickle.load(open(lists[0], "rb"))
 
+        wn1 = 10000. / w2
+        wn2 = 10000. / w1
+        inwavenum = np.asfortranarray(rawwavenum[np.where(np.logical_not(np.logical_or(rawwavenum[:] > wn2, rawwavenum[:] < wn1)))],dtype='float64')
+        ntemps = inlinetemps.size
+        npress= press.size
+        nwave = inwavenum.size
+        r1 = np.amin(np.where(np.logical_not(np.logical_or(rawwavenum[:] > wn2, rawwavenum[:] < wn1))))
+        r2 = np.amax(np.where(np.logical_not(np.logical_or(rawwavenum[:] > wn2, rawwavenum[:] < wn1))))
+
+        # -------------------------------
+        # Interpolate linelist for each gas
+        # -------------------------------
+        # Here we are interpolating the linelist onto our fine pressure scale.
+        # pickles have linelist as 4th entry....
+        
+        linelist = (np.zeros([ngas,npress,ntemps,nwave],order='F')).astype('float32', order='F')
+        for gas in range (0,ngas):
+            inlinelist= pickle.load(open(lists[gas], "rb" ) )[3]
+            for i in range (0,ntemps):
+                for j in range (r1,r2+1):
+                    pfit = interp1d(np.log10(inpress),np.log10(inlinelist[:,i,j]))
+                    linelist[gas,:,i,(j-r1)] = np.asfortranarray(pfit(np.log10(press)))
+        linelist[np.isnan(linelist)] = -50.0
+
+
+    elif gasdata[0][3].endswith(".hdf5"):
+
+        if len(list1) < ngas:
+            found = [x[1] for x in list1]
+            print(found)
+            missing = [g for g in gaslist if g.lower() not in [f.lower() for f in found]]
+            raise ValueError(f"Could not find these gases in xlist: {missing}")
+
+        lists = [xpath + i[3] for i in list1[0:ngas]]
+    #     gasnum = np.asfortranarray(np.array([i[0] for i in list1[0:ngas]], dtype='i'))
+
+        wn1 = 10000.0 / w2
+        wn2 = 10000.0 / w1
+        logP_target = np.log10(press)
+
+        # Define slice indices and common grids from first gas
+        with h5py.File(lists[0], 'r') as hf0:
+            g0 = get_newformat_HDF5(hf0, gaslist[0])
+
+            rawwavenum = np.array(g0['nu'], dtype='float64')
+            inlinetemps = np.array(g0['T'], dtype='float32')
+            in_logP_ref = np.array(g0['log(P)'], dtype='float64')
+
+        mask = np.logical_not(np.logical_or(rawwavenum[:] > wn2, rawwavenum[:] < wn1))
+        idx = np.where(mask)[0]
+        if idx.size == 0:
+            raise ValueError("No wavenumbers found in the requested wavelength range.")
+        r1 = int(idx.min())
+        r2 = int(idx.max())
+
+        ntemps = inlinetemps.size
+        npress = press.size
+        nwave = idx.size
+
+        linelist = np.zeros((ngas, npress, ntemps, nwave), order='F', dtype='float64')
+
+        for gas in range(ngas):
+            with h5py.File(lists[gas], 'r') as hf:
+                g = get_newformat_HDF5(hf, gaslist[gas], filename=lists[gas])
+
+                nu_gas = np.array(g['nu'], dtype='float64')
+                T_gas = np.array(g['T'], dtype='float32')
+                logP_gas = np.array(g['log(P)'], dtype='float64')
+                log_sigma = np.array(g['log(sigma)'], dtype='float64')  # (nP, nT, nNu)
+
+                # Fail fast on mismatched grids (prevents subtle, wrong results)
+                if nu_gas.shape != rawwavenum.shape or not np.allclose(nu_gas, rawwavenum, rtol=0, atol=0):
+                    raise ValueError(f"{gaslist[gas]}: 'nu' grid does not match the reference file exactly.")
+                if T_gas.shape != inlinetemps.shape or not np.allclose(T_gas, inlinetemps, rtol=0, atol=0):
+                    raise ValueError(f"{gaslist[gas]}: 'T' grid does not match the reference file exactly.")
+                if log_sigma.shape != (logP_gas.size, T_gas.size, nu_gas.size):
+                    raise ValueError(
+                        f"{gaslist[gas]}: log(sigma) has unexpected shape {log_sigma.shape}; "
+                        f"expected ({logP_gas.size}, {T_gas.size}, {nu_gas.size})."
+                    )
+
+                # Interpolate in log-pressure space
+                for i in range(ntemps):
+                    for j in range(r1, r2 + 1):
+                        y = log_sigma[:, i, j]  # log10(sigma/m^2)
+                        pfit = interp1d(
+                            logP_gas, y,
+                            kind='linear',
+                            bounds_error=False,
+                            fill_value='extrapolate'
+                        )
+                        linelist[gas, :, i, (j - r1)] = np.asfortranarray(pfit(logP_target))
+
+        linelist[np.isnan(linelist)] = -50.0
+        
     return linelist
 
-    # return inlinetemps,inwavenum,linelist,gasnames,gasmass,nwave
+
+
+        
     
     
     
@@ -2293,42 +2530,88 @@ def shared_memory_array(rank, comm, shape,datatype='d'):
     return array, win
 
 
+# def get_gasdetails(gaslist,w1,w2,xpath='../Linelists',xlist='gaslistR10K.dat'):
+#     """
+#     Load gas opacity file details and prepare arrays for Fortran routines.
+
+#     Parameters
+#     ----------
+#     gaslist : list of str
+#         List of gas names to load (e.g., ['H2O', 'CO']).
+#     w1 : float
+#         Minimum wavelength (microns) of interest.
+#     w2 : float
+#         Maximum wavelength (microns) of interest.
+#     xpath : str, optional
+#         Path to directory containing gas opacity files. Default is '../Linelists'.
+#     xlist : str, optional
+#         ASCII file listing gas opacity files and metadata. Default is 'gaslistR10K.dat'.
+
+#     Returns
+#     -------
+#     inlinetemps : np.ndarray
+#         Array of temperatures in the opacity files (K).
+#     inwavenum : np.ndarray
+#         Wavenumber grid corresponding to the wavelength range [w1, w2], Fortran-contiguous.
+#     gasnames : np.ndarray
+#         Gas names as fixed-length ASCII array, Fortran-contiguous, dtype='c'.
+#     gasmass : np.ndarray
+#         Gas molecular weights, Fortran-contiguous, dtype=float32.
+#     nwave : int
+#         Number of wavelength points in the selected range.
+
+#     Notes
+#     -----
+#     - The function reads the first gas opacity file to get the base wavenumber and temperature grids.
+#     - Converts wavelength range [w1, w2] into wavenumber range [wn1, wn2].
+#     - Outputs arrays are prepared for use with Fortran routines in the forward model.
+#     """
+
+#     ngas = len(gaslist)
+#     totgas = 0
+#     gasdata = []
+#     with open(xlist) as fa:
+#         for line_aa in fa.readlines():
+#             if len(line_aa) == 0:
+#                 break
+#             totgas = totgas +1 
+#             line_aa = line_aa.strip()
+#             gasdata.append(line_aa.split())
+
+#     list1 = []
+#     for i in range(0,ngas):
+#         for j in range(0,totgas):
+#             if (gasdata[j][1].lower() == gaslist[i].lower()):
+#                 list1.append(gasdata[j])
+
+
+#     lists = [xpath+i[3] for i in list1[0:ngas]]
+#     gasmass = np.asfortranarray(np.array([i[2] for i in list1[0:ngas]],dtype='float32'))
+
+
+#     # convert gaslist into fortran array of ascii strings for fortran code 
+#     gasnames = np.empty((len(gaslist), 10), dtype='c')
+#     for i in range(0,len(gaslist)):
+#         gasnames[i,0:len(gaslist[i])] = gaslist[i]
+
+#     gasnames = np.asfortranarray(gasnames,dtype='c')
+  
+
+#     # get the basic framework from water list
+#     rawwavenum, inpress, inlinetemps, inlinelist = pickle.load(open(lists[0], "rb"))
+
+#     wn1 = 10000. / w2
+#     wn2 = 10000. / w1
+#     inwavenum = np.asfortranarray(rawwavenum[np.where(np.logical_not(np.logical_or(rawwavenum[:] > wn2, rawwavenum[:] < wn1)))],dtype='float64')
+ 
+#     nwave = inwavenum.size
+
+#     return inlinetemps,inwavenum,gasnames,gasmass,nwave
+
+
+
+
 def get_gasdetails(gaslist,w1,w2,xpath='../Linelists',xlist='gaslistR10K.dat'):
-    """
-    Load gas opacity file details and prepare arrays for Fortran routines.
-
-    Parameters
-    ----------
-    gaslist : list of str
-        List of gas names to load (e.g., ['H2O', 'CO']).
-    w1 : float
-        Minimum wavelength (microns) of interest.
-    w2 : float
-        Maximum wavelength (microns) of interest.
-    xpath : str, optional
-        Path to directory containing gas opacity files. Default is '../Linelists'.
-    xlist : str, optional
-        ASCII file listing gas opacity files and metadata. Default is 'gaslistR10K.dat'.
-
-    Returns
-    -------
-    inlinetemps : np.ndarray
-        Array of temperatures in the opacity files (K).
-    inwavenum : np.ndarray
-        Wavenumber grid corresponding to the wavelength range [w1, w2], Fortran-contiguous.
-    gasnames : np.ndarray
-        Gas names as fixed-length ASCII array, Fortran-contiguous, dtype='c'.
-    gasmass : np.ndarray
-        Gas molecular weights, Fortran-contiguous, dtype=float32.
-    nwave : int
-        Number of wavelength points in the selected range.
-
-    Notes
-    -----
-    - The function reads the first gas opacity file to get the base wavenumber and temperature grids.
-    - Converts wavelength range [w1, w2] into wavenumber range [wn1, wn2].
-    - Outputs arrays are prepared for use with Fortran routines in the forward model.
-    """
 
     ngas = len(gaslist)
     totgas = 0
@@ -2342,34 +2625,59 @@ def get_gasdetails(gaslist,w1,w2,xpath='../Linelists',xlist='gaslistR10K.dat'):
             gasdata.append(line_aa.split())
 
     list1 = []
-    for i in range(0,ngas):
-        for j in range(0,totgas):
-            if (gasdata[j][1].lower() == gaslist[i].lower()):
+    for i in range(ngas):
+        for j in range(len(gasdata)):
+            if gasdata[j][1].lower() == gaslist[i].lower():
                 list1.append(gasdata[j])
 
+    if len(list1) < ngas:
+        found = [x[1] for x in list1]
+        missing = [g for g in gaslist if g.lower() not in [f.lower() for f in found]]
+        raise ValueError(f"Could not find these gases in xlist: {missing}")
 
-    lists = [xpath+i[3] for i in list1[0:ngas]]
+    lists = [xpath + i[3] for i in list1[0:ngas]]
     gasmass = np.asfortranarray(np.array([i[2] for i in list1[0:ngas]],dtype='float32'))
-
-
+    
     # convert gaslist into fortran array of ascii strings for fortran code 
     gasnames = np.empty((len(gaslist), 10), dtype='c')
     for i in range(0,len(gaslist)):
         gasnames[i,0:len(gaslist[i])] = gaslist[i]
 
     gasnames = np.asfortranarray(gasnames,dtype='c')
-  
 
-    # get the basic framework from water list
-    rawwavenum, inpress, inlinetemps, inlinelist = pickle.load(open(lists[0], "rb"))
 
-    wn1 = 10000. / w2
-    wn2 = 10000. / w1
-    inwavenum = np.asfortranarray(rawwavenum[np.where(np.logical_not(np.logical_or(rawwavenum[:] > wn2, rawwavenum[:] < wn1)))],dtype='float64')
- 
-    nwave = inwavenum.size
+    if gasdata[0][3].endswith(".pic"):
+
+        # get the basic framework from water list
+        rawwavenum, inpress, inlinetemps, inlinelist = pickle.load(open(lists[0], "rb"))
+
+        wn1 = 10000. / w2
+        wn2 = 10000. / w1
+        inwavenum = np.asfortranarray(rawwavenum[np.where(np.logical_not(np.logical_or(rawwavenum[:] > wn2, rawwavenum[:] < wn1)))],dtype='float64')
+
+        nwave = inwavenum.size
+
+
+    elif gasdata[0][3].endswith(".hdf5"):
+
+        wn1 = 10000.0 / w2
+        wn2 = 10000.0 / w1
+
+        # Open first file to define grids
+        with h5py.File(lists[0], 'r') as hf:
+            g = get_newformat_HDF5(hf, gaslist[0], filename=lists[0])
+
+            rawwavenum = np.array(g['nu'], dtype='float64')   # cm^-1
+            inlinetemps = np.array(g['T'], dtype='float32')   # K
+
+        mask = np.logical_not(np.logical_or(rawwavenum[:] > wn2, rawwavenum[:] < wn1))
+        inwavenum = np.asfortranarray(rawwavenum[mask], dtype='float64')
+        nwave = inwavenum.size
+
 
     return inlinetemps,inwavenum,gasnames,gasmass,nwave
+
+
 
 
 class ArgsGen:
