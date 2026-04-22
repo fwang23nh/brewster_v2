@@ -177,9 +177,16 @@ class Priors:
             
         elif self.args_instance.proftype==4:
 
-            #Just setting these to True so I can change this later
-            prior_T_overall =True
-            prior_T_params = True
+            prior_T_params = (self.params_instance.Tbottom > 0. and 0. < self.params_instance.dtdp1 < 1.0
+                              and 0. < self.params_instance.dtdp2 < 1.0 and 0. < self.params_instance.dtdp3 < 1.0
+                              and 0. < self.params_instance.dtdp4 < 1.0 and 0. < self.params_instance.dtdp5 < 1.0
+                              and 0. < self.params_instance.dtdp6 < 1.0)
+
+            prior_T_overall =False
+            if prior_T_overall==True:
+                T = TPmod.set_prof(self.args_instance.proftype, self.args_instance.coarsePress,self.args_instance.press, self.intemp)
+                prior_T_overall = (min(T) > 1.0) and (max(T) < 6000.)
+            
 
         elif self.args_instance.proftype==7:
 
@@ -731,6 +738,17 @@ def priormap_dic(theta,re_params):
        
         #T3
         phi[T3_index] = (theta[T3_index] * 3000.) + 1500.
+
+    elif (proftype == 4):
+        intemp_keys = list(re_params.dictionary['pt']['params'].keys())
+        Tbottom_index=params_instance._fields.index(intemp_keys[0])
+
+        phi[Tbottom_index] = theta[Tbottom_index] *3000+1500
+
+        dtdpkeys=intemp_keys[1:]
+        for i in range(len(dtdpkeys)):
+            index=params_instance._fields.index(dtdpkeys[i])                                            
+            phi[index] = theta[index] * 0.25 + 0.25 # Where do these mysterious numbers come from???
 
     
     elif (proftype == 7):

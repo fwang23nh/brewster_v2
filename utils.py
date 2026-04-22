@@ -706,44 +706,43 @@ class Retrieval_params:
                 'ptype':ptype,
                 'params':{'Tbottom':
                            {'initialization':None,
-                            'distribution':['normal',3600,500],
-                            'range':[0,5000],
+                            'distribution':['uniform',2000,10000],
+                            'range':[0,10000],
                             'prior':None},
 
-                            #gradients from 10^-3 (top) to 10^3 (bottom)
                           'dtdp1':
                            {'initialization':None,
-                            'distribution':['normal',0.07,0.07],
+                            'distribution':['normal',0.25,0.025],
                             'range':[0,1],
                             'prior':None},
 
                         'dtdp2':
                            {'initialization':None,
-                            'distribution':['normal',0.12,0.045],
+                            'distribution':['normal',0.25,0.045],
                             'range':[0,1],
                             'prior':None},
 
                         'dtdp3':
                            {'initialization':None,
-                            'distribution':['normal',0.2,0.05],
+                            'distribution':['normal',0.26,0.05],
                             'range':[0,1],
                             'prior':None},
 
                         'dtdp4':
                            {'initialization':None,
-                            'distribution':['normal',0.26,0.05],
+                            'distribution':['normal',0.2,0.05],
                             'range':[0,1],
                             'prior':None},
 
                         'dtdp5':
                            {'initialization':None,
-                            'distribution':['normal',0.25,0.045],
+                            'distribution':['normal',0.12,0.045],
                             'range':[0,1],
                             'prior':None},
 
                         'dtdp6':
                            {'initialization':None,
-                            'distribution':['normal',0.25,0.025],
+                            'distribution':['normal',0.07,0.07],
                             'range':[0,1],
                             'prior':None},
                          }}
@@ -1454,7 +1453,7 @@ def get_all_parametres(dic):
       - Gas parameters (either free chemistry or chemical equilibrium)
       - Refinement parameters
       - Temperature profile (PT) parameters
-      - Cloud parameters (including patchy clouds)
+    - Cloud parameters (including patchy clouds)
       - Any user-added parameters
 
     Parameters
@@ -2491,20 +2490,25 @@ class ArgsGen:
         Generate the required model arguments.
     """
 
-    def __init__(self, re_params, model, instrument, obspec,Mass_priorange=[1.0,80.0],R_priorange=[0.5,2.0]):
+    def __init__(self, re_params, model, instrument, obspec,Mass_priorange=[1.0,80.0],R_priorange=[0.5,2.0], num_coarsePress=12, num_finePress=100):
         self.re_params = re_params
         self.model = model
         self.instrument = instrument
         self.obspec = obspec
         self.Mass_priorange= Mass_priorange
         self.R_priorange= R_priorange
+        self.num_coarsePress = num_coarsePress
+        self.num_finePress = num_finePress
 
         # Generate all necessary model arguments on initialization
         self.generate()
 
     def generate(self):
         # Set up pressure grids in log(bar)
-        logcoarsePress = np.arange(-4.0, 2.5, 0.53)
+        # logcoarsePress = np.arange(-4.0, 2.5, 0.53)
+        logcoarsePress = np.linspace(-4.0, 2.5, self.num_coarsePress)
+        logfinePress = np.linspace(-4.0, 2.5, self.num_finePress)
+
         if self.model.pfile == 4:
             logfinePress = np.arange(-4.0, 2.4, 0.05)
         else:
