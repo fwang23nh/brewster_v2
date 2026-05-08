@@ -17,11 +17,10 @@ __email__ = ""
 __status__ = "Development"
 
 
-fwhm=0
-wavelength_range=[1.0,2.5]
-Rfile = 'examples/example_data/G570D_R_file.txt'
+# Define basic instrument parameters
+wavelength_range=[1.0,2.5]      # Wavelength coverage in microns
+Rfile = './examples/example_data/G570D_R_file.txt'  # File with resolving power data
 obspec = np.asfortranarray(np.loadtxt("examples/example_data/G570D_2MHcalib.dat",dtype='d',unpack='true'))
-
 
 chemeq=0
 gaslist =  ['h2o','co','co2','ch4','nh3','h2s','k','na']
@@ -42,8 +41,14 @@ samplemode='mcmc'
 # samplemode='multinest'
 
 instrument_instance = utils.Instrument(wavelength_range=wavelength_range, R_file=Rfile,obspec=obspec)
-re_params = utils.Retrieval_params(samplemode,chemeq,gaslist,gastype_list,do_fudge,ptype,do_clouds,npatches,cloud_name,cloudpatch_index,particle_dis,instrument=instrument_instance)
-model_config_instance = utils.ModelConfig(samplemode,do_fudge,cloudpath=cloudpath)
+# Create retrieval parameter object, the deafault vrad and vsini are false.
+re_params = utils.Retrieval_params(samplemode=samplemode, chemeq=chemeq, gaslist=gaslist,
+    gastype_list=gastype_list,do_fudge=do_fudge, ptype=ptype, do_clouds=do_clouds,
+    npatches=npatches, cloud_name=cloud_name, cloud_type=cloud_type,
+    cloudpatch_index=cloudpatch_index, particle_dis=particle_dis,
+    instrument=instrument_instance,vrad=False,vsini=False,fwhm=None)
+
+model_config_instance = utils.ModelConfig(samplemode, do_fudge, cloudpath=cloudpath)
 io_config_instance = utils.IOConfig()
 
 
@@ -54,7 +59,7 @@ io_config_instance.update_dictionary()
 
 model_config_instance.dist= 5.84
 model_config_instance.xlist ='data/gaslistRox.dat'
-model_config_instance.xpath ='../Linelists/'
+model_config_instance.xpath ='../../Linelists/'
 model_config_instance.do_bff=0
 model_config_instance.niter=30000
 model_config_instance.update_dictionary()
