@@ -286,7 +286,7 @@ contains
                 end do ! miewave loop
              end if ! size if
              !write (1,*) scat_cloud(ilayer,loc1,icloud)
-             write (1,*) 'ext_cloud ',ilayer, ' = ', ext_cloud(ilayer,loc1,icloud)
+             !write (1,*) 'ext_cloud ',ilayer, ' = ', ext_cloud(ilayer,loc1,icloud)
              !write (1,*) cqs_cloud(ilayer,loc1,icloud)
              
           end if
