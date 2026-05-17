@@ -27,7 +27,10 @@ __status__ = "Development"
 
 
 def gaussian_prior(r, mu, sigma):
+
     """
+    adapted form https://github.com/JohannesBuchner/MultiNest/blob/master/src/priors.f90
+
     Transform a uniform variable r in [0,1]
     into a Gaussian-distributed variable x.
 
@@ -158,9 +161,6 @@ def centered_log_abundance_prior(r, factor, rem):
     return np.log10(rem) + r * factor
 
 
-
-
-
 def log_uniform_prior(r, x1, x2):
     """
     Transform a uniform variable r in [0,1]
@@ -238,13 +238,8 @@ def Tp77_lndelta(r, alpha, press):
     return r * pmax + p_diff
 
 
-
-
-
-
 def _get_prior_ranges(dic):
     prior_ranges = {}
-
 
     # Gas parameters
     # ---------------------------------
@@ -262,7 +257,6 @@ def _get_prior_ranges(dic):
     else:
 
         for gas in gaslist:
-
             gas_info = dic['gas'][gas]
 
             # abundance
@@ -287,19 +281,14 @@ def _get_prior_ranges(dic):
                     .get('MC_prior_range')
                 )
 
-
     # Refinement parameters
-    # ---------------------------------
     for param in dic['refinement_params']['params']:
-
         prior_ranges[param] = (
             dic['refinement_params']['params'][param]
             .get('MC_prior_range')
         )
 
-
     # PT parameters
-    # ---------------------------------
     for param in dic['pt']['params']:
 
         prior_ranges[param] = (
@@ -307,11 +296,8 @@ def _get_prior_ranges(dic):
             .get('MC_prior_range')
         )
 
-
     # Cloud parameters
-    # ---------------------------------
     if 'cloud' in dic:
-
         # fcld
         if 'fcld' in dic['cloud']:
 
@@ -336,9 +322,7 @@ def _get_prior_ranges(dic):
                             .get('MC_prior_range')
                         )
 
-
     # Added parameters
-    # ---------------------------------
     if 'added_params' in dic:
 
         for param in dic['added_params']:
@@ -366,24 +350,18 @@ def get_all_multinest_priors(dic):
 
 
     # Gas parameters
-    # ---------------------------------
     gaslist = list(dic['gas'].keys())
 
     if gaslist[0] == 'params':
-
         for param in dic['gas']['params']:
-
             prior_dict[param] = (
                 dic['gas']['params'][param]
                 .get('Multinest_prior')
             )
 
     else:
-
         for gas in gaslist:
-
             gas_info = dic['gas'][gas]
-
             # abundance
             prior_dict[gas] = (
                 gas_info['params']['log_abund']
@@ -391,7 +369,6 @@ def get_all_multinest_priors(dic):
             )
 
             gastype = gas_info.get('gastype')
-
             # p_ref
             if 'p_ref' in gas_info['params']:
 
@@ -409,29 +386,21 @@ def get_all_multinest_priors(dic):
                 )
 
     # Refinement parameters
-    # ---------------------------------
     for param in dic['refinement_params']['params']:
-
         prior_dict[param] = (
             dic['refinement_params']['params'][param]
             .get('Multinest_prior')
         )
 
-
     # PT parameters
-    # ---------------------------------
     for param in dic['pt']['params']:
-
         prior_dict[param] = (
             dic['pt']['params'][param]
             .get('Multinest_prior')
         )
 
-  
     # Cloud parameters
-    # ---------------------------------
     if 'cloud' in dic:
-
         # fcld
         if 'fcld' in dic['cloud']:
 
@@ -442,34 +411,25 @@ def get_all_multinest_priors(dic):
 
         # patch clouds
         for patch_key in dic['cloud']:
-
             if patch_key.startswith('patch'):
-
                 for cloud_key in dic['cloud'][patch_key]:
-
                     cloud_info = dic['cloud'][patch_key][cloud_key]
-
                     for param in cloud_info['params']:
-
                         prior_dict[param] = (
                             cloud_info['params'][param]
                             .get('Multinest_prior')
                         )
 
-
     # Added parameters
-    # ---------------------------------
     if 'added_params' in dic:
 
         for param in dic['added_params']:
-
             prior_dict[param] = (
                 dic['added_params'][param]
                 .get('Multinest_prior')
             )
 
     return prior_dict
-
 
 
 PRIOR_FUNCTIONS = {
@@ -481,7 +441,6 @@ PRIOR_FUNCTIONS = {
     'Tp77_lndelta': Tp77_lndelta
 }
 
-
 def query_priors(return_dict=False):
     if return_dict:
         return PRIOR_FUNCTIONS
@@ -492,24 +451,61 @@ def query_priors(return_dict=False):
 
 class Priors:
     """
-    A class to generate user-defined priors for retrieval.
+    A class to construct, transform, and evaluate retrieval priors for atmospheric
+    parameter inference in both MCMC and MultiNest frameworks.
+
+    This class handles:
+    - User-defined prior parsing from retrieval configuration dictionaries
+    - Prior transformations (MultiNest unit-cube → physical space)
+    - MCMC log-prior evaluation with hard boundary and post-processing checks
+
+    Modes
+    -----
+    samplemode : {'mcmc', 'multinest'}
+        Controls prior evaluation strategy:
+        - 'mcmc': evaluates log-prior with rejection and post-processing checks
+        - 'multinest': applies unit-cube transformation to physical parameters
 
     Parameters
     ----------
-    theta : list
-        List of parameter values.
+    theta : list or ndarray
+        Full parameter vector in physical space (MCMC mode).
     re_params : object
-        Object containing retrieval parameters and their configurations.
+        Retrieval configuration object containing parameter definitions,
+        priors, and model structure (gas, PT profile, clouds, etc.).
+    args_instance : object
+        Runtime configuration including pressure grid, instrument setup,
+        observational data, and physical constraints (mass/radius ranges, etc.).
+
+    Key Attributes
+    --------------
+    all_params : list
+        Ordered list of all retrieval parameters.
+    param_index : dict
+        Mapping from parameter name to vector index.
+    params_instance : namedtuple
+        Container holding current parameter values.
+    prior_dict : dict
+        Raw prior specification dictionary (MultiNest mode).
+    resolved_prior_dict : dict
+        Dynamically updated priors with dependencies resolved during transform.
+    priors : float or ndarray
+        Final log-prior (MCMC) or transformed physical parameters (MultiNest).
 
     Methods
     -------
-    get_priorranges(dic)
-        Recursively extracts prior ranges from a dictionary.
-    get_retrieval_param_priors(all_params, params_instance, priorranges)
-        Validates if the retrieval parameters fall within their defined priors.
+    transform(cube)
+        Maps unit hypercube samples into physical parameter space using
+        user-defined and dynamically constructed priors (MultiNest mode).
+    evaluate(theta)
+        Computes log-prior for MCMC sampling
+    _apply_prior(r, prior_spec, *extra_args)
+        Applies a named prior transformation function from PRIOR_FUNCTIONS.
     post_processing_prior()
-        Validates post-retrieval priors such as T-profile, gas profile, mass-radius, and tolerance parameters.
+        Enforces physical consistency after parameter construction
+
     """
+
 
     def __init__(self, theta, re_params, args_instance):
 
@@ -567,7 +563,6 @@ class Priors:
     # =========================================================
     # ------------------ MULTINEST TRANSFORM ------------------
 
-
     def transform(self, cube):
         """
         MultiNest prior transform.
@@ -613,7 +608,6 @@ class Priors:
                 f"Unknown prior function: {prior_name}")
 
         func = PRIOR_FUNCTIONS[prior_name]
-
 
         return func(r, *prior_args, *extra_args)
 
@@ -670,7 +664,6 @@ class Priors:
 
 
     # GAS TRANSFORM 
-
     def _transform_gas(self, cube, phi):
         press = self.args_instance.press
         rem = 1.0
@@ -767,7 +760,6 @@ class Priors:
 
 
     #CLOUD TRANSFORM
-
     def _transform_cloud(self, cube, phi):
 
         press = self.args_instance.press
@@ -802,7 +794,7 @@ class Priors:
     def _transform_refine(self, cube, phi):
 
         args = self.args_instance
-        
+
         for name in self.refinepara:
             idx = self.param_index[name]
             prior_spec = self.resolved_prior_dict.get(name)
