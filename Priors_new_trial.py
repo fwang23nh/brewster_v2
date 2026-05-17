@@ -29,7 +29,7 @@ __status__ = "Development"
 def gaussian_prior(r, mu, sigma):
 
     """
-    adapted form https://github.com/JohannesBuchner/MultiNest/blob/master/src/priors.f90
+    adapted from https://github.com/JohannesBuchner/MultiNest/blob/master/src/priors.f90
 
     Transform a uniform variable r in [0,1]
     into a Gaussian-distributed variable x.
