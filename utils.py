@@ -141,6 +141,7 @@ class ModelConfig:
         Do BFF flag (default: 1)
     fresh : int, optional
         Fresh start flag (default: 0)
+        1 indicates continue from previous run 
     xpath : str, optional
         Path to line lists (default: "../Linelists/")
     xlist : str, optional
@@ -560,9 +561,9 @@ class Retrieval_params:
                 'gastype':gastype,
                 'params':{'log_abund':
                            {'initialization':None,
-                            'distribution':['normal',-4.0,0.5],
-                            'range':[-12,0],
-                            'prior':None}
+                            'MC_init_dis':['normal',-4.0,0.5],
+                            'MC_prior_range':[-12,0],
+                            'Multinest_prior':['centered_log_abund',-12]}
                          }}
 
         elif gastype=='N':
@@ -571,38 +572,40 @@ class Retrieval_params:
                 'gastype':gastype,
                 'params':{'log_abund':
                            {'initialization':None,
-                            'distribution':['normal',-4.0,0.5],
-                            'range':[-12,0],
-                            'prior': None},
+                            'MC_init_dis':['normal',-4.0,0.5],
+                            'MC_prior_range':[-12,0],
+                            'Multinest_prior':['centered_log_abund',-12]},
 
                            "p_ref": 
                             {'initialization':None,
-                              'distribution':['normal',-1,0.2],
-                              'range':[-4,2.4],
-                              'prior': None},
+                             'MC_init_dis':['normal',-1,0.2],
+                             'MC_prior_range':[-4,2.4],
+                             'Multinest_prior':None
+                            },
 
                            "alpha":
                             {'initialization':None,
-                             'distribution':['uniform',0,1],
-                             'range':[-5,5],
-                             'prior': None}    
+                             'MC_init_dis':['uniform',0,1],
+                             'MC_prior_range':[-5,5],
+                             'Multinest_prior':['uniform',-5,5]}    
                            }}
-        elif gastype=='H':
-            dictionary[gasname]={
-                'gastype':gastype,
-                'params':{'log_abund':
-                           {'initialization':None,
-                            'distribution':['normal',-4.0,0.5],
-                            'range':[-12,0],
-                            'prior': None},
+        # elif gastype=='H':
+        #     dictionary[gasname]={
+        #         'gastype':gastype,
+        #         'params':{'log_abund':
+        #                    {'initialization':None,
+        #                     'MC_init_dis':['normal',-4.0,0.5],
+        #                     'MC_prior_range':[-12,0],
+        #                     'Multinest_prior':['uniform',-18,0]
+        #                     },
                             
-                           "p_ref": 
-                            {'initialization':None,
-                              'distribution':['normal',-1,0.2],
-                              'range':[-4,2.4],
-                              'prior': None}
+        #                    "p_ref": 
+        #                     {'initialization':None,
+        #                     'MC_init_dis':['normal',-1,0.2],
+        #                     'MC_prior_range':[-4,2.4],
+        #                     'Multinest_prior':None}
 
-                           }}
+        #                    }}
 
         return dictionary
             
@@ -617,17 +620,17 @@ class Retrieval_params:
                 'ptype':ptype,
                 'params':{'gamma':
                            {'initialization':None,
-                            'distribution':['normal',50,1],
-                             'range':[0,5000],
-                            'prior':None}}}
+                            'MC_init_dis':['normal',50,1],
+                            'MC_prior_range':[0,5000],
+                            'Multinest_prior':['uniform',0,5000]}
+                            }}
             
             for i in range(13):
                 dictionary['params']["T_%d" % (i+1)] = {
                     'initialization': None,
-                    'distribution': ['normal',500, 50],
-                    'range':[0,5000],
-                    'prior': None
-                }
+                    'MC_init_dis':['normal',500, 50],
+                    'MC_prior_range':[0,5000],
+                    'Multinest_prior': ['uniform', 1,4000]}
             
 
 
@@ -637,33 +640,33 @@ class Retrieval_params:
                 'ptype':ptype,
                 'params':{'alpha1':
                            {'initialization':None,
-                            'distribution':['normal',0.2,0.1],
-                            'range':[0,1],
-                            'prior':None},
+                            'MC_init_dis':['normal',0.2,0.1],
+                            'MC_prior_range':[0,1],
+                            'Multinest_prior':['uniform',0.25, 0.5]},
 
                           'alpha2':
                            {'initialization':None,
-                            'distribution':['normal',0.18,0.05],
-                            'range':[0,1],
-                            'prior':None},
+                            'MC_init_dis':['normal',0.18,0.05],
+                            'MC_prior_range':[0,1],
+                            'Multinest_prior':['uniform',0.1, 0.2]},
 
                           'logP1':
                            {'initialization':None,
-                            'distribution':['normal',-1,0.2],
-                            'range':[-4,2.4],
-                            'prior':None},
+                            'MC_init_dis':['normal',-1,0.2],
+                            'MC_prior_range':[-4,2.4],
+                            'Multinest_prior':None},
 
                           'logP3':
                            {'initialization':None,
-                            'distribution':['normal',2,0.2],
-                            'range':[-4,2.4],
-                            'prior':None},
+                            'MC_init_dis':['normal',2,0.2],
+                            'MC_prior_range':[-4,2.4],
+                            'Multinest_prior':None},
 
                           'T3':
                            {'initialization':None,
-                            'distribution':['normal',3600,500],
-                            'range':[0,5000],
-                            'prior':None}
+                            'MC_init_dis':['normal',3600,500],
+                            'MC_prior_range':[0,5000],
+                            'Multinest_prior':['uniform',1500,4500]}
                          }}
         elif ptype==3:
 
@@ -671,39 +674,39 @@ class Retrieval_params:
                 'ptype':ptype,
                 'params':{'alpha1':
                            {'initialization':None,
-                            'distribution':['normal',0.2,0.1],
-                            'range':[0,1],
-                            'prior':None},
+                            'MC_init_dis':['normal',0.2,0.1],
+                            'MC_prior_range':[0,1],
+                            'Multinest_prior':['uniform', 0.25, 0.5]},
 
                           'alpha2':
                            {'initialization':None,
-                            'distribution':['normal',0.18,0.05],
-                            'range':[0,1],
-                            'prior':None},
+                            'MC_init_dis':['normal',0.18,0.05],
+                            'MC_prior_range':[0,1],
+                            'Multinest_prior':['uniform',0, 0.01]},
 
                           'logP1':
                            {'initialization':None,
-                            'distribution':['normal',-1,0.2],
-                            'range':[-4,2.4],
-                            'prior':None},
+                            'MC_init_dis':['normal',-1,0.2],
+                            'MC_prior_range':[-4,2.4],
+                            'Multinest_prior':None},
 
                           'logP2':
                            {'initialization':None,
-                            'distribution':['normal',0.1,0.2],
-                            'range':[-4,2.4],
-                            'prior':None},
+                            'MC_init_dis':['normal',0.1,0.2],
+                            'MC_prior_range':[-4,2.4],
+                            'Multinest_prior':None},
 
                           'logP3':
-                           {'initialization':None,
-                            'distribution':['normal',2,0.2],
-                            'range':[-4,2.4],
-                            'prior':None},
+                           {'initialization':None,    
+                            'MC_init_dis':['normal',2,0.2],
+                            'MC_prior_range':[-4,2.4],
+                            'Multinest_prior':None},
 
                           'T3':
-                           {'initialization':None,
-                            'distribution':['normal',3600,500],
-                            'range':[0,5000],
-                            'prior':None}
+                           {'initialization':None,    
+                            'MC_init_dis':['normal',3600,500],
+                            'MC_prior_range':[0,5000],
+                            'Multinest_prior':['uniform',1500,4500]}
                          }}
 
         elif ptype==7 :
@@ -712,39 +715,39 @@ class Retrieval_params:
                 'ptype':ptype,
                 'params':{'Tint':
                            {'initialization':None,
-                            'distribution':['normal',1200,200],
-                            'range':[0,5000],
-                            'prior':None},
+                            'MC_init_dis':['normal',1200,200],
+                            'MC_prior_range':[0,5000],
+                            'Multinest_prior':None},
 
                           'alpha':
-                           {'initialization':None,
-                            'distribution':['uniform',1,2],
-                            'range':[1,2],
-                            'prior':None},
+                           {'initialization': None,
+                            'MC_init_dis':['uniform',1,2],
+                            'MC_prior_range':[1,2],
+                            'Multinest_prior': ['uniform',1, 2]},
 
                           'lndelta':
                            {'initialization':None,
-                            'distribution':['normal',0.5,0.5],
-                            'range':[-5,5],
-                            'prior':None},
+                            'MC_init_dis':['normal',0.5,0.5],
+                            'MC_prior_range':[-5,5],
+                            'Multinest_prior':None},
 
                           'T1':
-                           {'initialization':None,
-                            'distribution':['normal',1200,200],
-                            'range':[0,5000],
-                            'prior':None},
+                           {'initialization':None, 
+                            'MC_init_dis':['normal',1200,200],
+                            'MC_prior_range':[0,5000],
+                            'Multinest_prior':None},
 
                           'T2':
                            {'initialization':None,
-                            'distribution':['normal',1200,200],
-                            'range':[0,5000],
-                            'prior':None},
+                            'MC_init_dis':['normal',1200,200],
+                            'MC_prior_range':[0,5000],
+                            'Multinest_prior':None},
 
                           'T3':
-                           {'initialization':None,
-                            'distribution':['normal',1200,200],
-                            'range':[0,5000],
-                            'prior':None}
+                           {'initialization':None, 
+                            'MC_init_dis':['normal',1200,200],
+                            'MC_prior_range':[0,5000],
+                            'Multinest_prior':None}
                          }}
 
         elif ptype==77:
@@ -753,45 +756,45 @@ class Retrieval_params:
                 'ptype':ptype,
                 'params':{'gamma':
                            {'initialization':None,
-                            'distribution':['normal',50,1],
-                            'range':[0,5000],
-                            'prior':None},
+                            'MC_init_dis':['normal',50,1],
+                            'MC_prior_range':[0,5000],
+                            'Multinest_prior':['uniform',0,5000]},
 
                           'Tint':
                            {'initialization':None,
-                            'distribution':['normal',1200,200],
-                            'range':[0,5000],
-                            'prior':None},
+                            'MC_init_dis':['normal',1200,200],
+                            'MC_prior_range':[0,5000],
+                            'Multinest_prior':['uniform',300,2300]},
 
                           'alpha':
                            {'initialization':None,
-                            'distribution':['uniform',1,2],
-                            'range':[1,2],
-                            'prior':None},
+                            'MC_init_dis':['uniform',1,2],
+                            'MC_prior_range':[1,2],
+                            'Multinest_prior':['uniform',1, 2]},
                             
                           'lndelta':
                            {'initialization':None,
-                            'distribution':['normal',0,1],
-                            'range':[-20,0],
-                            'prior':None},
+                            'MC_init_dis': ['normal', -2.5, 1.5],
+                            'MC_prior_range':[-10, 4],
+                            'Multinest_prior':None},
 
                           'T1':
                            {'initialization':None,
-                            'distribution':['normal',1200,200],
-                            'range':[0,5000],
-                            'prior':None},
+                            'MC_init_dis':['normal',1200,200],
+                            'MC_prior_range':[0,5000],
+                            'Multinest_prior':['uniform',10, 4010]},
 
                           'T2':
                            {'initialization':None,
-                            'distribution':['normal',1200,200],
-                            'range':[0,5000],
-                            'prior':None},
+                            'MC_init_dis':['normal',1200,200],
+                            'MC_prior_range':[0,5000],
+                            'Multinest_prior':['uniform',10, 4010]},
 
                           'T3':
                            {'initialization':None,
-                            'distribution':['normal',1200,200],
-                            'range':[0,5000],
-                            'prior':None}
+                            'MC_init_dis':['normal',1200,200],
+                            'MC_prior_range':[0,5000],
+                            'Multinest_prior':['uniform',10, 4010]}
                          }}
 
         elif ptype==9:
@@ -818,19 +821,19 @@ class Retrieval_params:
                     'cloudtype':2,
                     'params':{'logp_gcd':
                                {'initialization':None,
-                                'distribution':['normal',1,0.1],
-                                'range':[-4,2.4],
-                                'prior':None},
+                                'MC_init_dis':['normal',1,0.1],
+                                'MC_prior_range':[-4,2.4],
+                                'Multinest_prior':None},
                               'dp_gcd':
                                {'initialization':None,
-                                'distribution':['customized',dp_customized_distribution],  #lambda x: np.abs(0.1 * np.random.randn(x))
-                                'range':[0,7],
-                                'prior':None},
+                                'MC_init_dis':['customized',dp_customized_distribution],  #lambda x: np.abs(0.1 * np.random.randn(x))
+                                'MC_prior_range':[0,7],
+                                'Multinest_prior':['uniform',0,7]},
                               'omega_gcd':
                               {'initialization':None,
-                               'distribution':['uniform',0,1],
-                               'range':[0,1],
-                                'prior':None}
+                                'MC_init_dis':['uniform',0,1],
+                                'MC_prior_range':[0,1],
+                                'Multinest_prior':['uniform',0,1]}
                              }}
 
             elif cloud_type_name=='grey cloud slab':
@@ -842,24 +845,24 @@ class Retrieval_params:
 
                     'params':{'tau_gcs':
                                {'initialization':None,
-                                'distribution':['normal',10,1],
-                                'range':[0,100],
-                                'prior':None},
+                                'MC_init_dis':['normal',10,1],
+                                'MC_prior_range':[0,100],
+                                'Multinest_prior':['uniform',0,100]},
                               'logp_gcs':
                                {'initialization':None,
-                                'distribution':['normal',-0.2,0.1],
-                                'range':[-4,2.4],
-                                'prior':None},
+                                'MC_init_dis':['normal',-0.2,0.1],
+                                'MC_prior_range':[-4,2.4],
+                                'Multinest_prior':None},
                               'dp_gcs':
                               {'initialization':None,
-                               'distribution':['customized',dp_customized_distribution],  #lambda x: np.abs(0.5+0.01* np.random.randn(x))
-                               'range':None,  #correlated with logp_gcs [0, (phi[logp_gcs_index] - np.log10(press[0]))]
-                               'prior':None},
+                                'MC_init_dis':['customized',dp_customized_distribution],
+                                'MC_prior_range': None,  #correlated with logp_gcs [0, (phi[logp_gcs_index] - np.log10(press[0]))]
+                                'Multinest_prior':None},
                               'omega_gcs':
                               {'initialization':None,
-                               'distribution':['uniform',0,1],
-                               'range':[0,1],
-                                'prior':None}
+                                'MC_init_dis':['uniform',0,1],
+                                'MC_prior_range':[0,1],
+                                'Multinest_prior':['uniform',0,1]}
                              }}
 
             elif cloud_type_name=='powerlaw cloud deck':
@@ -872,24 +875,24 @@ class Retrieval_params:
 
                     'params':{'logp_pcd':
                                {'initialization':None,
-                                'distribution':['normal',-0.2,0.1],
-                                'range':[-4,2.4],
-                                'prior':None},
+                                'MC_init_dis':['normal',-0.2,0.1],
+                                'MC_prior_range':[-4,2.4],
+                                'Multinest_prior':None},
                               'dp_pcd':
                                {'initialization':None,
-                                'distribution':['customized',dp_customized_distribution], #lambda x: np.abs(0.1 * np.random.randn(x))
-                                'range':[0,7],
-                                'prior':None},
+                                'MC_init_dis':['customized',dp_customized_distribution],
+                                'MC_prior_range':[0,7],
+                                'Multinest_prior':['uniform',0,7]},
                               'omega_pcd':
                               {'initialization':None,
-                               'distribution':['uniform',0,1],
-                               'range':[0,1],
-                                'prior':None},
+                                'MC_init_dis':['uniform',0,1],
+                                'MC_prior_range':[0,1],
+                                'Multinest_prior':['uniform',0,1]},
                               'alpha_pcd':
                               {'initialization':None,
-                               'distribution':['normal',0,1],
-                               'range':[-10,10],
-                                'prior':None}
+                                'MC_init_dis':['normal',0,1],
+                                'MC_prior_range':[-10,10],
+                                'Multinest_prior':['uniform',-10,10]}
                              }}
 
             elif 'Mie scattering cloud deck' in cloud_type_name:
@@ -906,24 +909,24 @@ class Retrieval_params:
                         "particle_dis":"hansen",
                         'params':{'logp_mcd_%s'%cloudspecies:
                                     {'initialization':None,
-                                    'distribution':['normal',1,0.1],
-                                    'range':[-4,2.4],
-                                    'prior':None},
+                                     'MC_init_dis':['normal',1,0.1],
+                                     'MC_prior_range':[-4,2.4],
+                                     'Multinest_prior':None},
                                    'dp_mcd_%s'%cloudspecies:
                                     {'initialization':None,
-                                    'distribution':['customized',dp_customized_distribution], #lambda x: np.abs(0.1 * np.random.randn(x))
-                                    'range':[0,7], 
-                                    'prior':None},
+                                     'MC_init_dis':['customized',dp_customized_distribution],
+                                     'MC_prior_range':[0,7],
+                                     'Multinest_prior':['uniform',0,7]},
                                     'hansen_a_mcd_%s'%cloudspecies:
                                     {'initialization':None,
-                                    'distribution':['normal',-1.4,0.1],
-                                    'range':[-3,3],
-                                    'prior':None},
+                                     'MC_init_dis':['normal',-1.4,0.1],
+                                     'MC_prior_range':[-3,3],
+                                     'Multinest_prior':['uniform',-3,3]},
                                     'hansen_b_mcd_%s'%cloudspecies:
                                     {'initialization':None,
-                                    'distribution':['customized',hansen_b_customized_distribution], #lambda x: np.abs(0.2+0.05 * np.random.randn(x))
-                                    'range':[0,1],
-                                    'prior':None}
+                                     'MC_init_dis':['customized',hansen_b_customized_distribution],
+                                     'MC_prior_range':[0,1],
+                                     'Multinest_prior':['uniform',0,1]}
                                         }}
                                 
                 if particle_dis=="log_normal":
@@ -934,24 +937,24 @@ class Retrieval_params:
                         "particle_dis":"log_normal",
                         'params':{'logp_mcd_%s'%cloudspecies:
                                     {'initialization':None,
-                                    'distribution':['normal',1,0.1],
-                                    'range':[-4,2.4],
-                                    'prior':None},
+                                     'MC_init_dis':['normal',1,0.1],
+                                     'MC_prior_range':[-4,2.4],
+                                     'Multinest_prior':None},
                                     'dp_mcd_%s'%cloudspecies:
                                     {'initialization':None,
-                                    'distribution':['customized',dp_customized_distribution], #lambda x: np.abs(0.1 * np.random.randn(x))
-                                    'range':[0,7],
-                                    'prior':None},
+                                     'MC_init_dis':['customized',dp_customized_distribution],
+                                     'MC_prior_range':[0,7],
+                                     'Multinest_prior':['uniform',0,7]},
                                     'mu_mcd_%s'%cloudspecies:
                                     {'initialization':None,
-                                    'distribution':['normal',0,1],
-                                    'range':[-3,3],
-                                    'prior':None},
+                                     'MC_init_dis':['normal',0,1],
+                                     'MC_prior_range':[-3,3],
+                                     'Multinest_prior':['uniform',-3,3]},
                                     'sigma_mcd_%s'%cloudspecies:
                                     {'initialization':None,
-                                    'distribution':['normal',0,1],
-                                    'range':[0,1],
-                                    'prior':None}
+                                     'MC_init_dis':['normal',0,1],
+                                     'MC_prior_range':[0,1],
+                                     'Multinest_prior':['uniform',0,1]}
                                         }}
 
             elif cloud_type_name=='powerlaw cloud slab':
@@ -963,29 +966,29 @@ class Retrieval_params:
 
                     'params':{'tau_pcs':
                                {'initialization':None,
-                                'distribution':['normal',10,1],
-                                'range':[0,100],
-                                'prior':None},
+                                'MC_init_dis':['normal',10,1],
+                                'MC_prior_range':[0,100],
+                                'Multinest_prior':['uniform',0,100]},
                               'logp_pcs':
                                {'initialization':None,
-                                'distribution':['normal',-0.2,0.5],
-                                'range':[-4,2.4],
-                                'prior':None},
+                                'MC_init_dis':['normal',-0.2,0.5],
+                                'MC_prior_range':[-4,2.4],
+                                'Multinest_prior':None},
                               'dp_pcs':
                               {'initialization':None,
-                               'distribution':['customized', dp_customized_distribution], #lambda x: np.abs(0.1 * np.random.randn(x))
-                               'range':None,  #correlated with logp_gcs [0, (phi[logp_gcs_index] - np.log10(press[0]))]
-                                'prior':None},
+                                'MC_init_dis':['customized', dp_customized_distribution],
+                                'MC_prior_range':None,  #correlated with logp_gcs [0, (phi[logp_gcs_index] - np.log10(press[0]))],
+                                'Multinest_prior':None},
                               'omega_pcs':
                               {'initialization':None,
-                               'distribution':['uniform',0,1],
-                               'range':[0,1],
-                                'prior':None},
+                                'MC_init_dis':['uniform',0,1],
+                                'MC_prior_range':[0,1],
+                                'Multinest_prior':['uniform',0,1]},
                               'alpha_pcs':
                               {'initialization':None,
-                               'distribution':['normal',0,1],
-                               'range':[-10,10],
-                                'prior':None}
+                                'MC_init_dis':['normal',0,1],
+                                'MC_prior_range':[-10,10],
+                                'Multinest_prior':['uniform',-10,10]}
                              }}
 
 
@@ -1001,29 +1004,30 @@ class Retrieval_params:
                         'particle_dis':"hansen",
                         'params':{'tau_mcs_%s'%cloudspecies:
                                    {'initialization':None,
-                                    'distribution':['normal',10,1],
-                                    'range':[0,100],
-                                    'prior':None},
+                                    'MC_init_dis':['normal',10,1],
+                                    'MC_prior_range':[0,100],
+                                    'Multinest_prior':['uniform',0,100]
+                                },
                                   'logp_mcs_%s'%cloudspecies:
                                    {'initialization':None,
-                                    'distribution':['normal',-0.2,0.5],
-                                    'range':[-4,2.4],
-                                    'prior':None},
+                                    'MC_init_dis':['normal',-0.2,0.5],
+                                    'MC_prior_range':[-4,2.4],
+                                    'Multinest_prior':None},
                                   'dp_mcs_%s'%cloudspecies:
                                   {'initialization':None,
-                                   'distribution':['customized',dp_customized_distribution], # lambda x: np.abs(0.1 * np.random.randn(x))
-                                   'range':None,  #correlated with logp_gcs [0, (phi[logp_gcs_index] - np.log10(press[0]))]
-                                    'prior':None},
+                                    'MC_init_dis':['customized',dp_customized_distribution],
+                                    'MC_prior_range': None, #correlated with logp_gcs [0, (phi[logp_gcs_index] - np.log10(press[0]))],
+                                    'Multinest_prior':None},
                                   'hansen_a_mcs_%s'%cloudspecies:
                                   {'initialization':None,
-                                   'distribution':['normal',-1.4,0.1],
-                                   'range':[-3,3],
-                                    'prior':None},
+                                    'MC_init_dis':['normal',-1.4,0.1],
+                                    'MC_prior_range':[-3,3],
+                                    'Multinest_prior':['uniform',-3,3]},
                                   'hansen_b_mcs_%s'%cloudspecies:
                                   {'initialization':None,
-                                   'distribution':['customized',hansen_b_customized_distribution], #lambda x: np.abs(0.2+0.05 * np.random.randn(x))
-                                   'range':[0,1],
-                                   'prior':None}
+                                    'MC_init_dis':['customized',hansen_b_customized_distribution], #lambda x: np.abs(0.2+0.05 * np.random.randn(x))
+                                    'MC_prior_range':[0,1],
+                                    'Multinest_prior':['uniform',0,1]}
                                      }}
 
                 if particle_dis=="log_normal":
@@ -1034,29 +1038,29 @@ class Retrieval_params:
                         'particle_dis':"log_normal",
                         'params':{'tau_mcs_%s'%cloudspecies:
                                    {'initialization':None,
-                                    'distribution':['normal',10,1],
-                                    'range':[0,100],
-                                    'prior':None},
+                                    'MC_init_dis':['normal',10,1],
+                                    'MC_prior_range':[0,100],
+                                    'Multinest_prior':['uniform',0,100]},
                                   'logp_mcs_%s'%cloudspecies:
                                    {'initialization':None,
-                                    'distribution':['normal',-0.2,0.5],
-                                    'range':[-4,2.4],
-                                    'prior':None},
+                                    'MC_init_dis':['normal',-0.2,0.5],
+                                    'MC_prior_range':[-4,2.4],
+                                    'Multinest_prior':None},
                                   'dp_mcs_%s'%cloudspecies:
                                   {'initialization':None,
-                                   'distribution':['customized',dp_customized_distribution], #lambda x: np.abs(0.1 * np.random.randn(x))
-                                   'range':None,   #correlated with logp_gcs [0, (phi[logp_gcs_index] - np.log10(press[0]))]
-                                    'prior':None},
+                                    'MC_init_dis':['customized',dp_customized_distribution],
+                                    'MC_prior_range':None,   #correlated with logp_gcs [0, (phi[logp_gcs_index] - np.log10(press[0]))]
+                                    'Multinest_prior':None},
                                   'mu_mcs_%s'%cloudspecies:
                                   {'initialization':None,
-                                   'distribution':['normal',0,1],
-                                   'range':[-3,3],
-                                    'prior':None},
+                                    'MC_init_dis':['normal',0,1],
+                                    'MC_prior_range':[-3,3],
+                                    'Multinest_prior':['uniform',-3,3]},
                                   'sigma_mcs_%s'%cloudspecies:
                                   {'initialization':None,
-                                   'distribution':['normal',0,1],
-                                   'range':[0,1],
-                                    'prior':None}
+                                    'MC_init_dis':['normal',0,1],
+                                    'MC_prior_range':[0,1],
+                                    'Multinest_prior':['uniform',0,1]}
                                      }}
 
             elif cloud_type_name=='clear':
@@ -1080,37 +1084,37 @@ class Retrieval_params:
             dictionary['params'] = {
                 'logg': {
                     'initialization': None,
-                    'distribution': ['normal', 4.5, 0.1],
-                    'range':[0,6],
-                    'prior': None
+                    'MC_init_dis': ['normal', 4.5, 0.1],
+                    'MC_prior_range':[0,6],
+                    'Multinest_prior':None
                 },
                 'r2d2': {
                     'initialization': None,
-                    'distribution': ['normal', 0, 1],
-                    'range':[0,1],
-                    'prior': None
+                    'MC_init_dis': ['normal', 0, 1],
+                    'MC_prior_range':[0,1],
+                    'Multinest_prior':None
                 }}
  
             if self.vrad==False:
                 dictionary['params']['dlambda']={
                         'initialization': None,
-                        'distribution': ['normal', 0, 0.001],
-                        'range':[-0.01,0.01],
-                        'prior': None
+                        'MC_init_dis':  ['normal', 0, 0.001],
+                        'MC_prior_range':[-0.01,0.01],
+                        'Multinest_prior':None
                     }
             elif self.vrad==True:
                 dictionary['params']['vrad']={
                         'initialization': None,
-                        'distribution': ['normal', 0, 2],
-                        'range':[-250,250],
-                        'prior': None
+                        'MC_init_dis':  ['normal', 0, 2],
+                        'MC_prior_range':[-250,250],
+                        'Multinest_prior':None
                     }
             if self.vsini==True:
                 dictionary['params']['vsini']={
                         'initialization': None,
-                        'distribution': ['uniform', 0, 100],
-                        'range':[0,100],
-                        'prior': None
+                        'MC_init_dis':   ['uniform', 0, 100],
+                        'MC_prior_range':[0,100],
+                        'Multinest_prior':None
                     }
                 
             if getattr(self, "instrument", None) is not None and getattr(self.instrument, "scales", None) is not None:
@@ -1119,47 +1123,47 @@ class Retrieval_params:
                     for i in range(1, scales_parameter_max + 1):
                         dictionary['params'][f'scale{i}'] = {
                         'initialization': None,
-                        'distribution': ['normal', 1, 0.001],
-                        'range':[0.1,10],
-                        'prior': None
+                        'MC_init_dis':   ['normal', 1, 0.001],
+                        'MC_prior_range':[0.1,10],
+                        'Multinest_prior':None
                         }
                 
         elif self.samplemode.lower() == 'multinest':
             dictionary['params'] = {
                     'M': {
                         'initialization': None,
-                        'distribution': ['normal', 4.5, 0.1],
-                        'range': [1.0,80],
-                        'prior': None
+                        'MC_init_dis':    ['normal', 4.5, 0.1],
+                        'MC_prior_range': [1.0,80],
+                        'Multinest_prior':['uniform',1.0,80]
                     },
                     'R': {
                         'initialization': None,
-                        'distribution': ['normal', 0, 1],
-                        'range':[0.5,2.5],
-                        'prior': None
+                        'MC_init_dis':    ['normal', 0, 1],
+                        'MC_prior_range': [0.5,2.5],
+                        'Multinest_prior':['uniform',0.5,2.5]
                     }}
             
             if self.vrad==False:
                 dictionary['params']['dlambda']={
                         'initialization': None,
-                        'distribution': ['normal', 0, 0.001],
-                        'range':[-0.01,0.01],
-                        'prior': None
+                        'MC_init_dis':    ['normal', 0, 0.001],
+                        'MC_prior_range': [-0.01,0.01],
+                        'Multinest_prior': ['uniform',-0.01,0.01]
                     }
             elif self.vrad==True:
                 dictionary['params']['vrad']={
                         'initialization': None,
-                        'distribution': ['normal', 0, 2],
-                        'range':[-250,250],
-                        'prior': None
+                        'MC_init_dis':    ['normal', 0, 2],
+                        'MC_prior_range': [-250,250],
+                        'Multinest_prior': ['uniform',-250,250]
                     }
                 
             if self.vsini==True:
                 dictionary['params']['vsini']={
                         'initialization': None,
-                        'distribution': ['uniform', 0, 100],
-                        'range':[0,100],
-                        'prior': None
+                        'MC_init_dis':    ['uniform', 0, 100],
+                        'MC_prior_range': [0,100],
+                        'Multinest_prior': ['uniform',0,100]
                     }
           
             if getattr(self, "instrument", None) is not None and getattr(self.instrument, "scales", None) is not None:
@@ -1168,9 +1172,9 @@ class Retrieval_params:
                         for i in range(1, scales_parameter_max + 1):
                             dictionary['params'][f'scale{i}'] = {
                                 'initialization': None,
-                                'distribution': ['normal', 1, 0.001],
-                                'range':[0.1,10],
-                                'prior': None
+                                'MC_init_dis':    ['normal', 1, 0.001],
+                                'MC_prior_range': [0.5,2],
+                                'Multinest_prior':['uniform',0.5,2]
                             }
         else:
             raise ValueError("Unsupported samplemode. Please choose 'mcmc' or 'multinest'.")
@@ -1202,9 +1206,9 @@ class Retrieval_params:
             for i in range(ndata):
                 dictionary['params']["tolerance_parameter_%d" % (i+1)] = {
                     'initialization': None,
-                    'distribution': ['customized', 0],
-                    'range':None,  
-                    'prior': None
+                    'MC_init_dis':    ['customized', 0],
+                    'MC_prior_range':  None, 
+                    'Multinest_prior': None
                 }
         return dictionary
 
@@ -1217,14 +1221,14 @@ class Retrieval_params:
              gas_dic= {'params':
                        {'mh':
                            {'initialization':None,
-                            'distribution':['normal',0,0.1],
-                            'range':[-1,2],
-                            'prior':None},
+                            'MC_init_dis':    ['normal',0,0.1],
+                            'MC_prior_range':  [-1,2],
+                            'Multinest_prior':  ['uniform',-1,2]},
                        'co':
                            {'initialization':None,
-                            'distribution':['uniform',0.25,2.5],
-                            'range':[0.25,2.5],
-                            'prior':None}
+                            'MC_init_dis':    ['uniform',0.25,2.5],
+                            'MC_prior_range':  [0.25,2.5],
+                            'Multinest_prior': ['uniform',0.25,2.5]}
                       }}
 
         elif chemeq==0:
@@ -1305,9 +1309,9 @@ class Retrieval_params:
             if npatches > 1:
                 cloud_dic["fcld"] = {
                     'initialization': None,
-                    'distribution': ['uniform', 0, 1],
-                    'range':[0,1],
-                    'prior': None
+                    'MC_init_dis':     ['uniform', 0, 1],
+                    'MC_prior_range':  [0,1],
+                    'Multinest_prior':  ['uniform',0,1]
                 }
 
             for i in range(npatches):
@@ -1607,19 +1611,19 @@ def update_dictionary(dic, params_instance):
 
 def get_distribution_values(dic):
     """
-    Recursively extract all 'distribution' entries from a dictionary.
+    Recursively extract all 'MC_init_dis' entries from a dictionary.
 
     Parameters
     ----------
     dic : dict
         Dictionary containing retrieval parameters. The dictionary may contain
         arbitrary levels of nesting (dicts or lists), with some dicts including
-        a 'distribution' key.
+        a 'MC_init_dis key.
 
     Returns
     -------
     distribution_values : list
-        List of all values associated with the 'distribution' keys found in `dic`.
+        List of all values associated with the 'MC_init_dis' keys found in `dic`.
         Each value is usually a list like ['uniform', 0.0, 1.0] or ['normal', 0, 0.1].
     """
 
@@ -1628,7 +1632,7 @@ def get_distribution_values(dic):
     def recurse(d):
         if isinstance(d, dict):
             for key, value in d.items():
-                if key == 'distribution':
+                if key == 'MC_init_dis':
                     distribution_values.append(value)
                 else:
                     recurse(value)

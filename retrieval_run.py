@@ -19,7 +19,7 @@ import mpi4py
 from mpi4py import MPI
 import test_module
 import settings
-import Priors
+import Priors_new_trial
 
 
 __author__ = "Fei Wang"
@@ -154,11 +154,11 @@ def brewster_reterieval_run(re_params,model_config_instance,io_config_instance):
         model_config_instance.nwalkers=len(all_params)*16
 
         r2d2 = (71492e3)**2. / (model_config_instance.dist * 3.086e+16)**2.
-        re_params.dictionary['refinement_params']['params']['r2d2']['distribution']=['normal', r2d2, 0.1*r2d2]
+        re_params.dictionary['refinement_params']['params']['r2d2']['MC_init_dis']=['normal', r2d2, 0.1*r2d2]
 
         for i in range(len(all_params)):
             if all_params[i].startswith('tolerance_parameter'):
-                re_params.dictionary['refinement_params']['params'][all_params[i]]['distribution']=['customized',tolerance_parameter_customized_distribution]
+                re_params.dictionary['refinement_params']['params'][all_params[i]]['MC_init_dis']=['customized',tolerance_parameter_customized_distribution]
 
         if model_config_instance.fresh == 0:
             p0=utils.MC_P0_gen(re_params.dictionary,model_config_instance,args_instance)
@@ -167,17 +167,17 @@ def brewster_reterieval_run(re_params,model_config_instance,io_config_instance):
             fname=io_config_instance.chaindump
             pic=pickle.load(open(fname,'rb'))
             p0=pic
-            if (model_config_instance.fresh == 2):
-                gaslist = list(re_params.dictionary['gas'].keys())
-                gastype_values = [info['gastype'] for key, info in re_params.dictionary['gas'].items() if 'gastype' in info]
-                gas=[]
-                for i in range(len(gaslist)):
-                    gas.append(gaslist[i])
-                    if  gastype_values[i]=='N':
-                        gas.append("p_ref_%s"%gaslist[i])
-                        gas.append("alpha_%s"%gaslist[i])
-                for i in range(len(gas)):
-                    p0[:,i] = (np.random.rand(model_config_instance.nwalkers).reshape(model_config_instance.nwalkers)*0.5) + p0[:,i]
+            # if (model_config_instance.fresh == 2):
+            #     gaslist = list(re_params.dictionary['gas'].keys())
+            #     gastype_values = [info['gastype'] for key, info in re_params.dictionary['gas'].items() if 'gastype' in info]
+            #     gas=[]
+            #     for i in range(len(gaslist)):
+            #         gas.append(gaslist[i])
+            #         if  gastype_values[i]=='N':
+            #             gas.append("p_ref_%s"%gaslist[i])
+            #             gas.append("alpha_%s"%gaslist[i])
+            #     for i in range(len(gas)):
+            #         p0[:,i] = (np.random.rand(model_config_instance.nwalkers).reshape(model_config_instance.nwalkers)*0.5) + p0[:,i]
                     
                     
         # Now we set up the MPI bits
@@ -289,7 +289,8 @@ def brewster_reterieval_run(re_params,model_config_instance,io_config_instance):
         def prior_call(re_params):
             def prior(cube, ndim, nparams):
                 theta = cube[:ndim]
-                phi = Priors.priormap_dic(theta, re_params)
+                Priors_instance =Priors_new_trial.Priors(theta,re_params,args_instance)
+                phi = phi = Priors_instance.priors #Priors_new_trial.priormap_dic(theta, re_params)
                 for i in range(ndim):
                     cube[i] = phi[i]  # Update cube with transformed values
             return prior
