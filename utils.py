@@ -706,44 +706,44 @@ class Retrieval_params:
                 'ptype':ptype,
                 'params':{'Tbottom':
                            {'initialization':None,
-                            'distribution':['uniform',2000,10000],
-                            'range':[0,10000],
+                            'distribution':['normal',3000,200],
+                            'range':[1000,5000],
                             'prior':None},
 
                           'dtdp1':
                            {'initialization':None,
-                            'distribution':['normal',0.25,0.025],
-                            'range':[0,1],
+                            'distribution':['normal',0.25,0.01],
+                            'range':[0.18,0.32],
                             'prior':None},
 
                         'dtdp2':
                            {'initialization':None,
-                            'distribution':['normal',0.25,0.045],
-                            'range':[0,1],
+                            'distribution':['normal',0.25,0.01],
+                            'range':[0.12,0.36],
                             'prior':None},
 
                         'dtdp3':
                            {'initialization':None,
-                            'distribution':['normal',0.26,0.05],
-                            'range':[0,1],
+                            'distribution':['normal',0.26,0.01],
+                            'range':[0.12,0.4],
                             'prior':None},
 
                         'dtdp4':
                            {'initialization':None,
-                            'distribution':['normal',0.2,0.05],
-                            'range':[0,1],
+                            'distribution':['normal',0.2,0.01],
+                            'range':[0.08,0.34],
                             'prior':None},
 
                         'dtdp5':
                            {'initialization':None,
-                            'distribution':['normal',0.12,0.045],
-                            'range':[0,1],
+                            'distribution':['normal',0.12,0.01],
+                            'range':[0,0.24],
                             'prior':None},
 
                         'dtdp6':
                            {'initialization':None,
-                            'distribution':['normal',0.07,0.07],
-                            'range':[0,1],
+                            'distribution':['normal',0.07,0.01],
+                            'range':[-0.1,0.26],
                             'prior':None},
                          }}
 
