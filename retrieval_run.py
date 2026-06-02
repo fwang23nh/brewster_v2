@@ -14,12 +14,12 @@ from builtins import str
 from builtins import range
 import utils
 from schwimmbad import MPIPool
-# import pymultinest as mn
+import pymultinest as mn
 import mpi4py
 from mpi4py import MPI
 import test_module
 import settings
-import Priors_new_trial
+import Priors
 
 
 __author__ = "Fei Wang"
@@ -289,8 +289,8 @@ def brewster_reterieval_run(re_params,model_config_instance,io_config_instance):
         def prior_call(re_params):
             def prior(cube, ndim, nparams):
                 theta = cube[:ndim]
-                Priors_instance =Priors_new_trial.Priors(theta,re_params,args_instance)
-                phi = phi = Priors_instance.priors #Priors_new_trial.priormap_dic(theta, re_params)
+                Priors_instance =Priors.Priors(theta,re_params,args_instance)
+                phi = Priors_instance.priors 
                 for i in range(ndim):
                     cube[i] = phi[i]  # Update cube with transformed values
             return prior

@@ -1172,7 +1172,7 @@ class Retrieval_params:
                         for i in range(1, scales_parameter_max + 1):
                             dictionary['params'][f'scale{i}'] = {
                                 'initialization': None,
-                                'MC_init_dis':    ['normal', 1, 0.001],
+                                'MC_init_dis':    ['norm al', 1, 0.001],
                                 'MC_prior_range': [0.5,2],
                                 'Multinest_prior':['uniform',0.5,2]
                             }
@@ -1609,39 +1609,150 @@ def update_dictionary(dic, params_instance):
 
 
 
-def get_distribution_values(dic):
-    """
-    Recursively extract all 'MC_init_dis' entries from a dictionary.
+# def get_distribution_values(dic):
+#     """
+#     Recursively extract all 'MC_init_dis' entries from a dictionary.
 
-    Parameters
-    ----------
-    dic : dict
-        Dictionary containing retrieval parameters. The dictionary may contain
-        arbitrary levels of nesting (dicts or lists), with some dicts including
-        a 'MC_init_dis key.
+#     Parameters
+#     ----------
+#     dic : dict
+#         Dictionary containing retrieval parameters. The dictionary may contain
+#         arbitrary levels of nesting (dicts or lists), with some dicts including
+#         a 'MC_init_dis key.
+
+#     Returns
+#     -------
+#     distribution_values : list
+#         List of all values associated with the 'MC_init_dis' keys found in `dic`.
+#         Each value is usually a list like ['uniform', 0.0, 1.0] or ['normal', 0, 0.1].
+#     """
+
+#     distribution_values = []
+
+#     def recurse(d):
+#         if isinstance(d, dict):
+#             for key, value in d.items():
+#                 if key == 'MC_init_dis':
+#                     distribution_values.append(value)
+#                 else:
+#                     recurse(value)
+#         elif isinstance(d, list):
+#             for item in d:
+#                 recurse(item)
+
+#     recurse(dic)
+#     return distribution_values
+
+
+
+
+
+def get_dis_range_priors(dic):
+    """
+    Extract:
+      - MC_init_dis
+      - MC_prior_range
+      - Multinest_prior
+
+    from a nested retrieval dictionary.
 
     Returns
     -------
-    distribution_values : list
-        List of all values associated with the 'MC_init_dis' keys found in `dic`.
-        Each value is usually a list like ['uniform', 0.0, 1.0] or ['normal', 0, 0.1].
+    prior_ranges : dict
+    mc_init_dis  : dict
+    multinest_priors : dict
     """
 
-    distribution_values = []
+    mc_ranges = {}
+    mc_init_dis = {}
+    multinest_priors = {}
 
-    def recurse(d):
-        if isinstance(d, dict):
-            for key, value in d.items():
-                if key == 'MC_init_dis':
-                    distribution_values.append(value)
-                else:
-                    recurse(value)
-        elif isinstance(d, list):
-            for item in d:
-                recurse(item)
+    # ---------------------------------
+    # Gas parameters
+    # ---------------------------------
+    gaslist = list(dic['gas'].keys())
 
-    recurse(dic)
-    return distribution_values
+    if gaslist[0] == 'params':
+
+        for param, info in dic['gas']['params'].items():
+            mc_ranges[param] = info.get('MC_prior_range')
+            mc_init_dis[param] = info.get('MC_init_dis')
+            multinest_priors[param] = info.get('Multinest_prior')
+
+    else:
+
+        for gas in gaslist:
+            gas_info = dic['gas'][gas]
+            params = gas_info['params']
+
+            # abundance
+            mc_ranges[gas] = params['log_abund'].get('MC_prior_range')
+            mc_init_dis[gas] = params['log_abund'].get('MC_init_dis')
+            multinest_priors[gas] = params['log_abund'].get('Multinest_prior')
+
+            # p_ref
+            if 'p_ref' in params:
+                key = f"p_ref_{gas}"
+                mc_ranges[key] = params['p_ref'].get('MC_prior_range')
+                mc_init_dis[key] = params['p_ref'].get('MC_init_dis')
+                multinest_priors[key] = params['p_ref'].get('Multinest_prior')
+
+            # alpha
+            if 'alpha' in params:
+                key = f"alpha_{gas}"
+                mc_ranges[key] = params['alpha'].get('MC_prior_range')
+                mc_init_dis[key] = params['alpha'].get('MC_init_dis')
+                multinest_priors[key] = params['alpha'].get('Multinest_prior')
+
+    # ---------------------------------
+    # Refinement parameters
+    # ---------------------------------
+    for param, info in dic['refinement_params']['params'].items():
+        mc_ranges[param] = info.get('MC_prior_range')
+        mc_init_dis[param] = info.get('MC_init_dis')
+        multinest_priors[param] = info.get('Multinest_prior')
+
+    # ---------------------------------
+    # PT parameters
+    # ---------------------------------
+    for param, info in dic['pt']['params'].items():
+        mc_ranges[param] = info.get('MC_prior_range')
+        mc_init_dis[param] = info.get('MC_init_dis')
+        multinest_priors[param] = info.get('Multinest_prior')
+
+    # ---------------------------------
+    # Cloud parameters
+    # ---------------------------------
+    if 'cloud' in dic:
+
+        if 'fcld' in dic['cloud']:
+            info = dic['cloud']['fcld']
+            mc_ranges['fcld'] = info.get('MC_prior_range')
+            mc_init_dis['fcld'] = info.get('MC_init_dis')
+            multinest_priors['fcld'] = info.get('Multinest_prior')
+
+        for patch_key, patch in dic['cloud'].items():
+            if not patch_key.startswith('patch'):
+                continue
+
+            for cloud_key, cloud in patch.items():
+                for param, info in cloud['params'].items():
+                    mc_ranges[param] = info.get('MC_prior_range')
+                    mc_init_dis[param] = info.get('MC_init_dis')
+                    multinest_priors[param] = info.get('Multinest_prior')
+
+    # ---------------------------------
+    # Added parameters
+    # ---------------------------------
+    if 'added_params' in dic:
+        for param, info in dic['added_params'].items():
+            mc_ranges[param] = info.get('MC_prior_range')
+            mc_init_dis[param] = info.get('MC_init_dis')
+            multinest_priors[param] = info.get('Multinest_prior')
+
+    return mc_init_dis,mc_ranges,multinest_priors
+
+
 
 
 def MC_P0_gen(updated_dic,model_config_instance,args_instance):
@@ -1679,7 +1790,10 @@ def MC_P0_gen(updated_dic,model_config_instance,args_instance):
     p0 = np.empty([nwalkers,ndim])
     
     # Get all distributions for parameters
-    all_distributions=get_distribution_values(updated_dic)
+    # all_distributions=get_distribution_values(updated_dic)
+
+    mc_init_dis,mc_ranges,multinest_priors=get_dis_range_priors(updated_dic)
+    all_distributions=list(mc_init_dis.values())
 
     # if len(all_distributions) != ndim:
     #     warnings.warn(f"Number of distributions ({len(all_distributions)}) "
