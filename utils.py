@@ -1172,7 +1172,7 @@ class Retrieval_params:
                         for i in range(1, scales_parameter_max + 1):
                             dictionary['params'][f'scale{i}'] = {
                                 'initialization': None,
-                                'MC_init_dis':    ['norm al', 1, 0.001],
+                                'MC_init_dis':    ['normal', 1, 0.001],
                                 'MC_prior_range': [0.5,2],
                                 'Multinest_prior':['uniform',0.5,2]
                             }
