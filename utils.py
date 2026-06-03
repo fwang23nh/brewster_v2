@@ -714,45 +714,45 @@ class Retrieval_params:
                 'ptype':ptype,
                 'params':{'Tbottom':
                            {'initialization':None,
-                            'distribution':['normal',3000,200],
-                            'range':[1000,5000],
-                            'prior':None},
+                            'MC_init_dis':['normal',3000,200],
+                            'MC_prior_range':[1000,5000],
+                            'Multinest_prior':None},
 
                           'dtdp1':
                            {'initialization':None,
-                            'distribution':['normal',0.25,0.01],
-                            'range':[0.18,0.32],
-                            'prior':None},
+                            'MC_init_dis':['normal',0.25,0.01],
+                            'MC_prior_range':[0.18,0.32],
+                            'Multinest_prior':None},
 
                         'dtdp2':
                            {'initialization':None,
-                            'distribution':['normal',0.25,0.01],
-                            'range':[0.12,0.36],
-                            'prior':None},
+                            'MC_init_dis':['normal',0.25,0.01],
+                            'MC_prior_range':[0.12,0.36],
+                            'Multinest_prior':None},
 
                         'dtdp3':
                            {'initialization':None,
-                            'distribution':['normal',0.26,0.01],
-                            'range':[0.12,0.4],
-                            'prior':None},
+                            'MC_init_dis':['normal',0.26,0.01],
+                            'MC_prior_range':[0.12,0.4],
+                            'Multinest_prior':None},
 
                         'dtdp4':
                            {'initialization':None,
-                            'distribution':['normal',0.2,0.01],
-                            'range':[0.08,0.34],
-                            'prior':None},
+                            'MC_init_dis':['normal',0.2,0.01],
+                            'MC_prior_range':[0.08,0.34],
+                            'Multinest_prior':None},
 
                         'dtdp5':
                            {'initialization':None,
-                            'distribution':['normal',0.12,0.01],
-                            'range':[0,0.24],
-                            'prior':None},
+                            'MC_init_dis':['normal',0.12,0.01],
+                            'MC_prior_range':[0,0.24],
+                            'Multinest_prior':None},
 
                         'dtdp6':
                            {'initialization':None,
-                            'distribution':['normal',0.07,0.01],
-                            'range':[-0.1,0.26],
-                            'prior':None},
+                            'MC_init_dis':['normal',0.07,0.01],
+                            'MC_prior_range':[-0.1,0.26],
+                            'Multinest_prior':None},
                          }}
 
         elif ptype==7 :
