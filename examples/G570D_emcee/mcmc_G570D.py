@@ -2,7 +2,6 @@
 """MCMC Retrieval Setup Template"""
 import os 
 import utils
-import numpy as np
 import retrieval_run
 import settings
 
@@ -17,11 +16,10 @@ __email__ = ""
 __status__ = "Development"
 
 
-fwhm=0
-wavelength_range=[1.0,2.5]
-Rfile = 'examples/example_data/G570D_R_file.txt'
+# Define basic instrument parameters
+wavelength_range=[1.0,2.5]      # Wavelength coverage in microns
+Rfile = './examples/example_data/G570D_R_file.txt'  # File with resolving power data
 obspec = np.asfortranarray(np.loadtxt("examples/example_data/G570D_2MHcalib.dat",dtype='d',unpack='true'))
-
 
 chemeq=0
 gaslist =  ['h2o','co','co2','ch4','nh3','h2s','k','na']
@@ -41,9 +39,15 @@ do_fudge=1
 samplemode='mcmc'
 # samplemode='multinest'
 
-instrument_instance = utils.Instrument(fwhm=fwhm, wavelength_range=wavelength_range, R_file=Rfile,obspec=obspec)
-re_params = utils.Retrieval_params(samplemode,chemeq,gaslist,gastype_list,fwhm,do_fudge,ptype,do_clouds,npatches,cloud_name,cloudpatch_index,particle_dis,instrument=instrument_instance)
-model_config_instance = utils.ModelConfig(samplemode,do_fudge,cloudpath=cloudpath)
+instrument_instance = utils.Instrument(wavelength_range=wavelength_range, R_file=Rfile,obspec=obspec)
+# Create retrieval parameter object, the deafault vrad and vsini are false.
+re_params = utils.Retrieval_params(samplemode=samplemode, chemeq=chemeq, gaslist=gaslist,
+    gastype_list=gastype_list,do_fudge=do_fudge, ptype=ptype, do_clouds=do_clouds,
+    npatches=npatches, cloud_name=cloud_name, cloud_type=cloud_type,
+    cloudpatch_index=cloudpatch_index, particle_dis=particle_dis,
+    instrument=instrument_instance,vrad=False,vsini=False,fwhm=None)
+
+model_config_instance = utils.ModelConfig(samplemode, do_fudge, cloudpath=cloudpath)
 io_config_instance = utils.IOConfig()
 
 
@@ -54,19 +58,18 @@ io_config_instance.update_dictionary()
 
 model_config_instance.dist= 5.84
 model_config_instance.xlist ='data/gaslistRox.dat'
-model_config_instance.xpath ='../Linelists/'
+model_config_instance.xpath ='../../Linelists/'
 model_config_instance.do_bff=0
 model_config_instance.niter=30000
 model_config_instance.update_dictionary()
 
 
 
-re_params.dictionary['gas']['h2o']['params']['log_abund']['distribution']=['normal',-3.5,0.5]
-re_params.dictionary['gas']['nh3']['params']['log_abund']['distribution']=['normal',-8.0,0.5]
-re_params.dictionary['gas']['h2s']['params']['log_abund']['distribution']=['normal',-8.0,0.5]
-re_params.dictionary['gas']['K_Na']['params']['log_abund']['distribution']=['normal',-5.5,0.5]
-re_params.dictionary['refinement_params']['params']['logg']['distribution']=['normal',4.9,0.1]
-
+re_params.dictionary['gas']['h2o']['params']['log_abund']['MC_init_dis']=['normal',-3.5,0.5]
+re_params.dictionary['gas']['nh3']['params']['log_abund']['MC_init_dis']=['normal',-8.0,0.5]
+re_params.dictionary['gas']['h2s']['params']['log_abund']['MC_init_dis']=['normal',-8.0,0.5]
+re_params.dictionary['gas']['K_Na']['params']['log_abund']['MC_init_dis']=['normal',-5.5,0.5]
+re_params.dictionary['refinement_params']['params']['logg']['MC_init_dis']=['normal',4.9,0.1]
 
 
 args_instance = utils.ArgsGen(re_params,model_config_instance,instrument_instance,obspec)

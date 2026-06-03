@@ -21,6 +21,7 @@ from collections import defaultdict
 import re
 import emcee
 import warnings
+import h5py
 
 __author__ = "Fei Wang"
 __copyright__ = "Copyright 2024 - Fei Wang"
@@ -39,7 +40,7 @@ class Instrument:
     Parameters
     ----------
     data : str
-        Telescope observing modes: 'IFS', 'Imaging'
+        observational data
     R_file : float
         Spectral resolution  file
     wavelength_range : float
@@ -140,6 +141,7 @@ class ModelConfig:
         Do BFF flag (default: 1)
     fresh : int, optional
         Fresh start flag (default: 0)
+        1 indicates continue from previous run 
     xpath : str, optional
         Path to line lists (default: "../Linelists/")
     xlist : str, optional
@@ -159,7 +161,7 @@ class ModelConfig:
         Update the model configuration dictionary with the current attributes.
     """
 
-    def __init__(self, samplemode, do_fudge, use_disort=0, malk=0, mch4=0, do_bff=1, fresh=0,cloudpath=None,xpath="../Linelists/", xlist=None, dist=None, pfile="data/LSR1835_eqpt.dat",do_scales=True,do_shift=True):
+    def __init__(self, samplemode, do_fudge, use_disort=0, malk=0, mch4=0, do_bff=1, fresh=0,cloudpath=None,xpath="../Linelists/", xlist=None, dist=None, pfile="data/LSR1835_eqpt.dat",do_scales=True,do_shift=True,do_conv=True):
         self.samplemode = samplemode
         self.use_disort = use_disort
         self.do_fudge = do_fudge
@@ -172,6 +174,8 @@ class ModelConfig:
         self.cloudpath = cloudpath
         self.do_scales=do_scales
         self.do_shift=do_shift
+        self.do_conv=do_conv
+        
         
         self.dist = dist
         self.dist_err = 0
@@ -231,7 +235,8 @@ class ModelConfig:
                 'pfile': self.pfile,
                 'cloudpath':self.cloudpath,
                 'do_scales':self.do_scales,
-                'do_shift':self.do_shift
+                'do_shift':self.do_shift,
+                'do_conv':self.do_conv
             }
         }
 
@@ -301,6 +306,7 @@ class ModelConfig:
             f"- cloudpath : {self.cloudpath}\n"
             f"- do_scales : {self.do_scales}\n"
             f"- do_shift : {self.do_shift}\n"
+            f"- do_conv : {self.do_conv}\n"
             f"\n"
         )
         if self.samplemode.lower() == 'mcmc':
@@ -555,9 +561,9 @@ class Retrieval_params:
                 'gastype':gastype,
                 'params':{'log_abund':
                            {'initialization':None,
-                            'distribution':['normal',-4.0,0.5],
-                            'range':[-12,0],
-                            'prior':None}
+                            'MC_init_dis':['normal',-4.0,0.5],
+                            'MC_prior_range':[-12,0],
+                            'Multinest_prior':['centered_log_abund',-12]}
                          }}
 
         elif gastype=='N':
@@ -566,38 +572,40 @@ class Retrieval_params:
                 'gastype':gastype,
                 'params':{'log_abund':
                            {'initialization':None,
-                            'distribution':['normal',-4.0,0.5],
-                            'range':[-12,0],
-                            'prior': None},
+                            'MC_init_dis':['normal',-4.0,0.5],
+                            'MC_prior_range':[-12,0],
+                            'Multinest_prior':['centered_log_abund',-12]},
 
                            "p_ref": 
                             {'initialization':None,
-                              'distribution':['normal',-1,0.2],
-                              'range':[-4,2.4],
-                              'prior': None},
+                             'MC_init_dis':['normal',-1,0.2],
+                             'MC_prior_range':[-4,2.4],
+                             'Multinest_prior':None
+                            },
 
                            "alpha":
                             {'initialization':None,
-                             'distribution':['uniform',0,1],
-                             'range':[0,1],
-                             'prior': None}    
+                             'MC_init_dis':['uniform',0,1],
+                             'MC_prior_range':[-5,5],
+                             'Multinest_prior':['uniform',-5,5]}    
                            }}
-        elif gastype=='H':
-            dictionary[gasname]={
-                'gastype':gastype,
-                'params':{'log_abund':
-                           {'initialization':None,
-                            'distribution':['normal',-4.0,0.5],
-                            'range':[-12,0],
-                            'prior': None},
+        # elif gastype=='H':
+        #     dictionary[gasname]={
+        #         'gastype':gastype,
+        #         'params':{'log_abund':
+        #                    {'initialization':None,
+        #                     'MC_init_dis':['normal',-4.0,0.5],
+        #                     'MC_prior_range':[-12,0],
+        #                     'Multinest_prior':['uniform',-18,0]
+        #                     },
                             
-                           "p_ref": 
-                            {'initialization':None,
-                              'distribution':['normal',-1,0.2],
-                              'range':[-4,2.4],
-                              'prior': None}
+        #                    "p_ref": 
+        #                     {'initialization':None,
+        #                     'MC_init_dis':['normal',-1,0.2],
+        #                     'MC_prior_range':[-4,2.4],
+        #                     'Multinest_prior':None}
 
-                           }}
+        #                    }}
 
         return dictionary
             
@@ -612,17 +620,17 @@ class Retrieval_params:
                 'ptype':ptype,
                 'params':{'gamma':
                            {'initialization':None,
-                            'distribution':['normal',50,1],
-                             'range':[0,5000],
-                            'prior':None}}}
+                            'MC_init_dis':['normal',50,1],
+                            'MC_prior_range':[0,5000],
+                            'Multinest_prior':['uniform',0,5000]}
+                            }}
             
             for i in range(13):
                 dictionary['params']["T_%d" % (i+1)] = {
                     'initialization': None,
-                    'distribution': ['normal',500, 50],
-                    'range':[0,5000],
-                    'prior': None
-                }
+                    'MC_init_dis':['normal',500, 50],
+                    'MC_prior_range':[0,5000],
+                    'Multinest_prior': ['uniform', 1,4000]}
             
 
 
@@ -632,33 +640,33 @@ class Retrieval_params:
                 'ptype':ptype,
                 'params':{'alpha1':
                            {'initialization':None,
-                            'distribution':['normal',0.2,0.1],
-                            'range':[0,1],
-                            'prior':None},
+                            'MC_init_dis':['normal',0.2,0.1],
+                            'MC_prior_range':[0,1],
+                            'Multinest_prior':['uniform',0.25, 0.5]},
 
                           'alpha2':
                            {'initialization':None,
-                            'distribution':['normal',0.18,0.05],
-                            'range':[0,1],
-                            'prior':None},
+                            'MC_init_dis':['normal',0.18,0.05],
+                            'MC_prior_range':[0,1],
+                            'Multinest_prior':['uniform',0.1, 0.2]},
 
                           'logP1':
                            {'initialization':None,
-                            'distribution':['normal',-1,0.2],
-                            'range':[-4,2.4],
-                            'prior':None},
+                            'MC_init_dis':['normal',-1,0.2],
+                            'MC_prior_range':[-4,2.4],
+                            'Multinest_prior':None},
 
                           'logP3':
                            {'initialization':None,
-                            'distribution':['normal',2,0.2],
-                            'range':[-4,2.4],
-                            'prior':None},
+                            'MC_init_dis':['normal',2,0.2],
+                            'MC_prior_range':[-4,2.4],
+                            'Multinest_prior':None},
 
                           'T3':
                            {'initialization':None,
-                            'distribution':['normal',3600,500],
-                            'range':[0,5000],
-                            'prior':None}
+                            'MC_init_dis':['normal',3600,500],
+                            'MC_prior_range':[0,5000],
+                            'Multinest_prior':['uniform',1500,4500]}
                          }}
         elif ptype==3:
 
@@ -666,39 +674,39 @@ class Retrieval_params:
                 'ptype':ptype,
                 'params':{'alpha1':
                            {'initialization':None,
-                            'distribution':['normal',0.2,0.1],
-                            'range':[0,1],
-                            'prior':None},
+                            'MC_init_dis':['normal',0.2,0.1],
+                            'MC_prior_range':[0,1],
+                            'Multinest_prior':['uniform', 0.25, 0.5]},
 
                           'alpha2':
                            {'initialization':None,
-                            'distribution':['normal',0.18,0.05],
-                            'range':[0,1],
-                            'prior':None},
+                            'MC_init_dis':['normal',0.18,0.05],
+                            'MC_prior_range':[0,1],
+                            'Multinest_prior':['uniform',0, 0.01]},
 
                           'logP1':
                            {'initialization':None,
-                            'distribution':['normal',-1,0.2],
-                            'range':[-4,2.4],
-                            'prior':None},
+                            'MC_init_dis':['normal',-1,0.2],
+                            'MC_prior_range':[-4,2.4],
+                            'Multinest_prior':None},
 
                           'logP2':
                            {'initialization':None,
-                            'distribution':['normal',0.1,0.2],
-                            'range':[-4,2.4],
-                            'prior':None},
+                            'MC_init_dis':['normal',0.1,0.2],
+                            'MC_prior_range':[-4,2.4],
+                            'Multinest_prior':None},
 
                           'logP3':
-                           {'initialization':None,
-                            'distribution':['normal',2,0.2],
-                            'range':[-4,2.4],
-                            'prior':None},
+                           {'initialization':None,    
+                            'MC_init_dis':['normal',2,0.2],
+                            'MC_prior_range':[-4,2.4],
+                            'Multinest_prior':None},
 
                           'T3':
-                           {'initialization':None,
-                            'distribution':['normal',3600,500],
-                            'range':[0,5000],
-                            'prior':None}
+                           {'initialization':None,    
+                            'MC_init_dis':['normal',3600,500],
+                            'MC_prior_range':[0,5000],
+                            'Multinest_prior':['uniform',1500,4500]}
                          }}
 
         elif ptype==4:
@@ -753,39 +761,39 @@ class Retrieval_params:
                 'ptype':ptype,
                 'params':{'Tint':
                            {'initialization':None,
-                            'distribution':['normal',1200,200],
-                            'range':[0,5000],
-                            'prior':None},
+                            'MC_init_dis':['normal',1200,200],
+                            'MC_prior_range':[0,5000],
+                            'Multinest_prior':None},
 
                           'alpha':
-                           {'initialization':None,
-                            'distribution':['uniform',1,2],
-                            'range':[1,2],
-                            'prior':None},
+                           {'initialization': None,
+                            'MC_init_dis':['uniform',1,2],
+                            'MC_prior_range':[1,2],
+                            'Multinest_prior': ['uniform',1, 2]},
 
                           'lndelta':
                            {'initialization':None,
-                            'distribution':['normal',0.5,0.5],
-                            'range':[-5,5],
-                            'prior':None},
+                            'MC_init_dis':['normal',0.5,0.5],
+                            'MC_prior_range':[-5,5],
+                            'Multinest_prior':None},
 
                           'T1':
-                           {'initialization':None,
-                            'distribution':['normal',1200,200],
-                            'range':[0,5000],
-                            'prior':None},
+                           {'initialization':None, 
+                            'MC_init_dis':['normal',1200,200],
+                            'MC_prior_range':[0,5000],
+                            'Multinest_prior':None},
 
                           'T2':
                            {'initialization':None,
-                            'distribution':['normal',1200,200],
-                            'range':[0,5000],
-                            'prior':None},
+                            'MC_init_dis':['normal',1200,200],
+                            'MC_prior_range':[0,5000],
+                            'Multinest_prior':None},
 
                           'T3':
-                           {'initialization':None,
-                            'distribution':['normal',1200,200],
-                            'range':[0,5000],
-                            'prior':None}
+                           {'initialization':None, 
+                            'MC_init_dis':['normal',1200,200],
+                            'MC_prior_range':[0,5000],
+                            'Multinest_prior':None}
                          }}
 
         elif ptype==77:
@@ -794,45 +802,45 @@ class Retrieval_params:
                 'ptype':ptype,
                 'params':{'gamma':
                            {'initialization':None,
-                            'distribution':['normal',50,1],
-                            'range':[0,5000],
-                            'prior':None},
+                            'MC_init_dis':['normal',50,1],
+                            'MC_prior_range':[0,5000],
+                            'Multinest_prior':['uniform',0,5000]},
 
                           'Tint':
                            {'initialization':None,
-                            'distribution':['normal',1200,200],
-                            'range':[0,5000],
-                            'prior':None},
+                            'MC_init_dis':['normal',1200,200],
+                            'MC_prior_range':[0,5000],
+                            'Multinest_prior':['uniform',300,2300]},
 
                           'alpha':
                            {'initialization':None,
-                            'distribution':['uniform',1,2],
-                            'range':[1,2],
-                            'prior':None},
+                            'MC_init_dis':['uniform',1,2],
+                            'MC_prior_range':[1,2],
+                            'Multinest_prior':['uniform',1, 2]},
                             
                           'lndelta':
                            {'initialization':None,
-                            'distribution':['normal',0,1],
-                            'range':[-20,0],
-                            'prior':None},
+                            'MC_init_dis': ['normal', -2.5, 1.5],
+                            'MC_prior_range':[-10, 4],
+                            'Multinest_prior':None},
 
                           'T1':
                            {'initialization':None,
-                            'distribution':['normal',1200,200],
-                            'range':[0,5000],
-                            'prior':None},
+                            'MC_init_dis':['normal',1200,200],
+                            'MC_prior_range':[0,5000],
+                            'Multinest_prior':['uniform',10, 4010]},
 
                           'T2':
                            {'initialization':None,
-                            'distribution':['normal',1200,200],
-                            'range':[0,5000],
-                            'prior':None},
+                            'MC_init_dis':['normal',1200,200],
+                            'MC_prior_range':[0,5000],
+                            'Multinest_prior':['uniform',10, 4010]},
 
                           'T3':
                            {'initialization':None,
-                            'distribution':['normal',1200,200],
-                            'range':[0,5000],
-                            'prior':None}
+                            'MC_init_dis':['normal',1200,200],
+                            'MC_prior_range':[0,5000],
+                            'Multinest_prior':['uniform',10, 4010]}
                          }}
 
         elif ptype==9:
@@ -859,19 +867,19 @@ class Retrieval_params:
                     'cloudtype':2,
                     'params':{'logp_gcd':
                                {'initialization':None,
-                                'distribution':['normal',1,0.1],
-                                'range':[-4,2.4],
-                                'prior':None},
+                                'MC_init_dis':['normal',1,0.1],
+                                'MC_prior_range':[-4,2.4],
+                                'Multinest_prior':None},
                               'dp_gcd':
                                {'initialization':None,
-                                'distribution':['customized',dp_customized_distribution],  #lambda x: np.abs(0.1 * np.random.randn(x))
-                                'range':[0,7],
-                                'prior':None},
+                                'MC_init_dis':['customized',dp_customized_distribution],  #lambda x: np.abs(0.1 * np.random.randn(x))
+                                'MC_prior_range':[0,7],
+                                'Multinest_prior':['uniform',0,7]},
                               'omega_gcd':
                               {'initialization':None,
-                               'distribution':['uniform',0,1],
-                               'range':[0,1],
-                                'prior':None}
+                                'MC_init_dis':['uniform',0,1],
+                                'MC_prior_range':[0,1],
+                                'Multinest_prior':['uniform',0,1]}
                              }}
 
             elif cloud_type_name=='grey cloud slab':
@@ -883,24 +891,24 @@ class Retrieval_params:
 
                     'params':{'tau_gcs':
                                {'initialization':None,
-                                'distribution':['normal',10,1],
-                                'range':[0,100],
-                                'prior':None},
+                                'MC_init_dis':['normal',10,1],
+                                'MC_prior_range':[0,100],
+                                'Multinest_prior':['uniform',0,100]},
                               'logp_gcs':
                                {'initialization':None,
-                                'distribution':['normal',-0.2,0.1],
-                                'range':[-4,2.4],
-                                'prior':None},
+                                'MC_init_dis':['normal',-0.2,0.1],
+                                'MC_prior_range':[-4,2.4],
+                                'Multinest_prior':None},
                               'dp_gcs':
                               {'initialization':None,
-                               'distribution':['customized',dp_customized_distribution],  #lambda x: np.abs(0.5+0.01* np.random.randn(x))
-                               'range':None,  #correlated with logp_gcs [0, (phi[logp_gcs_index] - np.log10(press[0]))]
-                               'prior':None},
+                                'MC_init_dis':['customized',dp_customized_distribution],
+                                'MC_prior_range': None,  #correlated with logp_gcs [0, (phi[logp_gcs_index] - np.log10(press[0]))]
+                                'Multinest_prior':None},
                               'omega_gcs':
                               {'initialization':None,
-                               'distribution':['uniform',0,1],
-                               'range':[0,1],
-                                'prior':None}
+                                'MC_init_dis':['uniform',0,1],
+                                'MC_prior_range':[0,1],
+                                'Multinest_prior':['uniform',0,1]}
                              }}
 
             elif cloud_type_name=='powerlaw cloud deck':
@@ -913,24 +921,24 @@ class Retrieval_params:
 
                     'params':{'logp_pcd':
                                {'initialization':None,
-                                'distribution':['normal',-0.2,0.1],
-                                'range':[-4,2.4],
-                                'prior':None},
+                                'MC_init_dis':['normal',-0.2,0.1],
+                                'MC_prior_range':[-4,2.4],
+                                'Multinest_prior':None},
                               'dp_pcd':
                                {'initialization':None,
-                                'distribution':['customized',dp_customized_distribution], #lambda x: np.abs(0.1 * np.random.randn(x))
-                                'range':[0,7],
-                                'prior':None},
+                                'MC_init_dis':['customized',dp_customized_distribution],
+                                'MC_prior_range':[0,7],
+                                'Multinest_prior':['uniform',0,7]},
                               'omega_pcd':
                               {'initialization':None,
-                               'distribution':['uniform',0,1],
-                               'range':[0,1],
-                                'prior':None},
+                                'MC_init_dis':['uniform',0,1],
+                                'MC_prior_range':[0,1],
+                                'Multinest_prior':['uniform',0,1]},
                               'alpha_pcd':
                               {'initialization':None,
-                               'distribution':['normal',0,1],
-                               'range':[-10,10],
-                                'prior':None}
+                                'MC_init_dis':['normal',0,1],
+                                'MC_prior_range':[-10,10],
+                                'Multinest_prior':['uniform',-10,10]}
                              }}
 
             elif 'Mie scattering cloud deck' in cloud_type_name:
@@ -947,24 +955,24 @@ class Retrieval_params:
                         "particle_dis":"hansen",
                         'params':{'logp_mcd_%s'%cloudspecies:
                                     {'initialization':None,
-                                    'distribution':['normal',1,0.1],
-                                    'range':[-4,2.4],
-                                    'prior':None},
+                                     'MC_init_dis':['normal',1,0.1],
+                                     'MC_prior_range':[-4,2.4],
+                                     'Multinest_prior':None},
                                    'dp_mcd_%s'%cloudspecies:
                                     {'initialization':None,
-                                    'distribution':['customized',dp_customized_distribution], #lambda x: np.abs(0.1 * np.random.randn(x))
-                                    'range':[0,7], 
-                                    'prior':None},
+                                     'MC_init_dis':['customized',dp_customized_distribution],
+                                     'MC_prior_range':[0,7],
+                                     'Multinest_prior':['uniform',0,7]},
                                     'hansen_a_mcd_%s'%cloudspecies:
                                     {'initialization':None,
-                                    'distribution':['normal',-1.4,0.1],
-                                    'range':[-3,3],
-                                    'prior':None},
+                                     'MC_init_dis':['normal',-1.4,0.1],
+                                     'MC_prior_range':[-3,3],
+                                     'Multinest_prior':['uniform',-3,3]},
                                     'hansen_b_mcd_%s'%cloudspecies:
                                     {'initialization':None,
-                                    'distribution':['customized',hansen_b_customized_distribution], #lambda x: np.abs(0.2+0.05 * np.random.randn(x))
-                                    'range':[0,1],
-                                    'prior':None}
+                                     'MC_init_dis':['customized',hansen_b_customized_distribution],
+                                     'MC_prior_range':[0,1],
+                                     'Multinest_prior':['uniform',0,1]}
                                         }}
                                 
                 if particle_dis=="log_normal":
@@ -975,24 +983,24 @@ class Retrieval_params:
                         "particle_dis":"log_normal",
                         'params':{'logp_mcd_%s'%cloudspecies:
                                     {'initialization':None,
-                                    'distribution':['normal',1,0.1],
-                                    'range':[-4,2.4],
-                                    'prior':None},
+                                     'MC_init_dis':['normal',1,0.1],
+                                     'MC_prior_range':[-4,2.4],
+                                     'Multinest_prior':None},
                                     'dp_mcd_%s'%cloudspecies:
                                     {'initialization':None,
-                                    'distribution':['customized',dp_customized_distribution], #lambda x: np.abs(0.1 * np.random.randn(x))
-                                    'range':[0,7],
-                                    'prior':None},
+                                     'MC_init_dis':['customized',dp_customized_distribution],
+                                     'MC_prior_range':[0,7],
+                                     'Multinest_prior':['uniform',0,7]},
                                     'mu_mcd_%s'%cloudspecies:
                                     {'initialization':None,
-                                    'distribution':['normal',0,1],
-                                    'range':[-3,3],
-                                    'prior':None},
+                                     'MC_init_dis':['normal',0,1],
+                                     'MC_prior_range':[-3,3],
+                                     'Multinest_prior':['uniform',-3,3]},
                                     'sigma_mcd_%s'%cloudspecies:
                                     {'initialization':None,
-                                    'distribution':['normal',0,1],
-                                    'range':[0,1],
-                                    'prior':None}
+                                     'MC_init_dis':['normal',0,1],
+                                     'MC_prior_range':[0,1],
+                                     'Multinest_prior':['uniform',0,1]}
                                         }}
 
             elif cloud_type_name=='powerlaw cloud slab':
@@ -1004,29 +1012,29 @@ class Retrieval_params:
 
                     'params':{'tau_pcs':
                                {'initialization':None,
-                                'distribution':['normal',10,1],
-                                'range':[0,100],
-                                'prior':None},
+                                'MC_init_dis':['normal',10,1],
+                                'MC_prior_range':[0,100],
+                                'Multinest_prior':['uniform',0,100]},
                               'logp_pcs':
                                {'initialization':None,
-                                'distribution':['normal',-0.2,0.5],
-                                'range':[-4,2.4],
-                                'prior':None},
+                                'MC_init_dis':['normal',-0.2,0.5],
+                                'MC_prior_range':[-4,2.4],
+                                'Multinest_prior':None},
                               'dp_pcs':
                               {'initialization':None,
-                               'distribution':['customized', dp_customized_distribution], #lambda x: np.abs(0.1 * np.random.randn(x))
-                               'range':None,  #correlated with logp_gcs [0, (phi[logp_gcs_index] - np.log10(press[0]))]
-                                'prior':None},
+                                'MC_init_dis':['customized', dp_customized_distribution],
+                                'MC_prior_range':None,  #correlated with logp_gcs [0, (phi[logp_gcs_index] - np.log10(press[0]))],
+                                'Multinest_prior':None},
                               'omega_pcs':
                               {'initialization':None,
-                               'distribution':['uniform',0,1],
-                               'range':[0,1],
-                                'prior':None},
+                                'MC_init_dis':['uniform',0,1],
+                                'MC_prior_range':[0,1],
+                                'Multinest_prior':['uniform',0,1]},
                               'alpha_pcs':
                               {'initialization':None,
-                               'distribution':['normal',0,1],
-                               'range':[-10,10],
-                                'prior':None}
+                                'MC_init_dis':['normal',0,1],
+                                'MC_prior_range':[-10,10],
+                                'Multinest_prior':['uniform',-10,10]}
                              }}
 
 
@@ -1042,29 +1050,30 @@ class Retrieval_params:
                         'particle_dis':"hansen",
                         'params':{'tau_mcs_%s'%cloudspecies:
                                    {'initialization':None,
-                                    'distribution':['normal',10,1],
-                                    'range':[0,100],
-                                    'prior':None},
+                                    'MC_init_dis':['normal',10,1],
+                                    'MC_prior_range':[0,100],
+                                    'Multinest_prior':['uniform',0,100]
+                                },
                                   'logp_mcs_%s'%cloudspecies:
                                    {'initialization':None,
-                                    'distribution':['normal',-0.2,0.5],
-                                    'range':[-4,2.4],
-                                    'prior':None},
+                                    'MC_init_dis':['normal',-0.2,0.5],
+                                    'MC_prior_range':[-4,2.4],
+                                    'Multinest_prior':None},
                                   'dp_mcs_%s'%cloudspecies:
                                   {'initialization':None,
-                                   'distribution':['customized',dp_customized_distribution], # lambda x: np.abs(0.1 * np.random.randn(x))
-                                   'range':None,  #correlated with logp_gcs [0, (phi[logp_gcs_index] - np.log10(press[0]))]
-                                    'prior':None},
+                                    'MC_init_dis':['customized',dp_customized_distribution],
+                                    'MC_prior_range': None, #correlated with logp_gcs [0, (phi[logp_gcs_index] - np.log10(press[0]))],
+                                    'Multinest_prior':None},
                                   'hansen_a_mcs_%s'%cloudspecies:
                                   {'initialization':None,
-                                   'distribution':['normal',-1.4,0.1],
-                                   'range':[-3,3],
-                                    'prior':None},
+                                    'MC_init_dis':['normal',-1.4,0.1],
+                                    'MC_prior_range':[-3,3],
+                                    'Multinest_prior':['uniform',-3,3]},
                                   'hansen_b_mcs_%s'%cloudspecies:
                                   {'initialization':None,
-                                   'distribution':['customized',hansen_b_customized_distribution], #lambda x: np.abs(0.2+0.05 * np.random.randn(x))
-                                   'range':[0,1],
-                                   'prior':None}
+                                    'MC_init_dis':['customized',hansen_b_customized_distribution], #lambda x: np.abs(0.2+0.05 * np.random.randn(x))
+                                    'MC_prior_range':[0,1],
+                                    'Multinest_prior':['uniform',0,1]}
                                      }}
 
                 if particle_dis=="log_normal":
@@ -1075,29 +1084,29 @@ class Retrieval_params:
                         'particle_dis':"log_normal",
                         'params':{'tau_mcs_%s'%cloudspecies:
                                    {'initialization':None,
-                                    'distribution':['normal',10,1],
-                                    'range':[0,100],
-                                    'prior':None},
+                                    'MC_init_dis':['normal',10,1],
+                                    'MC_prior_range':[0,100],
+                                    'Multinest_prior':['uniform',0,100]},
                                   'logp_mcs_%s'%cloudspecies:
                                    {'initialization':None,
-                                    'distribution':['normal',-0.2,0.5],
-                                    'range':[-4,2.4],
-                                    'prior':None},
+                                    'MC_init_dis':['normal',-0.2,0.5],
+                                    'MC_prior_range':[-4,2.4],
+                                    'Multinest_prior':None},
                                   'dp_mcs_%s'%cloudspecies:
                                   {'initialization':None,
-                                   'distribution':['customized',dp_customized_distribution], #lambda x: np.abs(0.1 * np.random.randn(x))
-                                   'range':None,   #correlated with logp_gcs [0, (phi[logp_gcs_index] - np.log10(press[0]))]
-                                    'prior':None},
+                                    'MC_init_dis':['customized',dp_customized_distribution],
+                                    'MC_prior_range':None,   #correlated with logp_gcs [0, (phi[logp_gcs_index] - np.log10(press[0]))]
+                                    'Multinest_prior':None},
                                   'mu_mcs_%s'%cloudspecies:
                                   {'initialization':None,
-                                   'distribution':['normal',0,1],
-                                   'range':[-3,3],
-                                    'prior':None},
+                                    'MC_init_dis':['normal',0,1],
+                                    'MC_prior_range':[-3,3],
+                                    'Multinest_prior':['uniform',-3,3]},
                                   'sigma_mcs_%s'%cloudspecies:
                                   {'initialization':None,
-                                   'distribution':['normal',0,1],
-                                   'range':[0,1],
-                                    'prior':None}
+                                    'MC_init_dis':['normal',0,1],
+                                    'MC_prior_range':[0,1],
+                                    'Multinest_prior':['uniform',0,1]}
                                      }}
 
             elif cloud_type_name=='clear':
@@ -1121,37 +1130,37 @@ class Retrieval_params:
             dictionary['params'] = {
                 'logg': {
                     'initialization': None,
-                    'distribution': ['normal', 4.5, 0.1],
-                    'range':[0,6],
-                    'prior': None
+                    'MC_init_dis': ['normal', 4.5, 0.1],
+                    'MC_prior_range':[0,6],
+                    'Multinest_prior':None
                 },
                 'r2d2': {
                     'initialization': None,
-                    'distribution': ['normal', 0, 1],
-                    'range':[0,1],
-                    'prior': None
+                    'MC_init_dis': ['normal', 0, 1],
+                    'MC_prior_range':[0,1],
+                    'Multinest_prior':None
                 }}
  
             if self.vrad==False:
                 dictionary['params']['dlambda']={
                         'initialization': None,
-                        'distribution': ['normal', 0, 0.001],
-                        'range':[-0.01,0.01],
-                        'prior': None
+                        'MC_init_dis':  ['normal', 0, 0.001],
+                        'MC_prior_range':[-0.01,0.01],
+                        'Multinest_prior':None
                     }
             elif self.vrad==True:
                 dictionary['params']['vrad']={
                         'initialization': None,
-                        'distribution': ['normal', 0, 2],
-                        'range':[-250,250],
-                        'prior': None
+                        'MC_init_dis':  ['normal', 0, 2],
+                        'MC_prior_range':[-250,250],
+                        'Multinest_prior':None
                     }
             if self.vsini==True:
                 dictionary['params']['vsini']={
                         'initialization': None,
-                        'distribution': ['uniform', 0, 100],
-                        'range':[0,100],
-                        'prior': None
+                        'MC_init_dis':   ['uniform', 0, 100],
+                        'MC_prior_range':[0,100],
+                        'Multinest_prior':None
                     }
                 
             if getattr(self, "instrument", None) is not None and getattr(self.instrument, "scales", None) is not None:
@@ -1160,47 +1169,47 @@ class Retrieval_params:
                     for i in range(1, scales_parameter_max + 1):
                         dictionary['params'][f'scale{i}'] = {
                         'initialization': None,
-                        'distribution': ['normal', 1, 0.001],
-                        'range':[0.1,10],
-                        'prior': None
+                        'MC_init_dis':   ['normal', 1, 0.001],
+                        'MC_prior_range':[0.1,10],
+                        'Multinest_prior':None
                         }
                 
         elif self.samplemode.lower() == 'multinest':
             dictionary['params'] = {
                     'M': {
                         'initialization': None,
-                        'distribution': ['normal', 4.5, 0.1],
-                        'range': [1.0,80],
-                        'prior': None
+                        'MC_init_dis':    ['normal', 4.5, 0.1],
+                        'MC_prior_range': [1.0,80],
+                        'Multinest_prior':['uniform',1.0,80]
                     },
                     'R': {
                         'initialization': None,
-                        'distribution': ['normal', 0, 1],
-                        'range':[0.5,2.5],
-                        'prior': None
+                        'MC_init_dis':    ['normal', 0, 1],
+                        'MC_prior_range': [0.5,2.5],
+                        'Multinest_prior':['uniform',0.5,2.5]
                     }}
             
             if self.vrad==False:
                 dictionary['params']['dlambda']={
                         'initialization': None,
-                        'distribution': ['normal', 0, 0.001],
-                        'range':[-0.01,0.01],
-                        'prior': None
+                        'MC_init_dis':    ['normal', 0, 0.001],
+                        'MC_prior_range': [-0.01,0.01],
+                        'Multinest_prior': ['uniform',-0.01,0.01]
                     }
             elif self.vrad==True:
                 dictionary['params']['vrad']={
                         'initialization': None,
-                        'distribution': ['normal', 0, 2],
-                        'range':[-250,250],
-                        'prior': None
+                        'MC_init_dis':    ['normal', 0, 2],
+                        'MC_prior_range': [-250,250],
+                        'Multinest_prior': ['uniform',-250,250]
                     }
                 
             if self.vsini==True:
                 dictionary['params']['vsini']={
                         'initialization': None,
-                        'distribution': ['uniform', 0, 100],
-                        'range':[0,100],
-                        'prior': None
+                        'MC_init_dis':    ['uniform', 0, 100],
+                        'MC_prior_range': [0,100],
+                        'Multinest_prior': ['uniform',0,100]
                     }
           
             if getattr(self, "instrument", None) is not None and getattr(self.instrument, "scales", None) is not None:
@@ -1209,9 +1218,9 @@ class Retrieval_params:
                         for i in range(1, scales_parameter_max + 1):
                             dictionary['params'][f'scale{i}'] = {
                                 'initialization': None,
-                                'distribution': ['normal', 1, 0.001],
-                                'range':[0.1,10],
-                                'prior': None
+                                'MC_init_dis':    ['normal', 1, 0.001],
+                                'MC_prior_range': [0.5,2],
+                                'Multinest_prior':['uniform',0.5,2]
                             }
         else:
             raise ValueError("Unsupported samplemode. Please choose 'mcmc' or 'multinest'.")
@@ -1243,9 +1252,9 @@ class Retrieval_params:
             for i in range(ndata):
                 dictionary['params']["tolerance_parameter_%d" % (i+1)] = {
                     'initialization': None,
-                    'distribution': ['customized', 0],
-                    'range':None,  
-                    'prior': None
+                    'MC_init_dis':    ['customized', 0],
+                    'MC_prior_range':  None, 
+                    'Multinest_prior': None
                 }
         return dictionary
 
@@ -1258,14 +1267,14 @@ class Retrieval_params:
              gas_dic= {'params':
                        {'mh':
                            {'initialization':None,
-                            'distribution':['normal',0,0.1],
-                            'range':[-1,2],
-                            'prior':None},
+                            'MC_init_dis':    ['normal',0,0.1],
+                            'MC_prior_range':  [-1,2],
+                            'Multinest_prior':  ['uniform',-1,2]},
                        'co':
                            {'initialization':None,
-                            'distribution':['uniform',0.25,2.5],
-                            'range':[0.25,2.5],
-                            'prior':None}
+                            'MC_init_dis':    ['uniform',0.25,2.5],
+                            'MC_prior_range':  [0.25,2.5],
+                            'Multinest_prior': ['uniform',0.25,2.5]}
                       }}
 
         elif chemeq==0:
@@ -1288,55 +1297,53 @@ class Retrieval_params:
         return gas_dic
     
 
-    def cloud_type_name_gen(self,cloud_name,cloud_type):
+    def cloud_type_name_gen(self,do_clouds,cloud_name,cloud_type):
         cloud_type_name=[]
-        
-        
-        
+
         #for i in range(len(cloud_name)):
         
-        
-        if not cloud_name:  # No clouds at all
+        if do_clouds==0:  # No clouds at all
             return ['clear']  # or return empty list if code can handle it
-    
-        for i in range(len(cloud_name)):
-            name = cloud_name[i]
-            ctype = cloud_type[i]
-
-            if isinstance(name, list):
-                name = name[0]
-            if isinstance(ctype, list):
-                ctype = ctype[0]
         
-            if cloud_name[i].lower()=='clear':
-                cloud_type_name.append('clear')
-            elif cloud_name[i].lower()=='powerlaw':
-                
-                cloud_type_name.append('powerlaw cloud '+cloud_type[i].lower())
-                
-            elif cloud_name[i].lower()=='grey':
-                cloud_type_name.append('grey cloud '+cloud_type[i].lower())
-                
-            else:
-                cloud_type_name.append('Mie scattering cloud '+cloud_type[i].lower()+'--'+cloud_name[i])
+        else:
+            for i in range(len(cloud_name)):
+                name = cloud_name[i]
+                ctype = cloud_type[i]
+
+                if isinstance(name, list):
+                    name = name[0]
+                if isinstance(ctype, list):
+                    ctype = ctype[0]
+            
+                if cloud_name[i].lower()=='clear':
+                    cloud_type_name.append('clear')
+                elif cloud_name[i].lower()=='powerlaw':
+                    
+                    cloud_type_name.append('powerlaw cloud '+cloud_type[i].lower())
+                    
+                elif cloud_name[i].lower()=='grey':
+                    cloud_type_name.append('grey cloud '+cloud_type[i].lower())
+                    
+                else:
+                    cloud_type_name.append('Mie scattering cloud '+cloud_type[i].lower()+'--'+cloud_name[i])
 
         # ---- Deduplicate with suffixes (start from _1) ----
-        counts = defaultdict(int)
-        result = []
+            counts = defaultdict(int)
+            result = []
 
-        for s in cloud_type_name:
-            counts[s] += 1
-            if counts[s] == 1:
-                result.append(s)
-            else:
-                # insert suffix before .mieff if present
-                if '.mieff' in s:
-                    base, ext = s.rsplit('.mieff', 1)
-                    result.append(f"{base}_{counts[s]-1}.mieff{ext}")
+            for s in cloud_type_name:
+                counts[s] += 1
+                if counts[s] == 1:
+                    result.append(s)
                 else:
-                    result.append(f"{s}_{counts[s]}")
+                    # insert suffix before .mieff if present
+                    if '.mieff' in s:
+                        base, ext = s.rsplit('.mieff', 1)
+                        result.append(f"{base}_{counts[s]-1}.mieff{ext}")
+                    else:
+                        result.append(f"{s}_{counts[s]}")
 
-        return result        
+            return result        
         # return cloud_type_name
         
   
@@ -1348,9 +1355,9 @@ class Retrieval_params:
             if npatches > 1:
                 cloud_dic["fcld"] = {
                     'initialization': None,
-                    'distribution': ['uniform', 0, 1],
-                    'range':[0,1],
-                    'prior': None
+                    'MC_init_dis':     ['uniform', 0, 1],
+                    'MC_prior_range':  [0,1],
+                    'Multinest_prior':  ['uniform',0,1]
                 }
 
             for i in range(npatches):
@@ -1383,7 +1390,7 @@ class Retrieval_params:
         gas_dic=self.gas_allparams_gen(chemeq,gaslist,gastype_list)
         refinement_dic=self.refinement_params_dic_gen()
         pt_dic=self.pt_dic_gen(ptype)
-        cloud_type_name=self.cloud_type_name_gen(cloud_name,cloud_type)
+        cloud_type_name=self.cloud_type_name_gen(do_clouds,cloud_name,cloud_type)
         cloud_dic=self.cloud_allparams_gen(do_clouds,npatches,cloud_type_name,cloudpatch_index,particle_dis) 
         retrieval_param["gas"]=gas_dic
         retrieval_param["refinement_params"]=refinement_dic
@@ -1648,39 +1655,150 @@ def update_dictionary(dic, params_instance):
 
 
 
-def get_distribution_values(dic):
-    """
-    Recursively extract all 'distribution' entries from a dictionary.
+# def get_distribution_values(dic):
+#     """
+#     Recursively extract all 'MC_init_dis' entries from a dictionary.
 
-    Parameters
-    ----------
-    dic : dict
-        Dictionary containing retrieval parameters. The dictionary may contain
-        arbitrary levels of nesting (dicts or lists), with some dicts including
-        a 'distribution' key.
+#     Parameters
+#     ----------
+#     dic : dict
+#         Dictionary containing retrieval parameters. The dictionary may contain
+#         arbitrary levels of nesting (dicts or lists), with some dicts including
+#         a 'MC_init_dis key.
+
+#     Returns
+#     -------
+#     distribution_values : list
+#         List of all values associated with the 'MC_init_dis' keys found in `dic`.
+#         Each value is usually a list like ['uniform', 0.0, 1.0] or ['normal', 0, 0.1].
+#     """
+
+#     distribution_values = []
+
+#     def recurse(d):
+#         if isinstance(d, dict):
+#             for key, value in d.items():
+#                 if key == 'MC_init_dis':
+#                     distribution_values.append(value)
+#                 else:
+#                     recurse(value)
+#         elif isinstance(d, list):
+#             for item in d:
+#                 recurse(item)
+
+#     recurse(dic)
+#     return distribution_values
+
+
+
+
+
+def get_dis_range_priors(dic):
+    """
+    Extract:
+      - MC_init_dis
+      - MC_prior_range
+      - Multinest_prior
+
+    from a nested retrieval dictionary.
 
     Returns
     -------
-    distribution_values : list
-        List of all values associated with the 'distribution' keys found in `dic`.
-        Each value is usually a list like ['uniform', 0.0, 1.0] or ['normal', 0, 0.1].
+    prior_ranges : dict
+    mc_init_dis  : dict
+    multinest_priors : dict
     """
 
-    distribution_values = []
+    mc_ranges = {}
+    mc_init_dis = {}
+    multinest_priors = {}
 
-    def recurse(d):
-        if isinstance(d, dict):
-            for key, value in d.items():
-                if key == 'distribution':
-                    distribution_values.append(value)
-                else:
-                    recurse(value)
-        elif isinstance(d, list):
-            for item in d:
-                recurse(item)
+    # ---------------------------------
+    # Gas parameters
+    # ---------------------------------
+    gaslist = list(dic['gas'].keys())
 
-    recurse(dic)
-    return distribution_values
+    if gaslist[0] == 'params':
+
+        for param, info in dic['gas']['params'].items():
+            mc_ranges[param] = info.get('MC_prior_range')
+            mc_init_dis[param] = info.get('MC_init_dis')
+            multinest_priors[param] = info.get('Multinest_prior')
+
+    else:
+
+        for gas in gaslist:
+            gas_info = dic['gas'][gas]
+            params = gas_info['params']
+
+            # abundance
+            mc_ranges[gas] = params['log_abund'].get('MC_prior_range')
+            mc_init_dis[gas] = params['log_abund'].get('MC_init_dis')
+            multinest_priors[gas] = params['log_abund'].get('Multinest_prior')
+
+            # p_ref
+            if 'p_ref' in params:
+                key = f"p_ref_{gas}"
+                mc_ranges[key] = params['p_ref'].get('MC_prior_range')
+                mc_init_dis[key] = params['p_ref'].get('MC_init_dis')
+                multinest_priors[key] = params['p_ref'].get('Multinest_prior')
+
+            # alpha
+            if 'alpha' in params:
+                key = f"alpha_{gas}"
+                mc_ranges[key] = params['alpha'].get('MC_prior_range')
+                mc_init_dis[key] = params['alpha'].get('MC_init_dis')
+                multinest_priors[key] = params['alpha'].get('Multinest_prior')
+
+    # ---------------------------------
+    # Refinement parameters
+    # ---------------------------------
+    for param, info in dic['refinement_params']['params'].items():
+        mc_ranges[param] = info.get('MC_prior_range')
+        mc_init_dis[param] = info.get('MC_init_dis')
+        multinest_priors[param] = info.get('Multinest_prior')
+
+    # ---------------------------------
+    # PT parameters
+    # ---------------------------------
+    for param, info in dic['pt']['params'].items():
+        mc_ranges[param] = info.get('MC_prior_range')
+        mc_init_dis[param] = info.get('MC_init_dis')
+        multinest_priors[param] = info.get('Multinest_prior')
+
+    # ---------------------------------
+    # Cloud parameters
+    # ---------------------------------
+    if 'cloud' in dic:
+
+        if 'fcld' in dic['cloud']:
+            info = dic['cloud']['fcld']
+            mc_ranges['fcld'] = info.get('MC_prior_range')
+            mc_init_dis['fcld'] = info.get('MC_init_dis')
+            multinest_priors['fcld'] = info.get('Multinest_prior')
+
+        for patch_key, patch in dic['cloud'].items():
+            if not patch_key.startswith('patch'):
+                continue
+
+            for cloud_key, cloud in patch.items():
+                for param, info in cloud['params'].items():
+                    mc_ranges[param] = info.get('MC_prior_range')
+                    mc_init_dis[param] = info.get('MC_init_dis')
+                    multinest_priors[param] = info.get('Multinest_prior')
+
+    # ---------------------------------
+    # Added parameters
+    # ---------------------------------
+    if 'added_params' in dic:
+        for param, info in dic['added_params'].items():
+            mc_ranges[param] = info.get('MC_prior_range')
+            mc_init_dis[param] = info.get('MC_init_dis')
+            multinest_priors[param] = info.get('Multinest_prior')
+
+    return mc_init_dis,mc_ranges,multinest_priors
+
+
 
 
 def MC_P0_gen(updated_dic,model_config_instance,args_instance):
@@ -1718,7 +1836,10 @@ def MC_P0_gen(updated_dic,model_config_instance,args_instance):
     p0 = np.empty([nwalkers,ndim])
     
     # Get all distributions for parameters
-    all_distributions=get_distribution_values(updated_dic)
+    # all_distributions=get_distribution_values(updated_dic)
+
+    mc_init_dis,mc_ranges,multinest_priors=get_dis_range_priors(updated_dic)
+    all_distributions=list(mc_init_dis.values())
 
     # if len(all_distributions) != ndim:
     #     warnings.warn(f"Number of distributions ({len(all_distributions)}) "
@@ -1743,26 +1864,26 @@ def MC_P0_gen(updated_dic,model_config_instance,args_instance):
     # -------------------------------
     # Special initialization for temperature profiles (proftype = 1)
     # -------------------------------
-    if args_instance.proftype==1:
+    # if args_instance.proftype==1:
 
-        all_params,all_params_values =get_all_parametres(updated_dic) 
-        params_master = namedtuple('params',all_params)
-        params_instance = params_master(*all_params_values)
-        T_1_index=params_instance._fields.index('T_1')
-        T_13_index=params_instance._fields.index('T_13')
-        BTprof = np.loadtxt("data/BTtemp800_45_13.dat")
+    #     all_params,all_params_values =get_all_parametres(updated_dic) 
+    #     params_master = namedtuple('params',all_params)
+    #     params_instance = params_master(*all_params_values)
+    #     T_1_index=params_instance._fields.index('T_1')
+    #     T_13_index=params_instance._fields.index('T_13')
+    #     BTprof = np.loadtxt("data/BTtemp800_45_13.dat")
 
-        for i in range(0, 13):  # 13 layer points ====> Total: 13 + 13 (gases+) +no cloud = 26
-            p0[:,T_1_index+i] = (BTprof[i] - 200.) + (150. * np.random.randn(nwalkers).reshape(nwalkers))
+    #     for i in range(0, 13):  # 13 layer points ====> Total: 13 + 13 (gases+) +no cloud = 26
+    #         p0[:,T_1_index+i] = (BTprof[i] - 200.) + (150. * np.random.randn(nwalkers).reshape(nwalkers))
 
-        for i in range(0, nwalkers):
-            while True:
-                Tcheck = TPmod.set_prof(args_instance.proftype,args_instance.coarsePress,args_instance.press,p0[i, T_1_index:T_13_index+1])
-                if min(Tcheck) > 1.0:
-                    break
-                else:
-                    for i in range(0,13):
-                        p0[:,T_1_index+i] = BTprof[i] + (50. * np.random.randn(nwalkers).reshape(nwalkers))
+    #     for i in range(0, nwalkers):
+    #         while True:
+    #             Tcheck = TPmod.set_prof(args_instance.proftype,args_instance.coarsePress,args_instance.press,p0[i, T_1_index:T_13_index+1])
+    #             if min(Tcheck) > 1.0:
+    #                 break
+    #             else:
+    #                 for i in range(0,13):
+    #                     p0[:,T_1_index+i] = BTprof[i] + (50. * np.random.randn(nwalkers).reshape(nwalkers))
 
     return p0
 
@@ -1872,7 +1993,171 @@ def cloud_para_gen(dic):
         return cloudname_set,cloud_opaname,cloudmap,np.array(cloudsize) 
 
 
+# def get_opacities(gaslist,w1,w2,press,xpath='../Linelists',xlist='gaslistR10K.dat',malk=0):
+#     """
+#     Load and interpolate gas opacity data for the requested wavelength and pressure ranges.
+#     Parameters
+#     ----------
+#     gaslist : list of str
+#         Names of gases to load opacities for.
+
+#     w1, w2 : float
+#         Wavelength range in microns [w1, w2] over which to extract opacities.
+
+#     press : ndarray
+#         Pressure array (Pa or bar, consistent with pickle data) to interpolate the opacity data onto.
+
+#     xpath : str, optional
+#         Path to directory containing opacity files. Default is '../Linelists'.
+
+#     xlist : str, optional
+#         File listing available opacity files and gas names. Default is 'gaslistR10K.dat'.
+
+#     malk : int, optional
+#         Special substitutions for alkali lines:
+#           - 0 : no change
+#           - 1 : use Mike's K_/Na_ files
+#           - 2 : use 2021 K_/Na_ files
+          
+#     Returns
+#     -------
+#     linelist : ndarray, shape (ngas, npress, ntemps, nwave)
+#         Interpolated opacity values on the requested pressure grid and wavelength range.
+#         Values are in log10(cm^2/molecule) or similar units. NaNs are replaced by -50.0.
+
+#     Notes
+#     -----
+#     - The function reads pickled opacity files. Each file must contain a tuple:
+#       (rawwavenum, inpress, inlinetemps, inlinelist)
+#     - The linelist is interpolated in log10 space for both pressure and opacity.
+#     - The function can optionally modify gas names for alkali line updates (malk).
+#     """
+    
+#     # Now we'll get the opacity files into an array
+#     ngas = len(gaslist)
+#     totgas = 0
+#     gasdata = []
+#     # -------------------------------
+#     # Read the gas list file
+#     # -------------------------------
+#     with open(xlist) as fa:
+#         for line_aa in fa.readlines():
+#             if len(line_aa) == 0:
+#                 break
+#             totgas = totgas +1 
+#             line_aa = line_aa.strip()
+#             gasdata.append(line_aa.split())
+
+#     # -------------------------------
+#     # Match requested gases to available entries
+#     # -------------------------------
+#     list1 = []
+#     for i in range(0,ngas):
+#         for j in range(0,totgas):
+#             if (gasdata[j][1].lower() == gaslist[i].lower()):
+#                 list1.append(gasdata[j])
+
+#     if (malk == 1):
+#         for i in range (0,ngas):
+#             list1[i] = [w.replace('K_', 'K_Mike_') for w in list1[i]]
+#             list1[i] = [w.replace('Na_', 'Na_Mike_') for w in list1[i]]
+
+#     if (malk == 2):
+#         for i in range (0,ngas):
+#             list1[i] = [w.replace('K_', 'K_2021_') for w in list1[i]]
+#             list1[i] = [w.replace('Na_', 'Na_2021_') for w in list1[i]]
+
+
+
+#     lists = [xpath+i[3] for i in list1[0:ngas]]
+#     gasmass = np.asfortranarray(np.array([i[2] for i in list1[0:ngas]],dtype='float32'))
+
+#     # -------------------------------
+#     # Load the first gas file for wavelength and temperature grid
+#     # -------------------------------
+#     # get the basic framework from water list
+#     rawwavenum, inpress, inlinetemps, inlinelist = pickle.load(open(lists[0], "rb"))
+
+#     wn1 = 10000. / w2
+#     wn2 = 10000. / w1
+#     inwavenum = np.asfortranarray(rawwavenum[np.where(np.logical_not(np.logical_or(rawwavenum[:] > wn2, rawwavenum[:] < wn1)))],dtype='float64')
+#     ntemps = inlinetemps.size
+#     npress= press.size
+#     nwave = inwavenum.size
+#     r1 = np.amin(np.where(np.logical_not(np.logical_or(rawwavenum[:] > wn2, rawwavenum[:] < wn1))))
+#     r2 = np.amax(np.where(np.logical_not(np.logical_or(rawwavenum[:] > wn2, rawwavenum[:] < wn1))))
+
+#     # -------------------------------
+#     # Interpolate linelist for each gas
+#     # -------------------------------
+#     # Here we are interpolating the linelist onto our fine pressure scale.
+#     # pickles have linelist as 4th entry....
+#     linelist = (np.zeros([ngas,npress,ntemps,nwave],order='F')).astype('float32', order='F')
+#     for gas in range (0,ngas):
+#         inlinelist= pickle.load(open(lists[gas], "rb" ) )[3]
+#         for i in range (0,ntemps):
+#             for j in range (r1,r2+1):
+#                # print(f"gas={gas}, i={i}, j={j}")
+#                # print("inpress shape:", inpress.shape)
+#                # print("inlinelist[:, i, j] shape:", inlinelist[:, i, j].shape)
+#                 pfit = interp1d(np.log10(inpress),np.log10(inlinelist[:,i,j]))
+#                 linelist[gas,:,i,(j-r1)] = np.asfortranarray(pfit(np.log10(press)))
+#     linelist[np.isnan(linelist)] = -50.0
+    
+#     # convert gaslist into fortran array of ascii strings for fortran code 
+#     gasnames = np.empty((len(gaslist), 10), dtype='c')
+#     for i in range(0,len(gaslist)):
+#         gasnames[i,0:len(gaslist[i])] = gaslist[i]
+
+#     gasnames = np.asfortranarray(gasnames,dtype='c')
+
+#     return linelist
+
+
+
+def get_newformat_HDF5(hf, target_name, filename="<unknown>"):
+
+    keys = list(hf.keys())
+
+    if target_name in hf and isinstance(hf[target_name], h5py.Group):
+        g = hf[target_name]
+    else:
+        t = target_name.lower()
+        g = None
+        for k in keys:
+            if isinstance(hf[k], h5py.Group) and k.lower() == t:
+                g = hf[k]
+                break
+
+        if g is None:
+            groups = [k for k in keys if isinstance(hf[k], h5py.Group)]
+            if len(groups) == 1:
+                g = hf[groups[0]]
+            else:
+                raise KeyError(
+                    f"[NEW-FORMAT REQUIRED]\n"
+                    f"File: {filename}\n"
+                    f"Expected group '{target_name}' (case-insensitive) or a single group.\n"
+                    f"Top-level keys: {keys}"
+                )
+
+    required = ['nu', 'log(P)', 'T', 'log(sigma)']
+    missing = [r for r in required if r not in g]
+    if missing:
+        raise KeyError(
+            f"[NEW-FORMAT REQUIRED]\n"
+            f"File: {filename}\n"
+            f"Group: {g.name}\n"
+            f"Missing datasets: {missing}\n"
+            f"Found datasets: {list(g.keys())}"
+        )
+
+    return g
+
+
+
 def get_opacities(gaslist,w1,w2,press,xpath='../Linelists',xlist='gaslistR10K.dat',malk=0):
+
     """
     Load and interpolate gas opacity data for the requested wavelength and pressure ranges.
     Parameters
@@ -1910,9 +2195,12 @@ def get_opacities(gaslist,w1,w2,press,xpath='../Linelists',xlist='gaslistR10K.da
       (rawwavenum, inpress, inlinetemps, inlinelist)
     - The linelist is interpolated in log10 space for both pressure and opacity.
     - The function can optionally modify gas names for alkali line updates (malk).
+
+    - The function now also support HDF5 pacity files.
+
     """
     
-    # Now we'll get the opacity files into an array
+    
     ngas = len(gaslist)
     totgas = 0
     gasdata = []
@@ -1927,72 +2215,141 @@ def get_opacities(gaslist,w1,w2,press,xpath='../Linelists',xlist='gaslistR10K.da
             line_aa = line_aa.strip()
             gasdata.append(line_aa.split())
 
-    # -------------------------------
-    # Match requested gases to available entries
-    # -------------------------------
     list1 = []
     for i in range(0,ngas):
         for j in range(0,totgas):
             if (gasdata[j][1].lower() == gaslist[i].lower()):
                 list1.append(gasdata[j])
 
-    if (malk == 1):
-        for i in range (0,ngas):
-            list1[i] = [w.replace('K_', 'K_Mike_') for w in list1[i]]
-            list1[i] = [w.replace('Na_', 'Na_Mike_') for w in list1[i]]
-
-    if (malk == 2):
-        for i in range (0,ngas):
-            list1[i] = [w.replace('K_', 'K_2021_') for w in list1[i]]
-            list1[i] = [w.replace('Na_', 'Na_2021_') for w in list1[i]]
+    if gasdata[0][3].endswith(".pic"):
 
 
+        if (malk == 1):
+            for i in range (0,ngas):
+                list1[i] = [w.replace('K_', 'K_Mike_') for w in list1[i]]
+                list1[i] = [w.replace('Na_', 'Na_Mike_') for w in list1[i]]
 
-    lists = [xpath+i[3] for i in list1[0:ngas]]
-    gasmass = np.asfortranarray(np.array([i[2] for i in list1[0:ngas]],dtype='float32'))
+        if (malk == 2):
+            for i in range (0,ngas):
+                list1[i] = [w.replace('K_', 'K_2021_') for w in list1[i]]
+                list1[i] = [w.replace('Na_', 'Na_2021_') for w in list1[i]]
+                
 
-    # -------------------------------
-    # Load the first gas file for wavelength and temperature grid
-    # -------------------------------
-    # get the basic framework from water list
-    rawwavenum, inpress, inlinetemps, inlinelist = pickle.load(open(lists[0], "rb"))
+        if len(list1) < ngas:
+            found = [x[1] for x in list1]
+            missing = [g for g in gaslist if g.lower() not in [f.lower() for f in found]]
+            raise ValueError(f"Could not find these gases in xlist: {missing}")
 
-    wn1 = 10000. / w2
-    wn2 = 10000. / w1
-    inwavenum = np.asfortranarray(rawwavenum[np.where(np.logical_not(np.logical_or(rawwavenum[:] > wn2, rawwavenum[:] < wn1)))],dtype='float64')
-    ntemps = inlinetemps.size
-    npress= press.size
-    nwave = inwavenum.size
-    r1 = np.amin(np.where(np.logical_not(np.logical_or(rawwavenum[:] > wn2, rawwavenum[:] < wn1))))
-    r2 = np.amax(np.where(np.logical_not(np.logical_or(rawwavenum[:] > wn2, rawwavenum[:] < wn1))))
 
-    # -------------------------------
-    # Interpolate linelist for each gas
-    # -------------------------------
-    # Here we are interpolating the linelist onto our fine pressure scale.
-    # pickles have linelist as 4th entry....
-    linelist = (np.zeros([ngas,npress,ntemps,nwave],order='F')).astype('float32', order='F')
-    for gas in range (0,ngas):
-        inlinelist= pickle.load(open(lists[gas], "rb" ) )[3]
-        for i in range (0,ntemps):
-            for j in range (r1,r2+1):
-               # print(f"gas={gas}, i={i}, j={j}")
-               # print("inpress shape:", inpress.shape)
-               # print("inlinelist[:, i, j] shape:", inlinelist[:, i, j].shape)
-                pfit = interp1d(np.log10(inpress),np.log10(inlinelist[:,i,j]))
-                linelist[gas,:,i,(j-r1)] = np.asfortranarray(pfit(np.log10(press)))
-    linelist[np.isnan(linelist)] = -50.0
-    
-    # convert gaslist into fortran array of ascii strings for fortran code 
-    gasnames = np.empty((len(gaslist), 10), dtype='c')
-    for i in range(0,len(gaslist)):
-        gasnames[i,0:len(gaslist[i])] = gaslist[i]
+        lists = [xpath+i[3] for i in list1[0:ngas]]
+        gasmass = np.asfortranarray(np.array([i[2] for i in list1[0:ngas]],dtype='float32'))
 
-    gasnames = np.asfortranarray(gasnames,dtype='c')
+        # -------------------------------
+        # Load the first gas file for wavelength and temperature grid
+        # -------------------------------
+        # get the basic framework from water list
+        rawwavenum, inpress, inlinetemps, inlinelist = pickle.load(open(lists[0], "rb"))
 
+        wn1 = 10000. / w2
+        wn2 = 10000. / w1
+        inwavenum = np.asfortranarray(rawwavenum[np.where(np.logical_not(np.logical_or(rawwavenum[:] > wn2, rawwavenum[:] < wn1)))],dtype='float64')
+        ntemps = inlinetemps.size
+        npress= press.size
+        nwave = inwavenum.size
+        r1 = np.amin(np.where(np.logical_not(np.logical_or(rawwavenum[:] > wn2, rawwavenum[:] < wn1))))
+        r2 = np.amax(np.where(np.logical_not(np.logical_or(rawwavenum[:] > wn2, rawwavenum[:] < wn1))))
+
+        # -------------------------------
+        # Interpolate linelist for each gas
+        # -------------------------------
+        # Here we are interpolating the linelist onto our fine pressure scale.
+        # pickles have linelist as 4th entry....
+        
+        linelist = (np.zeros([ngas,npress,ntemps,nwave],order='F')).astype('float32', order='F')
+        for gas in range (0,ngas):
+            inlinelist= pickle.load(open(lists[gas], "rb" ) )[3]
+            for i in range (0,ntemps):
+                for j in range (r1,r2+1):
+                    pfit = interp1d(np.log10(inpress),np.log10(inlinelist[:,i,j]))
+                    linelist[gas,:,i,(j-r1)] = np.asfortranarray(pfit(np.log10(press)))
+        linelist[np.isnan(linelist)] = -50.0
+
+
+    elif gasdata[0][3].endswith(".hdf5"):
+
+        if len(list1) < ngas:
+            found = [x[1] for x in list1]
+            print(found)
+            missing = [g for g in gaslist if g.lower() not in [f.lower() for f in found]]
+            raise ValueError(f"Could not find these gases in xlist: {missing}")
+
+        lists = [xpath + i[3] for i in list1[0:ngas]]
+    #     gasnum = np.asfortranarray(np.array([i[0] for i in list1[0:ngas]], dtype='i'))
+
+        wn1 = 10000.0 / w2
+        wn2 = 10000.0 / w1
+        logP_target = np.log10(press)
+
+        # Define slice indices and common grids from first gas
+        with h5py.File(lists[0], 'r') as hf0:
+            g0 = get_newformat_HDF5(hf0, gaslist[0])
+
+            rawwavenum = np.array(g0['nu'], dtype='float64')
+            inlinetemps = np.array(g0['T'], dtype='float32')
+            in_logP_ref = np.array(g0['log(P)'], dtype='float64')
+
+        mask = np.logical_not(np.logical_or(rawwavenum[:] > wn2, rawwavenum[:] < wn1))
+        idx = np.where(mask)[0]
+        if idx.size == 0:
+            raise ValueError("No wavenumbers found in the requested wavelength range.")
+        r1 = int(idx.min())
+        r2 = int(idx.max())
+
+        ntemps = inlinetemps.size
+        npress = press.size
+        nwave = idx.size
+
+        linelist = np.zeros((ngas, npress, ntemps, nwave), order='F', dtype='float64')
+
+        for gas in range(ngas):
+            with h5py.File(lists[gas], 'r') as hf:
+                g = get_newformat_HDF5(hf, gaslist[gas], filename=lists[gas])
+
+                nu_gas = np.array(g['nu'], dtype='float64')
+                T_gas = np.array(g['T'], dtype='float32')
+                logP_gas = np.array(g['log(P)'], dtype='float64')
+                log_sigma = np.array(g['log(sigma)'], dtype='float64')  # (nP, nT, nNu)
+
+                # Fail fast on mismatched grids (prevents subtle, wrong results)
+                if nu_gas.shape != rawwavenum.shape or not np.allclose(nu_gas, rawwavenum, rtol=0, atol=0):
+                    raise ValueError(f"{gaslist[gas]}: 'nu' grid does not match the reference file exactly.")
+                if T_gas.shape != inlinetemps.shape or not np.allclose(T_gas, inlinetemps, rtol=0, atol=0):
+                    raise ValueError(f"{gaslist[gas]}: 'T' grid does not match the reference file exactly.")
+                if log_sigma.shape != (logP_gas.size, T_gas.size, nu_gas.size):
+                    raise ValueError(
+                        f"{gaslist[gas]}: log(sigma) has unexpected shape {log_sigma.shape}; "
+                        f"expected ({logP_gas.size}, {T_gas.size}, {nu_gas.size})."
+                    )
+
+                # Interpolate in log-pressure space
+                for i in range(ntemps):
+                    for j in range(r1, r2 + 1):
+                        y = log_sigma[:, i, j]  # log10(sigma/m^2)
+                        pfit = interp1d(
+                            logP_gas, y,
+                            kind='linear',
+                            bounds_error=False,
+                            fill_value='extrapolate'
+                        )
+                        linelist[gas, :, i, (j - r1)] = np.asfortranarray(pfit(logP_target))
+
+        linelist[np.isnan(linelist)] = -50.0
+        
     return linelist
 
-    # return inlinetemps,inwavenum,linelist,gasnames,gasmass,nwave
+
+
+        
     
     
     
@@ -2337,42 +2694,88 @@ def shared_memory_array(rank, comm, shape,datatype='d'):
     return array, win
 
 
+# def get_gasdetails(gaslist,w1,w2,xpath='../Linelists',xlist='gaslistR10K.dat'):
+#     """
+#     Load gas opacity file details and prepare arrays for Fortran routines.
+
+#     Parameters
+#     ----------
+#     gaslist : list of str
+#         List of gas names to load (e.g., ['H2O', 'CO']).
+#     w1 : float
+#         Minimum wavelength (microns) of interest.
+#     w2 : float
+#         Maximum wavelength (microns) of interest.
+#     xpath : str, optional
+#         Path to directory containing gas opacity files. Default is '../Linelists'.
+#     xlist : str, optional
+#         ASCII file listing gas opacity files and metadata. Default is 'gaslistR10K.dat'.
+
+#     Returns
+#     -------
+#     inlinetemps : np.ndarray
+#         Array of temperatures in the opacity files (K).
+#     inwavenum : np.ndarray
+#         Wavenumber grid corresponding to the wavelength range [w1, w2], Fortran-contiguous.
+#     gasnames : np.ndarray
+#         Gas names as fixed-length ASCII array, Fortran-contiguous, dtype='c'.
+#     gasmass : np.ndarray
+#         Gas molecular weights, Fortran-contiguous, dtype=float32.
+#     nwave : int
+#         Number of wavelength points in the selected range.
+
+#     Notes
+#     -----
+#     - The function reads the first gas opacity file to get the base wavenumber and temperature grids.
+#     - Converts wavelength range [w1, w2] into wavenumber range [wn1, wn2].
+#     - Outputs arrays are prepared for use with Fortran routines in the forward model.
+#     """
+
+#     ngas = len(gaslist)
+#     totgas = 0
+#     gasdata = []
+#     with open(xlist) as fa:
+#         for line_aa in fa.readlines():
+#             if len(line_aa) == 0:
+#                 break
+#             totgas = totgas +1 
+#             line_aa = line_aa.strip()
+#             gasdata.append(line_aa.split())
+
+#     list1 = []
+#     for i in range(0,ngas):
+#         for j in range(0,totgas):
+#             if (gasdata[j][1].lower() == gaslist[i].lower()):
+#                 list1.append(gasdata[j])
+
+
+#     lists = [xpath+i[3] for i in list1[0:ngas]]
+#     gasmass = np.asfortranarray(np.array([i[2] for i in list1[0:ngas]],dtype='float32'))
+
+
+#     # convert gaslist into fortran array of ascii strings for fortran code 
+#     gasnames = np.empty((len(gaslist), 10), dtype='c')
+#     for i in range(0,len(gaslist)):
+#         gasnames[i,0:len(gaslist[i])] = gaslist[i]
+
+#     gasnames = np.asfortranarray(gasnames,dtype='c')
+  
+
+#     # get the basic framework from water list
+#     rawwavenum, inpress, inlinetemps, inlinelist = pickle.load(open(lists[0], "rb"))
+
+#     wn1 = 10000. / w2
+#     wn2 = 10000. / w1
+#     inwavenum = np.asfortranarray(rawwavenum[np.where(np.logical_not(np.logical_or(rawwavenum[:] > wn2, rawwavenum[:] < wn1)))],dtype='float64')
+ 
+#     nwave = inwavenum.size
+
+#     return inlinetemps,inwavenum,gasnames,gasmass,nwave
+
+
+
+
 def get_gasdetails(gaslist,w1,w2,xpath='../Linelists',xlist='gaslistR10K.dat'):
-    """
-    Load gas opacity file details and prepare arrays for Fortran routines.
-
-    Parameters
-    ----------
-    gaslist : list of str
-        List of gas names to load (e.g., ['H2O', 'CO']).
-    w1 : float
-        Minimum wavelength (microns) of interest.
-    w2 : float
-        Maximum wavelength (microns) of interest.
-    xpath : str, optional
-        Path to directory containing gas opacity files. Default is '../Linelists'.
-    xlist : str, optional
-        ASCII file listing gas opacity files and metadata. Default is 'gaslistR10K.dat'.
-
-    Returns
-    -------
-    inlinetemps : np.ndarray
-        Array of temperatures in the opacity files (K).
-    inwavenum : np.ndarray
-        Wavenumber grid corresponding to the wavelength range [w1, w2], Fortran-contiguous.
-    gasnames : np.ndarray
-        Gas names as fixed-length ASCII array, Fortran-contiguous, dtype='c'.
-    gasmass : np.ndarray
-        Gas molecular weights, Fortran-contiguous, dtype=float32.
-    nwave : int
-        Number of wavelength points in the selected range.
-
-    Notes
-    -----
-    - The function reads the first gas opacity file to get the base wavenumber and temperature grids.
-    - Converts wavelength range [w1, w2] into wavenumber range [wn1, wn2].
-    - Outputs arrays are prepared for use with Fortran routines in the forward model.
-    """
 
     ngas = len(gaslist)
     totgas = 0
@@ -2386,34 +2789,59 @@ def get_gasdetails(gaslist,w1,w2,xpath='../Linelists',xlist='gaslistR10K.dat'):
             gasdata.append(line_aa.split())
 
     list1 = []
-    for i in range(0,ngas):
-        for j in range(0,totgas):
-            if (gasdata[j][1].lower() == gaslist[i].lower()):
+    for i in range(ngas):
+        for j in range(len(gasdata)):
+            if gasdata[j][1].lower() == gaslist[i].lower():
                 list1.append(gasdata[j])
 
+    if len(list1) < ngas:
+        found = [x[1] for x in list1]
+        missing = [g for g in gaslist if g.lower() not in [f.lower() for f in found]]
+        raise ValueError(f"Could not find these gases in xlist: {missing}")
 
-    lists = [xpath+i[3] for i in list1[0:ngas]]
+    lists = [xpath + i[3] for i in list1[0:ngas]]
     gasmass = np.asfortranarray(np.array([i[2] for i in list1[0:ngas]],dtype='float32'))
-
-
+    
     # convert gaslist into fortran array of ascii strings for fortran code 
     gasnames = np.empty((len(gaslist), 10), dtype='c')
     for i in range(0,len(gaslist)):
         gasnames[i,0:len(gaslist[i])] = gaslist[i]
 
     gasnames = np.asfortranarray(gasnames,dtype='c')
-  
 
-    # get the basic framework from water list
-    rawwavenum, inpress, inlinetemps, inlinelist = pickle.load(open(lists[0], "rb"))
 
-    wn1 = 10000. / w2
-    wn2 = 10000. / w1
-    inwavenum = np.asfortranarray(rawwavenum[np.where(np.logical_not(np.logical_or(rawwavenum[:] > wn2, rawwavenum[:] < wn1)))],dtype='float64')
- 
-    nwave = inwavenum.size
+    if gasdata[0][3].endswith(".pic"):
+
+        # get the basic framework from water list
+        rawwavenum, inpress, inlinetemps, inlinelist = pickle.load(open(lists[0], "rb"))
+
+        wn1 = 10000. / w2
+        wn2 = 10000. / w1
+        inwavenum = np.asfortranarray(rawwavenum[np.where(np.logical_not(np.logical_or(rawwavenum[:] > wn2, rawwavenum[:] < wn1)))],dtype='float64')
+
+        nwave = inwavenum.size
+
+
+    elif gasdata[0][3].endswith(".hdf5"):
+
+        wn1 = 10000.0 / w2
+        wn2 = 10000.0 / w1
+
+        # Open first file to define grids
+        with h5py.File(lists[0], 'r') as hf:
+            g = get_newformat_HDF5(hf, gaslist[0], filename=lists[0])
+
+            rawwavenum = np.array(g['nu'], dtype='float64')   # cm^-1
+            inlinetemps = np.array(g['T'], dtype='float32')   # K
+
+        mask = np.logical_not(np.logical_or(rawwavenum[:] > wn2, rawwavenum[:] < wn1))
+        inwavenum = np.asfortranarray(rawwavenum[mask], dtype='float64')
+        nwave = inwavenum.size
+
 
     return inlinetemps,inwavenum,gasnames,gasmass,nwave
+
+
 
 
 class ArgsGen:
@@ -2530,6 +2958,7 @@ class ArgsGen:
         self.do_bff = self.model.do_bff
         self.do_scales= self.model.do_scales
         self.do_shift= self.model.do_shift
+        self.do_conv= self.model.do_conv
         self.chemeq = self.re_params.chemeq
    
         if self.chemeq==0:

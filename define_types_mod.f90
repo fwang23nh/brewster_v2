@@ -65,7 +65,7 @@ contains
        if ( .NOT. allocated (col(ilayer)%opd_hmbff)) &
             allocate (col(ilayer)%opd_hmbff(nwave))
 
-       
+      col(ilayer)%cloud(:)%dtau1 = 0.d0
     end do
   end subroutine init_column
 
