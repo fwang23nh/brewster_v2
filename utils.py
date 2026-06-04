@@ -1803,7 +1803,7 @@ def MC_P0_gen(updated_dic,model_config_instance,args_instance):
     # Initialize walkers based on distributions
     # -------------------------------
     for i in range(model_config_instance.ndim):
-        if all_distributions[i][0]=='normal':
+        if all_distributions[i][0]=='normal' or all_distributions[i][0]=='truncated_normal':
             mu,sigma=all_distributions[i][1:]
             p0[:,i]=mu+sigma*np.random.randn(nwalkers).reshape(nwalkers)
             
