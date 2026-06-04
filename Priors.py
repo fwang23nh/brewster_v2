@@ -11,6 +11,9 @@ import numpy as np
 import math
 import cloud_dic_new
 import re
+from scipy.stats import truncnorm
+from scipy.stats import norm
+from copy import deepcopy
 
 
 
@@ -24,109 +27,693 @@ __email__ = ""
 __status__ = "Development"
 
 
+def gaussian_prior(r, mu, sigma):
 
-class Priors:
     """
-    A class to generate user-defined priors for retrieval.
+    adapted from https://github.com/JohannesBuchner/MultiNest/blob/master/src/priors.f90
+
+    Transform a uniform variable r in [0,1]
+    into a Gaussian-distributed variable x.
 
     Parameters
     ----------
-    theta : list
-        List of parameter values.
+    r : float or array
+        Uniform samples between 0 and 1
+
+    mu : float
+        Mean of Gaussian prior
+
+    sigma : float
+        Standard deviation of Gaussian prior
+
+    Returns
+    -------
+    x : float or array
+        Gaussian-distributed samples
+    """
+
+    # ppf = Percent Point Function
+    #      = inverse CDF of the Gaussian
+    #
+    # It answers:
+    # "For cumulative probability r,
+    #  what Gaussian value x gives that probability?"
+    #
+    # Example:
+    # r = 0.5  -> x = mean
+    # r = 0.84 -> x ≈ mean + 1 sigma
+    # r = 0.16 -> x ≈ mean - 1 sigma
+
+    return norm.ppf(r, loc=mu, scale=sigma)
+
+
+def truncated_gaussian_prior(r, mu, sigma, nleft=1, nright=2):
+    """
+    Transform a uniform variable r in [0,1]
+    into an asymmetric truncated Gaussian-distributed variable x.
+
+    The Gaussian is truncated to:
+
+        [mu - nleft*sigma, mu + nright*sigma]
+
+    Parameters
+    ----------
+    r : float or array
+        Uniform samples between 0 and 1
+
+    mu : float
+        Mean of Gaussian prior
+
+    sigma : float
+        Standard deviation of Gaussian prior
+
+    nleft : float
+        Number of sigma below the mean
+
+    nright : float
+        Number of sigma above the mean
+
+    Returns
+    -------
+    x : float or array
+        Asymmetrically truncated Gaussian samples
+    """
+
+    lower = mu - nleft * sigma
+    upper = mu + nright * sigma
+
+    # Convert to standard normal space
+    a = (lower - mu) / sigma   # = -nleft
+    b = (upper - mu) / sigma   # = +nright
+
+    return truncnorm.ppf(r, a, b, loc=mu, scale=sigma)
+    
+
+
+def uniform_prior(r, x1, x2):
+    """
+    Transform a uniform variable r in [0,1]
+    into a uniformly distributed variable x
+    between x1 and x2.
+
+    Parameters
+    ----------
+    r : float or array
+        Uniform samples between 0 and 1
+
+    x1 : float
+        Lower bound of the uniform prior
+
+    x2 : float
+        Upper bound of the uniform prior
+
+    Returns
+    -------
+    x : float or array
+        Uniformly distributed samples
+        between x1 and x2
+    """
+    return x1 + r * (x2 - x1)
+
+
+# def centered_log_abundance_prior(cube, rem):
+#     """
+#     Original:
+#         phi = log10(rem) - cube * 12
+#     """
+#     return np.log10(rem) - cube * 12.
+
+
+# unity 
+
+
+def centered_log_abundance_prior(r, factor, rem):
+    """
+    Notes
+    -----
+    Original:
+
+        phi = log10(rem) - cube * 12
+
+    This revised form generalizes the scaling and centering:
+
+        phi = log10(rem) + r * factor
+
+    allowing more flexible control of the prior width.
+    """
+
+    return np.log10(rem) + r * factor
+
+
+def log_uniform_prior(r, x1, x2):
+    """
+    Transform a uniform variable r in [0,1]
+    into a logarithmically distributed variable x
+    between x1 and x2.
+
+    Parameters
+    ----------
+    r : float or array
+        Uniform samples between 0 and 1
+
+    x1 : float
+        Lower bound of the log prior
+        (must be positive)
+
+    x2 : float
+        Upper bound of the log prior
+        (must be positive)
+
+    Returns
+    -------
+    x : float or array
+        Logarithmically distributed samples
+        between x1 and x2
+
+    Notes
+    -----
+    If r <= 0, returns -1e32
+    """
+    if np.any(r <= 0.0):
+        return -1.0e32
+
+    lx1 = np.log10(x1)
+    lx2 = np.log10(x2)
+
+    return 10.0 ** (lx1 + r * (lx2 - lx1))
+
+
+
+def Tp77_lndelta(r, alpha, press):
+    """
+    Transform a uniform variable r in [0,1]
+    into a logarithmically distributed lndelta
+    parameter based on the pressure grid.
+
+    Parameters
+    ----------
+    r : float or array
+        Uniform samples between 0 and 1
+
+    alpha : float
+        Scaling parameter
+
+    press : array
+        Pressure grid
+
+    Returns
+    -------
+    lndelta : float or array
+        Transformed lndelta parameter
+
+    Notes
+    -----
+    If r <= 0, returns -1e32
+    """
+
+    if np.any(r <= 0.0):
+        return -1.0e32
+
+    plen = np.log10(press[-1]) - np.log10(press[0])
+
+    pmax = alpha * plen
+    p_diff = np.log(0.1) - alpha * np.log10(press[-1])
+
+    return r * pmax + p_diff
+
+
+PRIOR_FUNCTIONS = {
+    'uniform': uniform_prior,
+    'log_uniform': log_uniform_prior,
+    'centered_log_abund': centered_log_abundance_prior,
+    'gaussian': gaussian_prior,
+    'truncated_gaussian': truncated_gaussian_prior,
+    'Tp77_lndelta': Tp77_lndelta
+}
+
+def query_priors(return_dict=False):
+    if return_dict:
+        return PRIOR_FUNCTIONS
+
+    return list(PRIOR_FUNCTIONS.keys())
+
+
+
+class Priors:
+    """
+    A class to construct, transform, and evaluate retrieval priors for atmospheric
+    parameter inference in both MCMC and MultiNest frameworks.
+
+    This class handles:
+    - User-defined prior parsing from retrieval configuration dictionaries
+    - Prior transformations (MultiNest unit-cube → physical space)
+    - MCMC log-prior evaluation with hard boundary and post-processing checks
+
+    Modes
+    -----
+    samplemode : {'mcmc', 'multinest'}
+        Controls prior evaluation strategy:
+        - 'mcmc': evaluates log-prior with rejection and post-processing checks
+        - 'multinest': applies unit-cube transformation to physical parameters
+
+    Parameters
+    ----------
+    theta : list or ndarray
+        Full parameter vector in physical space (MCMC mode).
     re_params : object
-        Object containing retrieval parameters and their configurations.
+        Retrieval configuration object containing parameter definitions,
+        priors, and model structure (gas, PT profile, clouds, etc.).
+    args_instance : object
+        Runtime configuration including pressure grid, instrument setup,
+        observational data, and physical constraints (mass/radius ranges, etc.).
+
+    Key Attributes
+    --------------
+    all_params : list
+        Ordered list of all retrieval parameters.
+    param_index : dict
+        Mapping from parameter name to vector index.
+    params_instance : namedtuple
+        Container holding current parameter values.
+    prior_dict : dict
+        Raw prior specification dictionary (MultiNest mode).
+    resolved_prior_dict : dict
+        Dynamically updated priors with dependencies resolved during transform.
+    priors : float or ndarray
+        Final log-prior (MCMC) or transformed physical parameters (MultiNest).
 
     Methods
     -------
-    get_priorranges(dic)
-        Recursively extracts prior ranges from a dictionary.
-    get_retrieval_param_priors(all_params, params_instance, priorranges)
-        Validates if the retrieval parameters fall within their defined priors.
+    transform(cube)
+        Maps unit hypercube samples into physical parameter space using
+        user-defined and dynamically constructed priors (MultiNest mode).
+    evaluate(theta)
+        Computes log-prior for MCMC sampling
+    _apply_prior(r, prior_spec, *extra_args)
+        Applies a named prior transformation function from PRIOR_FUNCTIONS.
     post_processing_prior()
-        Validates post-retrieval priors such as T-profile, gas profile, mass-radius, and tolerance parameters.
+        Enforces physical consistency after parameter construction
+
     """
 
-    def __init__(self, theta, re_params,args_instance):
+
+    def __init__(self, theta, re_params, args_instance):
+
         self.re_params = re_params
+        self.samplemode = self.re_params.samplemode.lower()
+
         self.args_instance = args_instance
         self.instrument_instance = args_instance.instrument
-         # Assuming `settings.runargs` is pre-defined
 
-        self.Mass_priorange= args_instance.Mass_priorange
-        self.R_priorange= args_instance.R_priorange
+        self.Mass_priorange = args_instance.Mass_priorange
+        self.R_priorange = args_instance.R_priorange
 
-        # Extract all parameters and their values
-        self.all_params, self.all_params_values = utils.get_all_parametres(re_params.dictionary)
+        # -------- parameters --------
+        self.all_params, _ = utils.get_all_parametres(re_params.dictionary)
         self.params_master = namedtuple('params', self.all_params)
+        self.param_index = {p: i for i, p in enumerate(self.all_params)}
         self.params_instance = self.params_master(*theta)
 
-        # Internal temperature profile keys and values
+        # -------- T profile setup --------
         self.intemp_keys = list(self.re_params.dictionary['pt']['params'].keys())
-        self.intemp = np.array([getattr(self.params_instance, key) for key in self.intemp_keys])
-        if (self.args_instance.proftype == 1 or self.args_instance.proftype == 77):
-            self.intemp=self.intemp[1:]
+        self.intemp = np.array([getattr(self.params_instance, k) for k in self.intemp_keys])
 
-        # Extract gas type information
-        self.gastype_values = [info['gastype'] for key, info in self.re_params.dictionary['gas'].items() if 'gastype' in info]
+        if self.args_instance.proftype in [1, 77]:
+            self.intemp = self.intemp[1:]
+
+        # -------- gas setup --------
+        self.gaslist = list(self.re_params.dictionary["gas"].keys())
+        self.gastype_values = [
+            info['gastype']
+            for _, info in self.re_params.dictionary['gas'].items()
+            if 'gastype' in info
+        ]
+
         self.count_N = self.gastype_values.count('N')
 
-        self.priors(re_params.dictionary)
+        if self.samplemode == 'mcmc':
 
+            # evaluate MCMC prior
+            self.evaluate(theta)
 
-    def get_priorranges(self, dic):
+        elif self.samplemode == 'multinest':
+
+            self._build_gas_parameter_list()
+            self._build_pt_parameter_list()
+            self._build_cloud_parameter_list()
+            self._build_refine_parameter_list()
+
+            # mc_init_dis,mc_ranges,multinest_priors
+            self.prior_dict = utils.get_dis_range_priors(self.re_params.dictionary)[2]
+
+            # evaluate Multinest prior
+            self.transform(theta)
+
+  
+    # =========================================================
+    # ------------------ MULTINEST TRANSFORM ------------------
+
+    def transform(self, cube):
         """
-        Recursively extracts prior ranges from a dictionary.
+        MultiNest prior transform.
 
         Parameters
         ----------
-        dic : dict
-            Dictionary containing parameter definitions and prior ranges.
+        cube : ndarray
+            Unit cube parameters in [0,1]
 
         Returns
         -------
-        list
-            A list of prior ranges.
+        phi : ndarray
+            Physical parameters
         """
-        priorranges = []
+        phi = np.zeros_like(cube)
 
-        def recurse(d):
-            if isinstance(d, dict):
-                for key, value in d.items():
-                    if key == 'range':
-                        priorranges.append(value)
+        self.resolved_prior_dict = deepcopy(self.prior_dict)
+
+        self._transform_gas(cube, phi)
+        self._transform_tp(cube, phi)
+        self._transform_cloud(cube, phi)
+        self._transform_refine(cube, phi)
+
+        self.priors = phi
+
+
+
+    # PRIOR HELPER 
+    def _apply_prior(self, r, prior_spec, *extra_args):
+
+        """
+        Apply user-defined prior transform.
+        """
+
+        if prior_spec is None:
+            return r
+
+        prior_name = prior_spec[0]
+        prior_args = prior_spec[1:]
+
+        if prior_name not in PRIOR_FUNCTIONS:
+            raise ValueError(
+                f"Unknown prior function: {prior_name}")
+
+        func = PRIOR_FUNCTIONS[prior_name]
+
+        return func(r, *prior_args, *extra_args)
+
+    # BUILD PARAM LISTS 
+    def _build_gas_parameter_list(self):
+
+        self.gaspara = []
+        for i, gas in enumerate(self.gaslist):
+            self.gaspara.append(gas)
+
+            if self.gastype_values[i] == 'N':
+                self.gaspara += [f"p_ref_{gas}",f"alpha_{gas}"]
+
+            elif self.gastype_values[i] == 'H':
+                self.gaspara += [f"p_ref_{gas}"]
+
+    def _build_pt_parameter_list(self):
+        self.ptpara = list(self.re_params.dictionary['pt']['params'].keys())
+
+    def _build_cloud_parameter_list(self):
+        self.cloudpara = []
+
+        if 'cloud' not in self.re_params.dictionary:
+            self.unique_cloudpara = []
+            return
+
+        cloud_dic = self.re_params.dictionary['cloud']
+
+        # Global cloud parameters
+        if 'fcld' in cloud_dic:
+            self.cloudpara.append('fcld')
+
+        # Patch-specific cloud parameters
+        for patch_key, patch_val in cloud_dic.items():
+
+            if not patch_key.startswith('patch'):
+                continue
+            for cloud_key, cloud_val in patch_val.items():
+                params = cloud_val.get('params', [])
+                self.cloudpara.extend(params)
+
+        # Remove duplicates while preserving order
+        self.unique_cloudpara = list(dict.fromkeys(self.cloudpara))
+
+    def _build_refine_parameter_list(self):
+
+        self.refinepara = list(
+            self.re_params.dictionary['refinement_params']['params'].keys()
+        )
+
+        if 'added_params' in self.re_params.dictionary:
+
+            self.refinepara += list(self.re_params.dictionary['added_params'].keys())
+
+
+    # GAS TRANSFORM 
+    def _transform_gas(self, cube, phi):
+        press = self.args_instance.press
+        rem = 1.0
+
+        for name in self.gaspara:
+            idx = self.param_index[name]
+            prior_spec = self.resolved_prior_dict.get(name)
+
+            # GAS ABUNDANCES 
+            if name in self.gaslist:
+                if prior_spec is None:
+                    phi[idx] = cube[idx]
+                else:
+                    prior_name = prior_spec[0]
+                    # dependent prior 
+                    if prior_name == 'centered_log_abund':
+                        phi[idx] = self._apply_prior(cube[idx],prior_spec,rem)
+                    # independent prior 
                     else:
-                        recurse(value)
-            elif isinstance(d, list):
-                for item in d:
-                    recurse(item)
+                        phi[idx] = self._apply_prior(cube[idx],prior_spec)
+                rem -= 10.0 ** phi[idx]
 
-        recurse(dic)
-        return priorranges
+            #p_ref
+            elif name.startswith('p_ref'):
+                if prior_spec is None:
+                    phi[idx] = (cube[idx]* (np.log10(press[-1])- np.log10(press[0]))+ np.log10(press[0]))
+                else:
+                    phi[idx] = self._apply_prior(cube[idx],prior_spec)
 
-    def get_retrieval_param_priors(self, all_params, params_instance, priorranges):
-        """
-        Validates retrieval parameters against their defined priors.
+            #alpha
+            elif name.startswith('alpha'):
+                if prior_spec is None:
+                    phi[idx] = cube[idx]
+                else:
+                    phi[idx] = self._apply_prior(cube[idx],prior_spec)
 
-        Parameters
-        ----------
-        all_params : list
-            List of all parameter names.
-        params_instance : namedtuple
-            Instance of parameters with their values.
-        priorranges : list
-            List of prior ranges for each parameter.
 
-        Returns
-        -------
-        bool
-            True if all parameters are within their priors, False otherwise.
-        """
-        priors = True
-        for i in range(len(all_params)):
-            if priorranges[i] is not None:
-                statement = (priorranges[i][0] < getattr(params_instance, all_params[i]) < priorranges[i][1])
-                priors = priors and statement
-        return priors
+
+    # TP TRANSFORM 
+    def _transform_tp(self, cube, phi):
+
+        press = self.args_instance.press
+        pt = self.args_instance.proftype
+
+        # DYNAMIC PRIORS
+        if pt == 2:
+            if self.resolved_prior_dict['logP1'] is None:
+                self.resolved_prior_dict['logP1'] = ['uniform', np.log10(press[0]),np.log10(press[-1])]
+
+            if self.resolved_prior_dict['logP3'] is None:
+                self.resolved_prior_dict['logP3'] = ['uniform',phi[self.param_index['logP1']],np.log10(press[-1])]
+
+        elif pt == 7:
+            # NO INVERSION : T3 = T1 + d_T2 + d_T3,   T2 = T1 + d_T2 --> T3 > T2 > T1
+            if self.resolved_prior_dict['T2'] is None:
+                #T2 > T1 
+                self.resolved_prior_dict['T2'] = [
+                    'uniform',
+                    phi[self.param_index['T1']],
+                    phi[self.param_index['T1']] + 1000.
+                ]
+                
+            if self.resolved_prior_dict['T3'] is None:
+                # T3 > T2
+                self.resolved_prior_dict['T3'] = [
+                    'uniform',
+                    phi[self.param_index['T2']],
+                    phi[self.param_index['T2']] + 1000.
+                ]
+
+            if self.resolved_prior_dict['Tint'] is None:
+                # Tint > T3
+                self.resolved_prior_dict['Tint'] = [
+                    'uniform',
+                    phi[self.param_index['T3']],
+                    phi[self.param_index['T3']] + 1000.
+                ]
+
+        #LOOP
+        for name in self.ptpara:
+            idx = self.param_index[name]
+            
+            if pt == 77:
+                if name =='lndelta' and self.resolved_prior_dict['lndelta'] is None:
+                    self.resolved_prior_dict['lndelta']=['Tp77_lndelta', phi[self.param_index['alpha']],press]
+
+            prior_spec = self.resolved_prior_dict.get(name)
+
+            if prior_spec is None:
+                phi[idx] = cube[idx]
+
+            else:
+                phi[idx] = self._apply_prior(cube[idx],prior_spec)
+
+
+    #CLOUD TRANSFORM
+    def _transform_cloud(self, cube, phi):
+
+        press = self.args_instance.press
+
+        for name in self.unique_cloudpara:
+
+            idx = self.param_index[name]
+            prior_spec = self.resolved_prior_dict.get(name)
+
+            #dynamic defaults
+            if prior_spec is None:
+                if 'logp' in name.lower():
+                    prior_spec = ['uniform',np.log10(press[0]),np.log10(press[-1])]
+                    self.resolved_prior_dict[name] = prior_spec
+                #dp 
+                elif 'dp' in name.lower():
+                    related_logp = name.replace('dp', 'logp')
+
+                    if related_logp in self.param_index:
+                        logp_val = phi[self.param_index[related_logp]]
+                        prior_spec = ['uniform',0,logp_val - np.log10(press[0])]
+                        self.resolved_prior_dict[name] = prior_spec
+  
+            #apply prior 
+            if prior_spec is None:
+                phi[idx] = cube[idx]
+            else:
+                phi[idx] = self._apply_prior(cube[idx],prior_spec)
+
+
+    # REFINE TRANSFORM 
+    def _transform_refine(self, cube, phi):
+
+        args = self.args_instance
+
+        for name in self.refinepara:
+            idx = self.param_index[name]
+            prior_spec = self.resolved_prior_dict.get(name)
+
+            #tolerance params 
+            if name.startswith('tolerance_parameter') and prior_spec is None:
+                tol_idx = int(name.split('_')[-1])
+                s_indices = np.where(args.logf_flag == float(tol_idx))
+                minerr = np.log10((0.01 * np.min(args.obspec[2, s_indices]))**2.)
+                maxerr = np.log10((100. * np.max(args.obspec[2, s_indices]))**2.)
+
+                phi[idx] = (cube[idx]* (maxerr - minerr)+ minerr)
+                self.resolved_prior_dict[name]= ['uniform',minerr,maxerr]
+                continue
+
+            # normal params
+            if prior_spec is None:
+                phi[idx] = cube[idx]
+            else:
+                phi[idx] = self._apply_prior(cube[idx],prior_spec)
+
+
+
+
+    # =========================================================
+    # ------------------ MCMC prior ---------------------------
+
+    def evaluate(self, theta):
+        """MCMC log prior"""
+        self.params_instance = self.params_master(*theta)
+
+        # mc_init_dis,mc_ranges,multinest_priors
+        # self.mc_ranges = utils.get_dis_range_priors(self.re_params.dictionary)[1]
+        self.mc_init_dis, self.mc_ranges, _ =utils.get_dis_range_priors(self.re_params.dictionary)
+
+
+        logp = self._check_param_ranges(theta,self.all_params,self.mc_ranges,self.mc_init_dis)
+        ok_basic = np.isfinite(logp)
+        # ok_basic = self._check_param_ranges(theta, self.all_params,self.mc_ranges,self.mc_init_dis)
+        ok_post, diff, pp, post_check_info = self.post_processing_prior()
+
+        self.statement=(ok_basic and ok_post)
+        self.post_check_info=post_check_info
+
+        if ok_basic and ok_post:
+            if self.args_instance.proftype in [1, 77]:
+                gamma = self.params_instance.gamma
+                logbeta = -5.0
+                beta = 10.**logbeta
+                alpha = 1.0
+
+                invgamma = ((beta**alpha)/math.gamma(alpha)) * (gamma**(-alpha-1)) * np.exp(-beta/gamma)
+                prprob =(-0.5/gamma)*np.sum(diff[1:-1]**2) - 0.5*pp*np.log(gamma) + np.log(invgamma)
+                self.priors =prprob + logp
+            else:
+                self.priors =logp
+
+        else:
+            self.priors = -np.inf
+    
+
+
+    # def _check_param_ranges(self,theta, all_params,ranges):
+    #     for param, value in zip(all_params, theta):
+
+    #         r = ranges.get(param)
+
+    #         if r is not None:
+    #             if not (r[0] < value < r[1]):
+    #                 print(param, value)
+    #                 return False
+
+    #     return True
+    
+
+    def _check_param_ranges(self, theta, all_params, ranges, dis):
+
+        logp = 0.0
+        for param, value in zip(all_params, theta):
+
+            init_dis = dis.get(param)
+            r = ranges.get(param)
+
+            if r is None:
+                continue
+
+            # Uniform and normal prior range
+            if init_dis[0] == "uniform" or "normal":
+                if not (r[0] < value < r[1]):
+                    return -np.inf
+                logp += 0
+
+            # Truncated Gaussian prior
+            elif init_dis[0] == "truncated_normal":
+                mu, sigma = init_dis[1:]
+                nleft, nright = r
+                lower = mu - nleft * sigma
+                upper = mu + nright * sigma
+
+                if not (lower <= value <= upper):
+                    return -np.inf
+
+                a = (lower - mu) / sigma
+                b = (upper - mu) / sigma
+
+                logp += truncnorm.logpdf(value,a,b,loc=mu,scale=sigma)
+
+        return logp
+
 
     def post_processing_prior(self):
         """
@@ -140,7 +727,6 @@ class Priors:
         # 1. T-profile check
         diff=0
         pp=0
-
 
         if self.args_instance.proftype==2:
             """
@@ -309,10 +895,10 @@ class Priors:
         D = 3.086e+16 * self.args_instance.dist  # Distance in meters
         R = np.sqrt(self.params_instance.r2d2) * D if self.params_instance.r2d2 > 0. else -1.0
         g = (10.**self.params_instance.logg) / 100.
-        M = (R**2 * g / 6.67E-11) / 1.898E27
-        Rj = R / 69911.e3
+        self.M = (R**2 * g / 6.67E-11) / 1.898E27
+        self.Rj = R / 69911.e3
 
-        prior_MR = (self.Mass_priorange[0] < M < self.Mass_priorange[1] and self.R_priorange[0] < Rj < self.R_priorange[1])
+        prior_MR = (self.Mass_priorange[0] <self.M < self.Mass_priorange[1] and self.R_priorange[0] < self.Rj < self.R_priorange[1])
 
 
         # 4. Tolerance parameters
@@ -364,19 +950,20 @@ class Priors:
 
 
         # 5.cloud 
+
         prior_cloud = True
         if self.re_params.dictionary['cloud']:
+            cloudparams = cloud_dic_new.cloud_unpack(self.re_params, self.params_instance)
 
-            cloudparams = cloud_dic_new.cloud_unpack(self.re_params,self.params_instance) 
-
+            #build cloud list
             patch_numbers = [
-            int(k.split(' ')[1])
-            for k in list(self.re_params.dictionary['cloud'].keys())
-            if k.startswith('patch') and k.split(' ')[1].isdigit()
-        ]
+                int(k.split(' ')[1])
+                for k in self.re_params.dictionary['cloud'].keys()
+                if k.startswith('patch') and k.split(' ')[1].isdigit()
+            ]
             npatches = max(patch_numbers)
 
-            cloudname_set = [] #Used a set (cloudname_set) to automatically remove duplicates.
+            cloudname_set = []
             for i in range(npatches):
                 for key in self.re_params.dictionary['cloud'][f'patch {i+1}']:
                     if 'clear' not in key and key not in cloudname_set:
@@ -384,116 +971,98 @@ class Priors:
 
             nclouds = len(cloudname_set)
 
-
+            # classify clouds 
             pattern_dis = re.compile(r'\b(deck|slab)\b', re.IGNORECASE)
-
-            cloud_distype=[]
-            for idx, name in enumerate(cloudname_set, start=1):
-                match = pattern_dis.search(name)
-                cloud_distype.append(match.group(1).lower() if match else 'unknown')
-
-
             pattern_opa = re.compile(r'\b(powerlaw|grey|Mie)\b', re.IGNORECASE)
-            cloud_opatype=[]
-            for idx, name in enumerate(cloudname_set, start=1):
-                match = pattern_opa.search(name)
-                cloud_opatype.append(match.group(1).lower() if match else 'unknown')
 
-            
-            cloud_tau0_all = np.empty([nclouds])
-            cloud_top_all = np.empty_like(cloud_tau0_all)
-            cloud_bot_all = np.empty_like(cloud_tau0_all)
-            cloud_height_all  = np.empty_like(cloud_tau0_all)
-            w0_all = np.empty_like(cloud_tau0_all)
-            taupow_all =  np.empty_like(cloud_tau0_all)
-            loga_all = np.empty_like(cloud_tau0_all)
-            b_all = np.empty_like(cloud_tau0_all)
+            cloud_distype = []
+            cloud_opatype = []
 
+            for name in cloudname_set:
+                dis = pattern_dis.search(name)
+                opa = pattern_opa.search(name)
+
+                cloud_distype.append(dis.group(1).lower() if dis else 'unknown')
+                cloud_opatype.append(opa.group(1).lower() if opa else 'unknown')
+
+
+            cloud_tau0_all = np.empty(nclouds)
+            cloud_top_all = np.empty(nclouds)
+            cloud_bot_all = np.empty(nclouds)
+            cloud_height_all = np.empty(nclouds)
+            w0_all = np.empty(nclouds)
+            taupow_all = np.empty(nclouds)
+            loga_all = np.empty(nclouds)
+            b_all = np.empty(nclouds)
+
+            logp_bottom = np.log10(self.args_instance.press[-1])
+
+            #helper func
+            def _deck(idx):
+                cloud_tau0_all[idx] = 1.0
+                cloud_bot_all[idx] = logp_bottom
+                cloud_top_all[idx] = cloudparams[1, idx]
+                cloud_height_all[idx] = cloudparams[2, idx]
+
+            def _slab(idx):
+                cloud_tau0_all[idx] = cloudparams[0, idx]
+                cloud_bot_all[idx] = cloudparams[1, idx]
+                cloud_height_all[idx] = cloudparams[2, idx]
+                cloud_top_all[idx] = cloud_bot_all[idx] - cloud_height_all[idx]
+
+            def _set_defaults(idx):
+                taupow_all[idx] = 0.0
+                loga_all[idx] = 0.0
+                b_all[idx] = 0.5
+
+
+            #main loop 
             for idx, name in enumerate(cloudname_set):
-                if  cloud_opatype[idx] == 'grey':
-                    if cloud_distype[idx] == "slab":
-                            cloud_tau0_all[idx]= cloudparams[0,idx]
-                            # cloud_top_all[idx]= cloudparams[1,idx]
-                            # cloud_height_all[idx]= cloudparams[2,idx]
-                            # cloud_bot_all[idx] = cloud_top_all[idx] + cloud_height_all[idx]
-                            cloud_bot_all[idx]= cloudparams[1,idx]
-                            cloud_height_all[idx]= cloudparams[2,idx]
-                            cloud_top_all[idx] = cloud_bot_all[idx] - cloud_height_all[idx]
-                            w0_all[idx] = cloudparams[3,idx]
-                            taupow_all[idx]= 0.0
-                            loga_all[idx] = 0.0
-                            b_all[idx] = 0.5
-                    elif cloud_distype[idx] == "deck":
-                            cloud_tau0_all[idx] = 1.0
-                            cloud_bot_all[idx] = np.log10(self.args_instance.press[-1])
-                            cloud_top_all[idx] = cloudparams[1,idx]
-                            cloud_height_all[idx] = cloudparams[2,idx]
-                            w0_all[idx] = cloudparams[3,idx]
-                            taupow_all[idx] = 0.0
-                            loga_all[idx] = 0.0
-                            b_all[idx] = 0.5
-                elif  cloud_opatype[idx] == 'powerlaw':
-                    if cloud_distype[idx] == "slab":
-                            cloud_tau0_all[idx] = cloudparams[0,idx]
-                            # cloud_top_all[idx]= cloudparams[1,idx]
-                            # cloud_height_all[idx]= cloudparams[2,idx]
-                            # cloud_bot_all[idx] = cloud_top_all[idx] + cloud_height_all[idx]
-                            cloud_bot_all[idx]= cloudparams[1,idx]
-                            cloud_height_all[idx]= cloudparams[2,idx]
-                            cloud_top_all[idx] = cloud_bot_all[idx] - cloud_height_all[idx]
-                            w0_all[idx] = cloudparams[3,idx]
-                            taupow_all[idx] = cloudparams[4,idx]
-                            loga_all[idx] = 0.0
-                            b_all[idx] = 0.5
-                    elif cloud_distype[idx] == "deck":
-                            cloud_tau0_all[idx] = 1.0
-                            cloud_bot_all[idx] = np.log10(self.args_instance.press[-1])
-                            cloud_top_all[idx] = cloudparams[1,idx]
-                            cloud_height_all[idx] = cloudparams[2,idx]
-                            w0_all[idx] = cloudparams[3,idx]
-                            taupow_all[idx] = cloudparams[4,idx]
-                            loga_all[idx] = 0.0
-                            b_all[idx] = 0.5
-                elif  cloud_opatype[idx] == 'mie':
-                    if cloud_distype[idx] == "slab":
-                        cloud_tau0_all[idx] =  cloudparams[0,idx]
-                        # cloud_top_all[idx]= cloudparams[1,idx]
-                        # cloud_height_all[idx]= cloudparams[2,idx]
-                        # cloud_bot_all[idx] = cloud_top_all[idx] + cloud_height_all[idx]
-                        cloud_bot_all[idx]= cloudparams[1,idx]
-                        cloud_height_all[idx]= cloudparams[2,idx]
-                        cloud_top_all[idx] = cloud_bot_all[idx] - cloud_height_all[idx]
-                        w0_all[idx] = 0.5
-                        taupow_all[idx] = 0.0
-                        loga_all[idx] = cloudparams[3,idx]
-                        b_all[idx] = cloudparams[4,idx]
-                        
-                    elif cloud_distype[idx] == "deck":
-                        cloud_tau0_all[idx] = 1.0
-                        cloud_bot_all[idx] = np.log10(self.args_instance.press[self.args_instance.press.size-1])
-                        cloud_top_all[idx] = cloudparams[1,idx]
-                        cloud_height_all[idx] = cloudparams[2,idx]
-                        w0_all[idx] = +0.5
-                        taupow_all[idx] =0.0
-                        loga_all[idx] =  cloudparams[3,idx]
-                        b_all[idx] =  cloudparams[4,idx]
 
-            prior_cloud  = prior_cloud and ((np.all(cloud_tau0_all >= 0.0))
-                        and (np.all(cloud_tau0_all <= 100.0))
-                        and np.all(cloud_top_all < cloud_bot_all)
-                        and np.all(cloud_bot_all <= np.log10(self.args_instance.press[-1]))
-                        and np.all(np.log10(self.args_instance.press[0]) <= cloud_top_all)
-                        and np.all(cloud_top_all < cloud_bot_all)
-                        and np.all(0. < cloud_height_all)
-                        and np.all(cloud_height_all < 7.0)
-                        and np.all(0.0 < w0_all)
-                        and np.all(w0_all <= 1.0)
-                        and np.all(-10.0 < taupow_all)
-                        and np.all(taupow_all < +10.0)
-                        and np.all( -3.0 < loga_all)
-                        and np.all (loga_all < 3.0)
-                        and np.all(b_all < 1.0)
-                        and np.all(b_all > 0.0))
+                opa = cloud_opatype[idx]
+                dist = cloud_distype[idx]
+
+                #distribution
+                if dist == "deck":
+                    _deck(idx)
+                elif dist == "slab":
+                    _slab(idx)
+
+                #opacity
+                if opa == 'grey':
+                    w0_all[idx] = cloudparams[3, idx]
+                    _set_defaults(idx)
+
+                elif opa == 'powerlaw':
+                    w0_all[idx] = cloudparams[3, idx]
+                    taupow_all[idx] = cloudparams[4, idx]
+                    loga_all[idx] = 0.0
+                    b_all[idx] = 0.5
+
+                elif opa == 'mie':
+                    w0_all[idx] = 0.5
+                    taupow_all[idx] = 0.0
+                    loga_all[idx] = cloudparams[3, idx]
+                    b_all[idx] = cloudparams[4, idx]
+
+            #cloud prior checks
+            prior_cloud = (
+                np.all(cloud_tau0_all >= 0.0)
+                and np.all(cloud_tau0_all <= 100.0)
+                and np.all(cloud_top_all < cloud_bot_all)
+                and np.all(cloud_bot_all <= logp_bottom)
+                and np.all(np.log10(self.args_instance.press[0]) <= cloud_top_all)
+                and np.all(cloud_height_all > 0.0)
+                and np.all(cloud_height_all < 7.0)
+                and np.all(0.0 < w0_all)
+                and np.all(w0_all <= 1.0)
+                and np.all(-10.0 < taupow_all)
+                and np.all(taupow_all < 10.0)
+                and np.all(-3.0 < loga_all)
+                and np.all(loga_all < 3.0)
+                and np.all(0.0 < b_all)
+                and np.all(b_all < 1.0)
+            )
 
 
         # Combine all priors
@@ -502,7 +1071,7 @@ class Priors:
         post_check_info = (
             f"prior_T: {prior_T}, "
             f"prior_gas: {prior_gas}, "
-            f"prior_MR: {prior_MR}, "
+            f"prior_MR: ({prior_MR}, mass={self.M:.1f}, Radius={self.Rj:.1f}), "
             f"prior_tolerance_params: {prior_tolerance_params}, "
         )
 
@@ -514,462 +1083,79 @@ class Priors:
         return post_prior,diff,pp,post_check_info
     
 
-    def priors(self,dic):
 
-        re_params_priorranges=self.get_priorranges(dic)
-        prior_re_params=self.get_retrieval_param_priors(self.all_params,self.params_instance,re_params_priorranges)
-        prior_post,diff,pp,post_check_info=self.post_processing_prior()
-        self.statement=(prior_re_params and prior_post)
-
-        self.post_check_info=post_check_info
-
-        if self.statement == True:
-            if self.args_instance.proftype == 1 or self.args_instance.proftype==77:
-                logbeta = -5.0
-                beta=10.**logbeta
-                alpha=1.0
-                x=self.params_instance.gamma
-                invgamma=((beta**alpha)/math.gamma(alpha)) * (x**(-alpha-1)) * np.exp(-beta/x)
-                prprob = (-0.5/self.params_instance.gamma)*np.sum(diff[1:-1]**2) - 0.5*pp*np.log(self.params_instance.gamma) + np.log(invgamma)
-
-                self.priors =prprob 
-            else:
-                self.priors =0.0
-
-        else:
-            self.priors = -np.inf
 
 
     def __str__(self):
         """
-        Provides a summary of all priors considered, including parameter priors with their ranges.
+        Provides a summary of all MCMC priors considered, including parameter priors with their ranges.
 
         Returns
         -------
         str
             String representation of priors.
         """
-        # Combine all_params and their prior ranges
-        param_prior_list = [
-            f"  * {param}: {priorrange if priorrange else 'No prior range defined'}"
-            for param, priorrange in zip(self.all_params, self.get_priorranges(self.re_params.dictionary))
-        ]
-        param_prior_text = "\n".join(param_prior_list)
 
-        return (
-            "All priors considered in the retrieval:\n"
-            "------------\n"
-            "- Parameter Priors: Defined by user ranges\n"
-            f"{param_prior_text}\n"
-            "--------------------\n"
-            "- Post-processing Priors:\n"
-            "  * T-profile check: (min(T) > 1.0) and (max(T) < 6000.)\n" 
-            "  * Gas profile check: (np.sum(10.**(invmr)) < 1.0) and valid gas profiles\n"
-            # "  * Mass and Radius check: (1.0 < M < 80 and 0.5 < Rj < 2.0)\n"
-            "  * Mass and Radius check:\n"
-            f"({self.Mass_priorange[0]} < M < {self.Mass_priorange[1]}) and "
-            f"({self.R_priorange[0]} < Rj < {self.R_priorange[1]})\n"
-            "  * Tolerance parameters: ((0.01*np.min(obspec[2,:]**2)) < 10.**tolerance_parameter < (100.*np.max(obspec[2,:]**2)))\n"
-            "  *all cloud parameters should be within range\n"
-            "  * Prior check results:\n"
-            f"{self.post_check_info}\n"
-        )
+        if self.samplemode == 'mcmc':
+            # Combine all_params and their prior ranges
+            param_prior_list = [f"  * {param}: {self.mc_ranges.get(param, 'No prior range defined')}"
+                for param in self.all_params]
+            param_prior_text = "\n".join(param_prior_list)
 
-
-def priormap_dic(theta,re_params):
-
-    all_params,all_params_values =utils.get_all_parametres(re_params.dictionary) 
-    params_master = namedtuple('params',all_params)
-    params_instance = params_master(*theta)
-
-    args_instance=settings.runargs
-    # Unpack all necessary parameters into local variables
-    press=args_instance.press
-    fwhm=args_instance.fwhm
-    obspec=args_instance.obspec
-    proftype=args_instance.proftype
-    do_fudge=args_instance.do_fudge
-
-    phi = np.zeros_like(theta)
-    gaslist=list(re_params.dictionary["gas"].keys())
-    gastype_values = [info['gastype'] for key, info in re_params.dictionary['gas'].items() if 'gastype' in info]
-
-    gaspara=[]
-    for i in range(len(gaslist)):
-        gaspara.append(gaslist[i])
-        if  gastype_values[i]=='N':
-            gaspara.append("p_ref_%s"%gaslist[i])
-            gaspara.append("alpha_%s"%gaslist[i])
-
-        if  gastype_values[i]=='H':
-            gaspara.append("p_ref_%s"%gaslist[i])
-             
-    ng=len(gaspara)
-    
-
-    if ng==2:
-        phi[0] = (theta[0] * (args_instance.metscale[-1] - args_instance.metscale[0])) + args_instance.metscale[0]
-        phi[1] = (theta[1] * (args_instance.coscale[-1] -  args_instance.coscale[0])) +  args_instance.coscale[0]
+            return (
+                "All priors considered in the retrieval:\n"
+                "------------\n"
+                "- Parameter Priors: Defined by user ranges\n"
+                f"{param_prior_text}\n"
+                "--------------------\n"
+                "- Post-processing Priors:\n"
+                "  * T-profile check: (min(T) > 1.0) and (max(T) < 6000.)\n" 
+                "  * Gas profile check: (np.sum(10.**(invmr)) < 1.0) and valid gas profiles\n"
+                # "  * Mass and Radius check: (1.0 < M < 80 and 0.5 < Rj < 2.0)\n"
+                "  * Mass and Radius check:\n"
+                f"({self.Mass_priorange[0]} < M < {self.Mass_priorange[1]}) and "
+                f"({self.R_priorange[0]} < Rj < {self.R_priorange[1]})\n"
+                "  * Tolerance parameters: ((0.01*np.min(obspec[2,:]**2)) < 10.**tolerance_parameter < (100.*np.max(obspec[2,:]**2)))\n"
+                "  *all cloud parameters should be within range\n"
+                "  * Prior check results:\n"
+                f"{self.post_check_info}\n"
+            )
         
-    else:
-        rem = 1
-        for i in range(0, ng):
-            if gaspara[i] in gaslist:
-                phi[i] = np.log10(rem) -  (theta[i] * 12.)
-                rem = rem - (10**phi[i])
-            elif gaspara[i].startswith('p_ref'):
-                phi[i]= (theta[i]* \
-                             (np.log10(press[-1]) - np.log10(press[0]))) + np.log10(press[0])
+        elif self.samplemode == 'multinest':
 
-            elif gaspara[i].startswith('alpha'):
-                phi[i]= theta[i]
+            param_prior_list = []
 
-    max_mass = 80. # jupiters
-    min_mass = 1.0 # jupiters
-    min_rad = 0.5 # jupiters
-    max_rad = 2.5 # jupiters
-    
-    
-    mass_index=params_instance._fields.index('M')
-    
-    # this is a simple uniform prior on mass
-    # we want to use the radius, to set a mass prior. 
-    # this will correlate these parameters??? Yes. which is fine.
-    phi[mass_index] = (theta[mass_index] * (max_mass - min_mass)) + min_mass
+            for p in self.all_params:
+                prior= self.resolved_prior_dict.get(p)
 
-    # this is if we want log g prior: phi[ng] = theta[ng] * 5.5
-    # now we retrieve radius in R_jup 
-    R_index=params_instance._fields.index('R')
-    R_j = ((max_rad - min_rad)*theta[R_index]) + min_rad
-    phi[R_index] = R_j
-    
+                if prior is None:
+                    prior_text = "Default transform"
+                elif prior[0]=='Tp77_lndelta':
+                    prior_text = prior[:-1]+['press']
+                else:
+                    prior_text = str(prior)
 
-    
-    scales_param = args_instance.scales
-    nonzero_scales = sorted(set(scales_param) - {0})  
-    if nonzero_scales:  
-        for i in nonzero_scales:
-            pname = f"scale{i}"
-            p_index = params_instance._fields.index(pname)
-            phi[p_index] = (theta[p_index] * 1.5) + 0.5
+                param_prior_list.append(
+                    f"  * {p}: {prior_text}"
+                )
 
-    # now dlam
-    dlam_index=params_instance._fields.index('dlambda')
-    phi[dlam_index] = (theta[dlam_index] * 0.02) - 0.01
+            param_prior_text = "\n".join(param_prior_list)
 
-    log_f_param = args_instance.logf_flag
-    log_f_param_max = int(np.max(log_f_param))
-    if (do_fudge == 1):
-        for i in range(1, log_f_param_max + 1):
-            s_indices = np.where(log_f_param == float(i))
-            minerr = np.log10((0.01 * np.min(obspec[2, s_indices]))**2.)
-            maxerr = np.log10((100 * np.max(obspec[2, s_indices]))**2.)
-
-            tol_param_name=f'tolerance_parameter_{i}'
-            tol_param_index=params_instance._fields.index(tol_param_name)
-            phi[tol_param_index] = (theta[tol_param_index] * (maxerr-minerr)) + minerr
-
-    if (proftype == 1):
-
-        intemp_keys = list(re_params.dictionary['pt']['params'].keys())
-        gam_index=params_instance._fields.index(intemp_keys[0])   
-        phi[gam_index] = theta[gam_index] *5000
-
-        tempkeys=intemp_keys[1:]
-        for i in range(len(tempkeys)):
-            index=params_instance._fields.index(tempkeys[i])                                            
-            phi[index] = theta[index] *3999  + 1
-
-    if (proftype == 2):
-                   
-        alpha1_index=params_instance._fields.index('alpha1')
-        alpha2_index=params_instance._fields.index('alpha2')
-        logP1_index=params_instance._fields.index('logP1')
-        logP3_index=params_instance._fields.index('logP3')
-        T3_index=params_instance._fields.index('T3')
-                                                                  
-        # a1
-        phi[alpha1_index] = 0.25 + (theta[alpha1_index]*0.25)
-        # a2
-        phi[alpha2_index] = 0.1 + (theta[alpha2_index] * 0.1)
-        #P1
-        phi[logP1_index] = (theta[logP1_index]* \
-                             (np.log10(press[-1]) - np.log10(press[0]))) + np.log10(press[0])
-        #P3
-        #P3 must be greater than P1
-        phi[logP3_index] = (theta[logP3_index] * \
-                             (np.log10(press[-1]) - phi[logP1_index])) + phi[logP1_index]
-        #T3
-        phi[T3_index] = (theta[T3_index] * 3000.) + 1500.0
-
-
-    elif (proftype == 3):
-                                               
-                                               
-        alpha1_index=params_instance._fields.index('alpha1')
-        alpha2_index=params_instance._fields.index('alpha2')
-        logP1_index=params_instance._fields.index('logP1')
-        logP2_index=params_instance._fields.index('logP2')
-        logP3_index=params_instance._fields.index('logP3')
-        T3_index=params_instance._fields.index('T3')
-                                               
-
-        # a1
-        phi[alpha1_index] = 0.25 + (theta[alpha1_index]*0.25)
-        # a2
-        phi[alpha2_index] = 0.1 * (theta[alpha2_index] * 0.1)
-        #P3 in press[0]--press[-1]
-        phi[logP3_index] = (theta[logP3_index] * (np.log10(press[-1]) - np.log10(press[0]))) + np.log10(press[0])                                        
-                                               
-        # press[0]<P1<P3
-        phi[logP1_index] = (theta[logP1_index]* (phi[logP3_index] - np.log10(press[0]))) + np.log10(press[0])
-        ## press[0]<P2<P3
-        phi[logP2_index] = (theta[logP2_index]* (phi[logP3_index] - np.log10(press[0]))) + np.log10(press[0])
-       
-        #T3
-        phi[T3_index] = (theta[T3_index] * 3000.) + 1500.
-
-    
-    elif (proftype == 7):
-                                                   
-        Tint_index=params_instance._fields.index('Tint')
-        alpha_index=params_instance._fields.index('alpha')
-        lndelta_index=params_instance._fields.index('lndelta')
-        T1_index=params_instance._fields.index('T1')
-        T2_index=params_instance._fields.index('T2')
-        T3_index=params_instance._fields.index('T3')
-                                                                   
-                                               
-       # Tint - prior following Molliere+2020
-      #  phi[Tint_index] = 300 + (theta[Tint_index] * 2000)  #UNCOMMENT IN CASE OF INVERSION
-        # alpha, between 1 and 2
-        phi[alpha_index] = theta[alpha_index] + 1. 
-        # lndlelta
-        plen = np.log10(press[-1]) - np.log10(press[0])
-        pmax=phi[alpha_index]*plen 
-        p_diff=np.log(0.1)-phi[alpha_index]*np.log10(press[-1])
-        phi[lndelta_index] = theta[lndelta_index]*pmax+p_diff                                           
-
-        # T1
-       # phi[T1_index] = 10. + (theta[T1_index] * 4000)
-        # T2
-       # phi[T2_index] = 10. + (theta[T2_index] * 4000)
-        # T3
-       # phi[T3_index] = 10.+ (theta[T3_index] * 4000)
-
-        # IN CASE OF NO INVERSION UNCOMMENT THESE: T3 = T1 + d_T2 + d_T3,   T2 = T1 + d_T2 --> T3 > T2 > T1
-
-        phi[T1_index] = 10. + (theta[T1_index] *4000)
-
-       #T2 > T1 
-        delta_T2 = theta[T2_index] * 1000
-        phi[T2_index] = phi[T1_index] + delta_T2
-
-       # T3 > T2 
-        delta_T3 = theta[T3_index] * 1000
-        phi[T3_index] = phi[T2_index] + delta_T3
-
-       # Tint > T3
-        delta_Tint = theta[Tint_index] * 1000
-        phi[Tint_index] = phi[T3_index] + delta_Tint
-
-    elif (proftype == 77):
-                                                   
-        Tint_index=params_instance._fields.index('Tint')
-        alpha_index=params_instance._fields.index('alpha')
-        lndelta_index=params_instance._fields.index('lndelta')
-        T1_index=params_instance._fields.index('T1')
-        T2_index=params_instance._fields.index('T2')
-        T3_index=params_instance._fields.index('T3')
-                                                                   
-                                               
-       # Tint - prior following Molliere+2020
-        phi[Tint_index] = 300 + (theta[Tint_index] * 2000)
-        # alpha, between 1 and 2
-        phi[alpha_index] = theta[alpha_index] + 1. 
-        # lndlelta
-        plen = np.log10(press[-1]) - np.log10(press[0])
-        pmax=phi[alpha_index]*plen 
-        p_diff=np.log(0.1)-phi[alpha_index]*np.log10(press[-1])
-        phi[lndelta_index] = theta[lndelta_index]*pmax+p_diff                                           
-
-        # T1
-        phi[T1_index] = 10. + (theta[T1_index] * 4000)
-        # T2
-        phi[T2_index] = 10. + (theta[T2_index] * 4000)
-        # T3
-        phi[T3_index] = 10.+ (theta[T3_index] * 4000)
-
-        intemp_keys = list(re_params.dictionary['pt']['params'].keys())
-        gam_index=params_instance._fields.index(intemp_keys[0])   
-        phi[gam_index] = theta[gam_index] *5000
-
-
-    npatches = args_instance.cloudmap.shape[0]
-    # only really ready for 2 patches here
-    if (npatches > 1):
-        fcld_index=params_instance._fields.index('fcld')
-        phi[fcld_index] = theta[fcld_index]
-
-    
-
-    if np.all(args_instance.cloudmap!= 0):
-        cloudlist=[]
-        for i in range(1, npatches+1):
-            for key in re_params.dictionary['cloud']['patch %s' % i].keys():
-                if 'clear' not in key:
-                    cloudlist.append(key)
-
-        for cloud in cloudlist:
-            if cloud=='grey cloud deck':
-            # 'cloudnum': 99,'cloudtype':2,
-                logp_gcd_index=params_instance._fields.index('logp_gcd')
-                dp_gcd_index=params_instance._fields.index('dp_gcd')
-                #cloud top
-                phi[logp_gcd_index] = \
-                    (theta[logp_gcd_index] *(np.log10(press[-1]) \
-                                    - np.log10(press[0])))\
-                                    + np.log10(press[0])
-                # cloud height
-                phi[dp_gcd_index] = theta[dp_gcd_index] * 7.
-                        
-            elif cloud=='grey cloud slab':
-            # 'cloudnum': 99,'cloudtype':1,
-                tau_gcs_index=params_instance._fields.index('tau_gcs')
-                logp_gcs_index=params_instance._fields.index('logp_gcs')
-                dp_gcs_index=params_instance._fields.index('dp_gcs')
-                # cloud tau
-                phi[tau_gcs_index] = theta[tau_gcs_index]*100.
-                #cloud base
-                phi[logp_gcs_index] = \
-                    (theta[logp_gcs_index] *(np.log10(press[-1]) \
-                                        - np.log10(press[0]))) \
-                                        + np.log10(press[0])
-                # cloud height
-                phi[dp_gcs_index] = theta[dp_gcs_index] *\
-                    (phi[logp_gcs_index] - np.log10(press[0]))
-                                    
-        
-            elif cloud=='powerlaw cloud deck':
-            # 'cloudnum': 89,'cloudtype':2,
-                logp_pcd_index=params_instance._fields.index('logp_pcd')
-                dp_pcd_index=params_instance._fields.index('dp_pcd')
-                alpha_pcd_index=params_instance._fields.index('alpha_pcd') 
-                #cloud top
-                phi[logp_pcd_index] = \
-                            (theta[logp_pcd_index] *(np.log10(press[-1]) \
-                                            - np.log10(press[0]))) \
-                                            + np.log10(press[0])
-                # cloud height
-                phi[dp_pcd_index] = theta[dp_pcd_index] * 7.
-                # power law
-                phi[alpha_pcd_index] = (theta[alpha_pcd_index] * 20.) - 10.
-
-
-            elif 'Mie scattering cloud deck' in cloud:
-            #   'cloudnum': cloudnum,'cloudtype':2,
-
-                cloudspecies=cloud.split('--')[1].strip()
-                logp_pcd_index=params_instance._fields.index('logp_mcd_%s'%cloudspecies)
-                dp_pcd_index=params_instance._fields.index('dp_mcd_%s'%cloudspecies)
-                #cloud base
-                phi[logp_pcd_index] = \
-                    (theta[logp_pcd_index] *(np.log10(press[-1]) \
-                                    - np.log10(press[0])))\
-                                    + np.log10(press[0])
-
+            return (
+                "All priors considered in the retrieval:\n"
+                "------------\n"
+                "- MultiNest parameter transforms:\n"
+                f"{param_prior_text}\n"
+            )
                 
-                # cloud height
-                phi[dp_pcd_index] = theta[dp_pcd_index] * 7.
-
-                for patch, clouds in re_params.dictionary['cloud'].items():
-                    for name, cloud_info in clouds.items():
-                        if cloudspecies in name:
-                            particle_dis = cloud_info.get('particle_dis', None)
-   
-                if  particle_dis=="hansen": 
-                    hansen_a_mcd_index=params_instance._fields.index('hansen_a_mcd_%s'%cloudspecies)
-                    hansen_b_mcd_index=params_instance._fields.index('hansen_b_mcd_%s'%cloudspecies)                                               
-                    # particle effective radius
-                    phi[hansen_a_mcd_index] = (theta[hansen_a_mcd_index] * 6.) - 3.
-                    # particle spread
-                    phi[hansen_b_mcd_index] = theta[hansen_b_mcd_index]
-                elif particle_dis=="log_normal":
-                    mu_mcd_index=params_instance._fields.index('mu_mcd_%s'%cloudspecies)
-                    sigma_mcd_index=params_instance._fields.index('sigma_mcd_%s'%cloudspecies)
-                    # particle effective radius
-                    phi[mu_mcd_index] = (theta[mu_mcd_index] * 6.) - 3.
-                    # particle spread
-                    phi[mu_mcd_index] = theta[mu_mcd_index]                                                 
-
-            elif cloud=='power law cloud slab':
-                    # 'cloudnum': 89, 'cloudtype':1,
-                    tau_pcs_index=params_instance._fields.index('tau_pcs')
-                    logp_pcs_index=params_instance._fields.index('logp_pcs')
-                    dp_pcs_index=params_instance._fields.index('dp_pcs')
-                    alpha_pcs_index=params_instance._fields.index('alpha_pcs')
-
-                    # cloud tau
-                    phi[tau_pcs_index] = theta[tau_pcs_index]*100.
-                    #cloud base
-                    phi[logp_pcs_index] = \
-                        (theta[logp_pcs_index]*\
-                            (np.log10(press[-1]) - np.log10(press[0]))) \
-                            + np.log10(press[0])
-                    # cloud height
-                    phi[dp_pcs_index] = \
-                        theta[dp_pcs_index] * (phi[logp_pcs_index] \
-                                            - np.log10(press[0]))
-                    # power law
-                    phi[alpha_pcs_index] = (theta[alpha_pcs_index] * 20.) - 10.
-
-
-            elif 'Mie scattering cloud slab' in cloud:
-
-                cloudspecies=cloud.split('--')[1].strip()
-
-                tau_mcs_index=params_instance._fields.index('tau_mcs_%s'%cloudspecies)
-                logp_mcs_index=params_instance._fields.index('logp_mcs_%s'%cloudspecies)
-                dp_mcs_index=params_instance._fields.index('dp_mcs_%s'%cloudspecies)
-                # cloud tau
-                phi[tau_mcs_index] = theta[tau_mcs_index]*100.
-                #cloud base
-                phi[logp_mcs_index] = \
-                    (theta[logp_mcs_index] *(np.log10(press[-1]) \
-                                        - np.log10(press[0]))) \
-                                        + np.log10(press[0])
-                # cloud height
-                phi[dp_mcs_index] = theta[dp_mcs_index] * \
-                    (phi[logp_mcs_index] - np.log10(press[0]))
-
-                for patch, clouds in re_params.dictionary['cloud'].items():
-                    for name, cloud_info in clouds.items():
-                        if cloudspecies in name:
-                            particle_dis = cloud_info.get('particle_dis', None)
-                                                                        
-                if particle_dis=="hansen": 
-                    hansen_a_mcs_index=params_instance._fields.index('hansen_a_mcs_%s'%cloudspecies)
-                    hansen_b_mcs_index=params_instance._fields.index('hansen_b_mcs_%s'%cloudspecies)                                               
-                    # particle effective radius
-                    phi[hansen_a_mcs_index] = (theta[hansen_a_mcs_index] * 6.) - 3.
-                    # particle spread
-                    phi[hansen_b_mcs_index] = theta[hansen_b_mcs_index]
-                elif particle_dis=="log_normal":
-                    mu_mcs_index=params_instance._fields.index('mu_mcs_%s'%cloudspecies)
-                    sigma_mcs_index=params_instance._fields.index('sigma_mcs_%s'%cloudspecies)
-                    # particle effective radius
-                    phi[mu_mcs_index] = (theta[mu_mcs_index] * 6.) - 3.
-                    # particle spread
-                    phi[mu_mcs_index] = theta[mu_mcs_index]
-
-
-    return phi
-                                                                     
 
 
 
 
-    
+
+
+
+
 
 
 

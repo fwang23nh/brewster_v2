@@ -2,7 +2,6 @@
 """MCMC Retrieval Setup Template"""
 import os 
 import utils
-import numpy as np
 import retrieval_run
 import settings
 
@@ -66,12 +65,11 @@ model_config_instance.update_dictionary()
 
 
 
-re_params.dictionary['gas']['h2o']['params']['log_abund']['distribution']=['normal',-3.5,0.5]
-re_params.dictionary['gas']['nh3']['params']['log_abund']['distribution']=['normal',-8.0,0.5]
-re_params.dictionary['gas']['h2s']['params']['log_abund']['distribution']=['normal',-8.0,0.5]
-re_params.dictionary['gas']['K_Na']['params']['log_abund']['distribution']=['normal',-5.5,0.5]
-re_params.dictionary['refinement_params']['params']['logg']['distribution']=['normal',4.9,0.1]
-
+re_params.dictionary['gas']['h2o']['params']['log_abund']['MC_init_dis']=['normal',-3.5,0.5]
+re_params.dictionary['gas']['nh3']['params']['log_abund']['MC_init_dis']=['normal',-8.0,0.5]
+re_params.dictionary['gas']['h2s']['params']['log_abund']['MC_init_dis']=['normal',-8.0,0.5]
+re_params.dictionary['gas']['K_Na']['params']['log_abund']['MC_init_dis']=['normal',-5.5,0.5]
+re_params.dictionary['refinement_params']['params']['logg']['MC_init_dis']=['normal',4.9,0.1]
 
 
 args_instance = utils.ArgsGen(re_params,model_config_instance,instrument_instance,obspec)
