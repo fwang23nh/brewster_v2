@@ -698,7 +698,7 @@ class Priors:
                 logp += 0
 
             # Truncated Gaussian prior
-            elif init_dis[0] == "truncated_normal":
+            elif init_dis[0] == "truncated_gaussian":
                 mu, sigma = init_dis[1:]
                 nleft, nright = r
                 lower = mu - nleft * sigma
