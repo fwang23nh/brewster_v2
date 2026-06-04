@@ -720,38 +720,38 @@ class Retrieval_params:
 
                           'dtdp1':
                            {'initialization':None,
-                            'MC_init_dis':['normal',0.25,0.025],
-                            'MC_prior_range':[0.18,0.32],
+                            'MC_init_dis':['truncated_normal',0.25,0.025],
+                            'MC_prior_range':[1,2],
                             'Multinest_prior':None},
 
                         'dtdp2':
                            {'initialization':None,
-                            'MC_init_dis':['normal',0.25,0.045],
-                            'MC_prior_range':[0.12,0.36],
+                            'MC_init_dis':['truncated_normal',0.25,0.045],
+                            'MC_prior_range':[1,2],
                             'Multinest_prior':None},
 
                         'dtdp3':
                            {'initialization':None,
-                            'MC_init_dis':['normal',0.26,0.05],
-                            'MC_prior_range':[0.12,0.4],
+                            'MC_init_dis':['truncated_normal',0.26,0.05],
+                            'MC_prior_range':[1,2],
                             'Multinest_prior':None},
 
                         'dtdp4':
                            {'initialization':None,
-                            'MC_init_dis':['normal',0.2,0.05],
-                            'MC_prior_range':[0.08,0.34],
+                            'MC_init_dis':['truncated_normal',0.2,0.05],
+                            'MC_prior_range':[1,2],
                             'Multinest_prior':None},
 
                         'dtdp5':
                            {'initialization':None,
-                            'MC_init_dis':['normal',0.12,0.045],
-                            'MC_prior_range':[0,0.24],
+                            'MC_init_dis':['truncated_normal',0.12,0.045],
+                            'MC_prior_range':[1,2],
                             'Multinest_prior':None},
 
                         'dtdp6':
                            {'initialization':None,
-                            'MC_init_dis':['normal',0.07,0.07],
-                            'MC_prior_range':[-0.1,0.26],
+                            'MC_init_dis':['truncated_normal',0.07,0.07],
+                            'MC_prior_range':[1,2],
                             'Multinest_prior':None},
                          }}
 

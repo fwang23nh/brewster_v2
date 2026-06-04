@@ -763,7 +763,7 @@ class Priors:
             
         elif self.args_instance.proftype==4:
 
-            prior_T_params = (2000. < self.params_instance.Tbottom < 8000. and 0.18 < self.params_instance.dtdp1 < 0.32
+            prior_T_params = (2000. < self.params_instance.Tbottom < 10000. and 0.18 < self.params_instance.dtdp1 < 0.32
                               and 0.12 < self.params_instance.dtdp2 < 0.36 and 0.12 < self.params_instance.dtdp3 < 0.4
                               and 0.08 < self.params_instance.dtdp4 < 0.34 and 0. < self.params_instance.dtdp5 < 0.24
                               and -0.1 < self.params_instance.dtdp6 < 0.26)
