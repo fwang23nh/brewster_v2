@@ -139,12 +139,17 @@ def set_prof(proftype, coarsePress,press,intemp):
     elif (proftype == 4):
         #Start building Zhang+2023
 
+        top_of_atmosphere_pressure = -3
+        id_sub = np.where(press >= 10**top_of_atmosphere_pressure)
+        p_use_sub = press[id_sub]
+        num_sub = len(p_use_sub)
+
         #Pressure layers dependent on the paper: 6 layers between 10^-3 to 10^3, evenly space in log scale
         layer_pressures = np.logspace(-3,3,6)
 
         #
-        press_zhang = press[np.where(press >= 1e-3)]
-        temp_zhang = np.empty_like(press_zhang)
+        # press_zhang = press[np.where(press >= 1e-3)]
+        # temp_zhang = np.empty_like(press_zhang)
 
         #Set up parameters from bottom to top
         T1 = intemp[0]
@@ -152,23 +157,30 @@ def set_prof(proftype, coarsePress,press,intemp):
 
         #Quadratic interpolation between 6 layers
         # Create interp function based on priors for each of the 6 points
-        interp_func = interpolate.interp1d(layer_pressures, dtdp,'quadratic')
+        interp_func = interpolate.interp1d(np.log10(layer_pressures), dtdp,'quadratic')
+        pt_slopes_sub = interp_func(np.log10(p_use_sub))
         #Interpolate this onto the finer grid
         #org top to bottom
-        dtdp_fine = interp_func(press_zhang)
+        # dtdp_fine = interp_func(press_zhang)
+        temperatures_sub = np.ones(num_sub) * np.nan
+        temperatures_sub[-1] = T1
 
-        temp_zhang[-1] = T1
+
+        # temp_zhang[-1] = T1
         #bottom to top aka end to beginning of array
-        for j in range(1,press_zhang.size):
-            temp_zhang[-1-j] = np.exp(np.log(temp_zhang[-j])+ (np.log(press_zhang[-1-j])-np.log(press_zhang[-j]))*dtdp_fine[j])
+        for j in range(1,num_sub):
+            temperatures_sub[-1-j] = np.exp(np.log(temperatures_sub[-j])-pt_slopes_sub[-j]* (np.log(p_use_sub[-j])-np.log(p_use_sub[-1-j])))
 
         #assume isothermal for p < 1e-3
-        temp[np.where(press >= 1e-3)] = np.copy(temp_zhang)
-        temp[np.where(press < 1e-3)] = temp_zhang[0]
+        # temp[np.where(press >= 1e-3)] = np.copy(temp_zhang)
+        # temp[np.where(press < 1e-3)] = temp_zhang[0]
+        temperatures = np.ones_like(press) * temperatures_sub[0]
+        temperatures[id_sub] = np.copy(temperatures_sub)
+
 
 
         # then smooth with 5 layer box car 
-        temp1 = convolve(temp,Gaussian1DKernel(5),boundary='extend')
+        temp1 = convolve(temperatures,Gaussian1DKernel(5),boundary='extend')
         # temp1 = temp
 
 
