@@ -259,6 +259,7 @@ def set_prof(proftype, coarsePress,press,intemp):
     # weed out any negative temperatures
     # temp = np.where(temp1 > 10., temp1, 10.)
     temp = np.where(temp1 > 100, temp1, 100)
-    temp = np.where(temp < 4000., temp, 4000.)
+    if proftype != 4:
+        temp = np.where(temp < 4000., temp, 4000.)
 
     return temp
