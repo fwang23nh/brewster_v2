@@ -709,6 +709,52 @@ class Retrieval_params:
                             'Multinest_prior':['uniform',1500,4500]}
                          }}
 
+        elif ptype==4:
+            dictionary={
+                'ptype':ptype,
+                'params':{'Tbottom':
+                           {'initialization':None,
+                            'MC_init_dis':['uniform',2000,10000],
+                            'MC_prior_range':[2000,10000],
+                            'Multinest_prior':None},
+
+                          'dtdp1':
+                           {'initialization':None,
+                            'MC_init_dis':['truncated_gaussian',0.25,0.025],
+                            'MC_prior_range':[0.18,0.32],
+                            'Multinest_prior':None},
+
+                        'dtdp2':
+                           {'initialization':None,
+                            'MC_init_dis':['truncated_gaussian',0.25,0.045],
+                            'MC_prior_range':[0.12,0.36],
+                            'Multinest_prior':None},
+
+                        'dtdp3':
+                           {'initialization':None,
+                            'MC_init_dis':['truncated_gaussian',0.26,0.05],
+                            'MC_prior_range':[0.12,0.4],
+                            'Multinest_prior':None},
+
+                        'dtdp4':
+                           {'initialization':None,
+                            'MC_init_dis':['truncated_gaussian',0.2,0.05],
+                            'MC_prior_range':[0.08,0.34],
+                            'Multinest_prior':None},
+
+                        'dtdp5':
+                           {'initialization':None,
+                            'MC_init_dis':['truncated_gaussian',0.12,0.045],
+                            'MC_prior_range':[0,0.24],
+                            'Multinest_prior':None},
+
+                        'dtdp6':
+                           {'initialization':None,
+                            'MC_init_dis':['truncated_gaussian',0.07,0.07],
+                            'MC_prior_range':[-0.1,0.26],
+                            'Multinest_prior':None},
+                         }}
+
         elif ptype==7 :
 
             dictionary={
@@ -1414,7 +1460,7 @@ def get_all_parametres(dic):
       - Gas parameters (either free chemistry or chemical equilibrium)
       - Refinement parameters
       - Temperature profile (PT) parameters
-      - Cloud parameters (including patchy clouds)
+    - Cloud parameters (including patchy clouds)
       - Any user-added parameters
 
     Parameters
@@ -2872,21 +2918,29 @@ class ArgsGen:
         Generate the required model arguments.
     """
 
-    def __init__(self, re_params, model, instrument, obspec,Mass_priorange=[1.0,80.0],R_priorange=[0.5,2.0]):
+    def __init__(self, re_params, model, instrument, obspec,Mass_priorange=[1.0,80.0],R_priorange=[0.5,2.0], num_coarsePress=12, num_finePress=100):
         self.re_params = re_params
         self.model = model
         self.instrument = instrument
         self.obspec = obspec
         self.Mass_priorange= Mass_priorange
         self.R_priorange= R_priorange
+        self.num_coarsePress = num_coarsePress
+        self.num_finePress = num_finePress
 
         # Generate all necessary model arguments on initialization
         self.generate()
 
     def generate(self):
         # Set up pressure grids in log(bar)
-        logcoarsePress = np.arange(-4.0, 2.5, 0.53)
-        logfinePress = np.arange(-4.0, 2.4, 0.1) #np.linspace(-4.0, 2.4, 100)#logfinePress = np.arange(-4.0, 2.4, 0.1) #PRESSURE LAYER CHANGE
+        # logcoarsePress = np.arange(-4.0, 2.5, 0.53)
+        logcoarsePress = np.linspace(-4.0, 2.5, self.num_coarsePress)
+        logfinePress = np.linspace(-4.0, 2.5, self.num_finePress)
+
+        if self.model.pfile == 4:
+            logfinePress = np.arange(-4.0, 2.4, 0.05)
+        else:
+            logfinePress = np.arange(-4.0, 2.4, 0.1) #np.linspace(-4.0, 2.4, 100)#logfinePress = np.arange(-4.0, 2.4, 0.1) #PRESSURE LAYER CHANGE
         
         # Pressure in bar
         self.coarsePress = pow(10, logcoarsePress)

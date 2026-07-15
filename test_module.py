@@ -331,7 +331,7 @@ def modelspec(theta,re_params,args_instance,gnostics):
     elif (proftype == 77):
         gam = params_instance.gamma
         intemp=intemp[1:]
-    elif (proftype == 2 or proftype ==3 or proftype ==7):
+    elif (proftype == 2 or proftype ==3 or proftype ==7 or proftype == 4):
         intemp=intemp
     elif (proftype == 9):
         intemp = args_instance.prof
