@@ -61,3 +61,28 @@ def non_uniform_gas(press,logPt,logft,alpha):
     return gas_f
 
 
+
+
+def non_uniform_gas_inverted(press, logPt, logft, alpha):
+    """
+    Vertically varying gas VMR profile with constant abundance above Pt
+    and a gradient below Pt.
+
+    log10(f(P)) = logft                                  for P < Pt
+    log10(f(P)) = logft + (log10(P) - logPt) / alpha     for P >= Pt
+    """
+
+    gas_f = np.zeros_like(press)
+
+    Pt = 10.0**logPt
+
+    for i in range(press.size):
+        if press[i] < Pt:
+            gas_f[i] = float(logft)
+        else:
+            gas_f[i] = logft + (np.log10(press[i]) - logPt) / alpha
+
+    return gas_f
+
+
+
