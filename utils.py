@@ -405,7 +405,7 @@ class IOConfig:
             'params': {
                 'runname': self.runname,
                 'outdir': self.outdir,
-                'finalout': self.runname + ".pk1",
+                'finalout': self.runname + ".pic",
                 'chaindump': self.runname + "_last_nc.pic",
                 'picdump': self.runname + "_snapshot.pic",
                 'statfile': "status_ball_" + self.runname + ".txt",
@@ -483,11 +483,15 @@ class Retrieval_params:
     gaslist : list of str
         List of gas names.
     gastype_list : list of str
-        List of gas types, corresponding to the gas names in gaslist.
+        List of gas types, corresponding to the gas names in gaslist. ``N``
+        selects the standard non-uniform profile and ``I`` selects the inverted
+        non-uniform profile; both use log_abund, p_ref, and alpha parameters.
     fwhm : float, optional
         Full width at half maximum of the spectral lines. 
     do_fudge : int, optional
-        Flag indicating whether to apply tolerance_parameter to the data. 
+        Flag indicating whether to apply tolerance_parameter to the data.
+        Enables retrieval of an additional error-inflation term that is added to the observational variance
+        in the likelihood, accounting for underestimated uncertainties and/or residual model–data scatter. 
     vrad:bool
      Flag indicating whether to apply vrad to do doppler shift to spectral lines
      -defalut False
@@ -566,7 +570,7 @@ class Retrieval_params:
                             'Multinest_prior':['centered_log_abund',-12]}
                          }}
 
-        elif gastype=='N':
+        elif gastype in ('N', 'I'):
 
             dictionary[gasname]={
                 'gastype':gastype,
@@ -585,7 +589,7 @@ class Retrieval_params:
 
                            "alpha":
                             {'initialization':None,
-                             'MC_init_dis':['uniform',0,1],
+                             'MC_init_dis':['uniform',-5,5],
                              'MC_prior_range':[-5,5],
                              'Multinest_prior':['uniform',-5,5]}    
                            }}
@@ -1497,7 +1501,7 @@ def get_all_parametres(dic):
         for i in range(len(gaslist)):
             gas.append(gaslist[i])
             gas_values.append(dic['gas'][gaslist[i]]['params']['log_abund']['initialization'])
-            if  gastype_values[i]=='N':
+            if gastype_values[i] in ('N', 'I'):
                 gas.append("p_ref_%s"%gaslist[i])
                 gas.append("alpha_%s"%gaslist[i])
                 gas_values.append(dic['gas'][gaslist[i]]['params']['p_ref']['initialization'])
@@ -1604,7 +1608,7 @@ def update_dictionary(dic, params_instance):
     gaslist=list(dic['gas'].keys())
     for i in range(len(gaslist)):
         dic['gas'][gaslist[i]]['params']['log_abund']['initialization'] = getattr(params_instance, gaslist[i])
-        if gastype_values[i]=='N':
+        if gastype_values[i] in ('N', 'I'):
             dic['gas'][gaslist[i]]['params']['p_ref']['initialization'] = getattr(params_instance, "p_ref_%s"%gaslist[i])
             dic['gas'][gaslist[i]]['params']['alpha']['initialization'] = getattr(params_instance, "alpha_%s"%gaslist[i])
 
@@ -2179,8 +2183,8 @@ def get_opacities(gaslist,w1,w2,press,xpath='../Linelists',xlist='gaslistR10K.da
 
     malk : int, optional
         Special substitutions for alkali lines:
-          - 0 : no change
-          - 1 : use Mike's K_/Na_ files
+          - 0 : no change  Allard (the default)
+          - 1 : use Mike's K_/Na_ files  Burrows' alkali opacities 
           - 2 : use 2021 K_/Na_ files
           
     Returns
@@ -2903,6 +2907,9 @@ class ArgsGen:
         Atmospheric profile.
     do_bff : bool
         BFF flag.
+        Enable do_bff when the atmospheric P–T profile reaches temperatures
+        where H⁻ bound-free and H/e⁻ free-free continuum opacity may become significant,
+        particularly in hot photospheric layers (∼2000−3000+ K).
     bff_raw : np.array
         Raw BFF grid.
     ceTgrid : np.array
@@ -3116,7 +3123,7 @@ def get_endchain(runname,fin,results_path='./'):
     """
         
     if (fin == 1):
-        pic = results_path+runname+".pk1"
+        pic = results_path+runname+".pic"
         sampler = pickle_load(pic)
         nwalkers = sampler.chain.shape[0]
         niter = sampler.chain.shape[1]

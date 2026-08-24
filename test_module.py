@@ -392,15 +392,18 @@ def modelspec(theta,re_params,args_instance,gnostics):
         gastype_values = [info['gastype'] for key, info in re_params.dictionary['gas'].items() if 'gastype' in info]
             
         for i in range(len(gastype_values)):
-            if  gastype_values[i]=="N":
+            if gastype_values[i] in ("N", "I"):
                 P_gas= getattr(params_instance, "p_ref_%s"%gas_keys[i])
                 gas_alpha= getattr(params_instance, "alpha_%s"%gas_keys[i])
                 t_gas= getattr(params_instance, gas_keys[i])
-                gas_profile=gas_nonuniform.non_uniform_gas(press,P_gas,t_gas,gas_alpha)
+                if gastype_values[i] == "N":
+                    profile_function = gas_nonuniform.non_uniform_gas
+                else:
+                    profile_function = gas_nonuniform.non_uniform_gas_inverted
+                gas_profile = profile_function(press, P_gas, t_gas, gas_alpha)
                 logVMR[i]=gas_profile
 
             elif gastype_values[i]=="H":
-
                 p_gas= getattr(params_instance, "p_ref_%s"%gas_keys[i])
                 P_gas = 10**p_gas
 
@@ -485,6 +488,5 @@ def modelspec(theta,re_params,args_instance,gnostics):
 #     shiftspec[1,:] =  trimspec[1,:]
 
     return trimspec, cloud_phot_press,other_phot_press,cfunc
-
 
 
