@@ -397,23 +397,12 @@ def modelspec(theta,re_params,args_instance,gnostics):
                 gas_alpha= getattr(params_instance, "alpha_%s"%gas_keys[i])
                 t_gas= getattr(params_instance, gas_keys[i])
                 if gastype_values[i] == "N":
-                    profile_function = gas_nonuniform.non_uniform_gas
+                    # profile_function = gas_nonuniform.non_uniform_gas
+                    profile_function = gas_nonuniform.non_uniform_gas_inverted
                 else:
                     profile_function = gas_nonuniform.non_uniform_gas_inverted
                 gas_profile = profile_function(press, P_gas, t_gas, gas_alpha)
                 logVMR[i]=gas_profile
-
-            elif gastype_values[i]=="H":
-                p_gas= getattr(params_instance, "p_ref_%s"%gas_keys[i])
-                P_gas = 10**p_gas
-
-                if np.size(np.where((press>=P_gas))[0])==0:   #may return null array
-                    p_gas_index=np.size(press)-1
-                else:
-                    p_gas_index=np.where((press>=P_gas))[0][0] 
-
-                logVMR[i,0:p_gas_index]=tmpvmr[i]
-                logVMR[i,p_gas_index:]=-100
 
     # ---- Cloud profiles ----
     # now need to translate cloudparams in to cloud profile even
@@ -428,13 +417,39 @@ def modelspec(theta,re_params,args_instance,gnostics):
 
     # ----  Now get the BFF stuff sorted ----
     if (args_instance.chemeq == 0 and args_instance.do_bff == 1):
+        bff_grid = args_instance.bff_raw
+        hminus_config = re_params.dictionary.get('hminus', {})
+        perturb_hminus = hminus_config.get('enabled', False)
+        if perturb_hminus:
+            if bff_grid.ndim != 5:
+                raise ValueError(
+                    "H- perturbation requires sort_bff_and_CE_met output")
+            metallicity = params_instance.met
+            mfit = interp1d(args_instance.metscale, bff_grid, axis=0)
+            bff_at_met = mfit(metallicity)
+            cfit = interp1d(args_instance.coscale, bff_at_met, axis=0)
+            ions_at_met_co = cfit(hminus_config.get('fixed_co', 1.0))
+
+            # Interpolate log10 ion abundances from the CE pressure grid onto
+            # the model pressure grid only after selecting met and fixed C/O.
+            bff_grid = np.empty((args_instance.ceTgrid.size, nlayers, 3))
+            for gas in range(3):
+                for i in range(args_instance.ceTgrid.size):
+                    pfit = InterpolatedUnivariateSpline(
+                        args_instance.Pgrid,
+                        np.log10(ions_at_met_co[i, :, gas]), k=1)
+                    bff_grid[i, :, gas] = pfit(np.log10(press))
+
         for gas in range(0,3):
             for i in range(0,nlayers):
-                tfit = InterpolatedUnivariateSpline(args_instance.ceTgrid,args_instance.bff_raw[:,i,gas],k=1)
+                tfit = InterpolatedUnivariateSpline(
+                    args_instance.ceTgrid, bff_grid[:, i, gas], k=1)
                 bff[gas,i] = tfit(temp[i])
 
-        if (args_instance.gaslist[len(args_instance.gaslist)-1] == 'hmins'):
-            bff[2,0:p_gas_index] = -50
+        if perturb_hminus:
+            bff[2, :] = gas_nonuniform.gas_PT_perturbation(
+                press, bff[2, :], params_instance.logP_ref_hmins,
+                params_instance.dp_hmins, params_instance.abun_var_hmins)
 
     bff = np.asfortranarray(bff, dtype='float64')
     press = np.asfortranarray(press,dtype='float32')
@@ -488,5 +503,3 @@ def modelspec(theta,re_params,args_instance,gnostics):
 #     shiftspec[1,:] =  trimspec[1,:]
 
     return trimspec, cloud_phot_press,other_phot_press,cfunc
-
-

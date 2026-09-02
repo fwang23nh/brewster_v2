@@ -2,6 +2,7 @@
 
 """ Module of bits for non-uniform gas profile"""
 import numpy as np
+from scipy.ndimage import gaussian_filter1d
 
 __author__ = "Fei Wang"
 __copyright__ = "Copyright 2024 - Fei Wang"
@@ -84,5 +85,20 @@ def non_uniform_gas_inverted(press, logPt, logft, alpha):
 
     return gas_f
 
+
+def gas_PT_perturbation(press, gas_profile, logP_ref, dp, abun_var):
+    """Apply a smooth, box-like perturbation to a log10 H- profile.
+
+    The perturbation is centred on ``logP_ref``, has a width of ``dp`` dex,
+    and changes the log abundance by ``abun_var`` inside that pressure range.
+    """
+    press = np.asarray(press)
+    perturbed = np.array(gas_profile, dtype=float, copy=True)
+    log_press = np.log10(press)
+    log_p_top = logP_ref - 0.5 * dp
+    log_p_base = logP_ref + 0.5 * dp
+    mask = (log_press >= log_p_top) & (log_press <= log_p_base)
+    perturbed[mask] += abun_var
+    return gaussian_filter1d(perturbed, sigma=2.0, mode="nearest")
 
 

@@ -313,15 +313,25 @@ def brewster_reterieval_run(re_params,model_config_instance,io_config_instance):
         mnest_args['const_efficiency_mode']= model_config_instance.const_efficiency_mode
         mnest_args['evidence_tolerance']= model_config_instance.evidence_tolerance
         
-        result = mn.run(**mnest_args)
-        # result = mn.solve(**mnest_args)
+        # ``pymultinest.run`` writes results to disk and normally returns None.
+        # Read those files through Analyzer before reporting the evidence and
+        # posterior parameter summaries.
+        mn.run(**mnest_args)
 
+        analyzer = mn.Analyzer(
+            n_params=model_config_instance.nparam,
+            outputfiles_basename=mnest_args['outputfiles_basename'],
+        )
+        stats = analyzer.get_stats()
+        posterior = analyzer.get_equal_weighted_posterior()
+        samples = posterior[:, :model_config_instance.ndim]
 
         print()
-        print('evidence: %(logZ).1f +- %(logZerr).1f' % result)
+        print(
+            'evidence: %.1f +- %.1f'
+            % (stats['global evidence'], stats['global evidence error'])
+        )
         print()
         print('parameter values:')
-        for col in zip(result['samples'].transpose()):
+        for col in samples.T:
             print('%.3f +- %.3f' % (col.mean(), col.std()))
-
-
