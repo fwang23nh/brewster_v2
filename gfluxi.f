@@ -1,11 +1,11 @@
       SUBROUTINE GFLUXI(TEMP,TAU,W0,COSBAR,wavenum
-     &     ,RSF,FUP,Fdown)
+     &     ,RSF,FUP,Fdown,nlayer,nlevel)
       implicit none
 
 c  mean ubar
       DOUBLE PRECISION UBARI
       INTEGER nlayer, nlevel, ngaussi
-      PARAMETER (ngaussi=8, nlayer = 64, nlevel = 65)
+      PARAMETER (ngaussi=8)
       PARAMETER (UBARI = 0.5d0)
 c  THIS SUBROUTINE TAKES THE OPTICAL CONSTANTS AND BOUNDARY CONDITONS
 C  FOR THE INFRARED FLUX AT ONE WAVELENGTH AND SOLVES FOR THE FLUXES AT
