@@ -1,0 +1,32 @@
+:root {
+  --brewster-blue: #315d7d;
+  --brewster-gold: #d69b35;
+}
+
+.wy-side-nav-search,
+.wy-nav-top {
+  background: var(--brewster-blue);
+}
+
+.wy-menu-vertical header,
+.wy-menu-vertical p.caption {
+  color: #e4b860;
+}
+
+.rst-content a {
+  color: #24658d;
+}
+
+.rst-content code.literal {
+  color: #8b3f20;
+}
+
+.rst-content table.docutils td,
+.rst-content table.docutils th {
+  white-space: normal;
+}
+
+.brewster-note {
+  border-left: 4px solid var(--brewster-gold);
+  padding-left: 1rem;
+}

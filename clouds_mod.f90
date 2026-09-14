@@ -28,9 +28,8 @@ contains
     double precision :: norm, rr, r2, rg, rsig, pw, pir2ndz, arg1, arg2,bot
     double precision :: f1, f2, intfact,lintfact,vrat,rmin,sum_ndz_2, sum_ndz_1
     double precision :: a, b, ndz, drr, arg3, argscat, argext, argcosqs
-
     double precision :: logcon, qpir2, frac
-    !real, allocatable,dimension(:) :: cld1arr 
+    real, allocatable,dimension(:) :: cld1arr 
     ! this will take the clouds and in turn calculate their opacities the layers
     ! based on name, density, mean radius and width of log normal distribution
     ! or using Hansen distribution: effective radius, radius spread and density
@@ -52,7 +51,7 @@ contains
     allocate(cqs_cloud(nlayers,nmiewave,nclouds))
     allocate(opd_ext(nlayers,nmiewave),opd_scat(nlayers,nmiewave))
     allocate(cos_qs(nlayers,nmiewave))
-    !allocate(cld1arr(nlayers))
+    allocate(cld1arr(nlayers))
 
     ! first set up the grids and get the Mie coefficients, cloud by cloud
   !write(1,*) 'clouddata shape = ', shape(clouddata)
@@ -108,7 +107,7 @@ contains
     ! This sets up options to print ndz etc
 
     !do ilayer = 1, nlayers
-       !cld1arr(ilayer) = column(ilayer)%cloud(1)%dtau1
+    !   cld1arr(ilayer) = column(ilayer)%cloud(1)%dtau1
     !end do
     !loc = maxloc(cld1arr)
     !idum1 = loc(1)
@@ -122,9 +121,34 @@ contains
           ! which is what we're given
          !write(1,*) 'tau1 in layer ', ilayer, ' = ', column(ilayer)%cloud(icloud)%dtau1
           if (column(ilayer)%cloud(icloud)%dtau1 .gt. 1.d-6) then
-            !write(1,*) 'here clouds 125'
+             !write(1,*) 'here clouds 125'
+
+             if (index(trim(column(ilayer)%cloud(icloud)%name),'grey') .ne. 0 &
+                  .or. index(trim(column(ilayer)%cloud(icloud)%name),'power') .ne. 0) then
+
+               !write(1,*) 'here clouds 130'
+                opd_ext(ilayer,:) = opd_ext(ilayer,:) + &
+                     (column(ilayer)%cloud(icloud)%dtau1 * &
+                     ((miewave*1e4)**column(ilayer)%cloud(icloud)%rsig))
+
+                opd_scat(ilayer,:) = opd_scat(ilayer,:) + &
+                     ((column(ilayer)%cloud(icloud)%dtau1 * &
+                     ((miewave*1e4)**column(ilayer)%cloud(icloud)%rsig))&
+                     * column(ilayer)%cloud(icloud)%rg)
+                
+                !patch(ipatch)%atm(ilayer)%opd_ext = &
+                !patch(ipatch)%atm(ilayer)%opd_ext + &
+                !  ((cloudprof(ilayer,icloud) * &
+                !  (wavelen**cloudsig(ilayer,icloud))))
+                !patch(ipatch)%atm(ilayer)%opd_scat = &
+                !     patch(ipatch)%atm(ilayer)%opd_scat + &
+                !     ((cloudprof(ilayer,icloud) * &
+                !     (wavelen**cloudsig(ilayer,icloud))* &
+                !     cloudrad(ilayer,icloud)))
+                !patch(ipatch)%atm(ilayer)%gg = 0.d0 
+
              
-             if (sizdist(icloud) .eq. 2) then
+             elseif (sizdist(icloud) .eq. 2) then
                 ! we take geometric mean parameter from python code
                 ! as a value between 0 and 1. This is then translated here to
                 ! hold a value between 1 and 5
@@ -285,8 +309,9 @@ contains
                         cqs_cloud(ilayer,imiewave,icloud)
                 end do ! miewave loop
              end if ! size if
-             !write (1,*) scat_cloud(ilayer,loc1,icloud)
-             write (1,*) 'ext_cloud ',ilayer, ' = ', ext_cloud(ilayer,loc1,icloud)
+             !write(1,*) scat_cloud(ilayer,loc1,icloud)
+             !write(1,*) 'ext_cloud ',ilayer, ' = ', ext_cloud(ilayer,loc1,icloud)
+             !write(1,*) 'opd_ext ' , ilayer, ' = ', opd_ext(ilayer,loc1)
              !write (1,*) cqs_cloud(ilayer,loc1,icloud)
              
           end if
@@ -314,13 +339,13 @@ contains
           lintfact =  (wavenum(iwave) - miewaven(oldw1)) / &
                (miewaven(oldw2) - miewaven(oldw1))
           
-          column(ilayer)%opd_ext(iwave) = &
-               ((opd_ext(ilayer,oldw2) - opd_ext(ilayer,oldw1)) * lintfact) &
-               + opd_ext(ilayer,oldw1)
+          column(ilayer)%opd_ext(iwave) = column(ilayer)%opd_ext(iwave) + &
+               (((opd_ext(ilayer,oldw2) - opd_ext(ilayer,oldw1)) * lintfact) &
+               + opd_ext(ilayer,oldw1))
           
-          column(ilayer)%opd_scat(iwave) = &
-               ((opd_scat(ilayer,oldw2) - opd_scat(ilayer,oldw1)) * lintfact) &
-               + opd_scat(ilayer,oldw1)
+          column(ilayer)%opd_scat(iwave) = column(ilayer)%opd_scat(iwave) + &
+               (((opd_scat(ilayer,oldw2) - opd_scat(ilayer,oldw1)) * lintfact) &
+               + opd_scat(ilayer,oldw1))
           
           column(ilayer)%gg(iwave) = &
                   (((cos_qs(ilayer,oldw2) - cos_qs(ilayer,oldw1)) * lintfact) &
@@ -341,13 +366,13 @@ contains
 
     ! TK test line see what we've got
     
-    !loc = minloc(abs((1e4/wavenum) - 1.2 ))
-    !loc1a = loc(1)
+    loc = minloc(abs((1e4/wavenum) - 1.2 ))
+    loc1a = loc(1)
     
     !write(*,*) "wavenum, wavelength for check = ", wavenum(loc1a), wavelen(loc1a)
-    !write(1,*) "clouds line 347 opd_scat layer ",column(idum1)%opd_scat(loc1a)
-    !write(1,*) "clouds line 348 opd_ext layer",column(idum1)%opd_ext(loc1a)
-    !write(1,*) "clouds line 349  gg layer ",column(idum1)%gg(loc1a)
+   !write(1,*) "clouds line 347 opd_scat layer ",column(idum1)%opd_scat(loc1)
+   !write(1,*) "clouds line 348 opd_ext layer",column(idum1)%opd_ext(loc1)
+   !write(1,*) "clouds line 349  gg layer ",column(idum1)%gg(loc1)
 
 
     ! test line write cloud optical depth out

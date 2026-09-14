@@ -483,11 +483,15 @@ class Retrieval_params:
     gaslist : list of str
         List of gas names.
     gastype_list : list of str
-        List of gas types, corresponding to the gas names in gaslist.
+        List of gas types, corresponding to the gas names in gaslist. ``N``
+        selects the standard non-uniform profile and ``I`` selects the inverted
+        non-uniform profile; both use log_abund, p_ref, and alpha parameters.
     fwhm : float, optional
         Full width at half maximum of the spectral lines. 
     do_fudge : int, optional
-        Flag indicating whether to apply tolerance_parameter to the data. 
+        Flag indicating whether to apply tolerance_parameter to the data.
+        Enables retrieval of an additional error-inflation term that is added to the observational variance
+        in the likelihood, accounting for underestimated uncertainties and/or residual model–data scatter. 
     vrad:bool
      Flag indicating whether to apply vrad to do doppler shift to spectral lines
      -defalut False
@@ -566,7 +570,7 @@ class Retrieval_params:
                             'Multinest_prior':['centered_log_abund',-12]}
                          }}
 
-        elif gastype=='N':
+        elif gastype in ('N', 'I'):
 
             dictionary[gasname]={
                 'gastype':gastype,
@@ -585,28 +589,10 @@ class Retrieval_params:
 
                            "alpha":
                             {'initialization':None,
-                             'MC_init_dis':['uniform',0,1],
+                             'MC_init_dis':['uniform',-5,5],
                              'MC_prior_range':[-5,5],
                              'Multinest_prior':['uniform',-5,5]}    
                            }}
-        # elif gastype=='H':
-        #     dictionary[gasname]={
-        #         'gastype':gastype,
-        #         'params':{'log_abund':
-        #                    {'initialization':None,
-        #                     'MC_init_dis':['normal',-4.0,0.5],
-        #                     'MC_prior_range':[-12,0],
-        #                     'Multinest_prior':['uniform',-18,0]
-        #                     },
-                            
-        #                    "p_ref": 
-        #                     {'initialization':None,
-        #                     'MC_init_dis':['normal',-1,0.2],
-        #                     'MC_prior_range':[-4,2.4],
-        #                     'Multinest_prior':None}
-
-        #                    }}
-
         return dictionary
             
     
@@ -707,6 +693,52 @@ class Retrieval_params:
                             'MC_init_dis':['normal',3600,500],
                             'MC_prior_range':[0,5000],
                             'Multinest_prior':['uniform',1500,4500]}
+                         }}
+
+        elif ptype==4:
+            dictionary={
+                'ptype':ptype,
+                'params':{'Tbottom':
+                           {'initialization':None,
+                            'MC_init_dis':['uniform',2000,10000],
+                            'MC_prior_range':[2000,10000],
+                            'Multinest_prior':None},
+
+                          'dtdp1':
+                           {'initialization':None,
+                            'MC_init_dis':['truncated_gaussian',0.25,0.025],
+                            'MC_prior_range':[0.18,0.32],
+                            'Multinest_prior':None},
+
+                        'dtdp2':
+                           {'initialization':None,
+                            'MC_init_dis':['truncated_gaussian',0.25,0.045],
+                            'MC_prior_range':[0.12,0.36],
+                            'Multinest_prior':None},
+
+                        'dtdp3':
+                           {'initialization':None,
+                            'MC_init_dis':['truncated_gaussian',0.26,0.05],
+                            'MC_prior_range':[0.12,0.4],
+                            'Multinest_prior':None},
+
+                        'dtdp4':
+                           {'initialization':None,
+                            'MC_init_dis':['truncated_gaussian',0.2,0.05],
+                            'MC_prior_range':[0.08,0.34],
+                            'Multinest_prior':None},
+
+                        'dtdp5':
+                           {'initialization':None,
+                            'MC_init_dis':['truncated_gaussian',0.12,0.045],
+                            'MC_prior_range':[0,0.24],
+                            'Multinest_prior':None},
+
+                        'dtdp6':
+                           {'initialization':None,
+                            'MC_init_dis':['truncated_gaussian',0.07,0.07],
+                            'MC_prior_range':[-0.1,0.26],
+                            'Multinest_prior':None},
                          }}
 
         elif ptype==4:
@@ -979,7 +1011,7 @@ class Retrieval_params:
                     dictionary["patch"]={
                         # 'cloudnum': cloudnum,
                         # 'cloud_name': cloud_type_name,
-                        'cloudtype':1,
+                        'cloudtype':2,
                         "particle_dis":"log_normal",
                         'params':{'logp_mcd_%s'%cloudspecies:
                                     {'initialization':None,
@@ -1375,13 +1407,47 @@ class Retrieval_params:
 
 
     def added_params(self,param):
-        added_dic = {
-            f"{param}": {
+        self.dictionary.setdefault("added_params", {})[f"{param}"] = {
                 'initialization': None,
                 'distribution': ['normal', 0, 1],
-                'range': None,
-                'prior': None}}
-        self.dictionary["added_params"]=added_dic
+                'MC_init_dis': ['normal', 0, 1],
+                'MC_prior_range': None,
+                'Multinest_prior': None}
+
+    def add_hminus_perturbation(self, fixed_co=1.0):
+        """Enable metallicity-dependent H- BFF profile perturbations.
+
+        H- is obtained from the chemical-equilibrium ion grid rather than
+        treated as a directly retrieved gas abundance.
+        """
+        if self.chemeq != 0:
+            raise ValueError(
+                "H- perturbation requires free chemistry (chemeq=0)")
+
+        self.dictionary["hminus"] = {
+            "enabled": True,
+            "fixed_co": float(fixed_co),
+            "params": {
+                "logP_ref_hmins": {
+                    'initialization': None,
+                    'MC_init_dis': ['normal', -1.0, 0.2],
+                    'MC_prior_range': [-4, 2.4],
+                    'Multinest_prior': ['uniform', -4, 2.4]},
+                "dp_hmins": {
+                    'initialization': None,
+                    'MC_init_dis': ['customized',dp_customized_distribution],
+                    'MC_prior_range':[0,4],
+                    'Multinest_prior':['uniform',0,4]},
+                "abun_var_hmins": {
+                    'initialization': None,
+                    'MC_init_dis': ['normal', 1.0, 0.1],
+                    'MC_prior_range': [-5, 5],
+                    'Multinest_prior': ['uniform', -5, 5]},
+                "met": {
+                    'initialization': None,
+                    'MC_init_dis': ['uniform', -1, 2],
+                    'MC_prior_range': [-1, 2],
+                    'Multinest_prior': ['uniform', -1, 2]}}}
 
     
     
@@ -1461,6 +1527,7 @@ def get_all_parametres(dic):
       - Refinement parameters
       - Temperature profile (PT) parameters
     - Cloud parameters (including patchy clouds)
+    - Cloud parameters (including patchy clouds)
       - Any user-added parameters
 
     Parameters
@@ -1497,17 +1564,12 @@ def get_all_parametres(dic):
         for i in range(len(gaslist)):
             gas.append(gaslist[i])
             gas_values.append(dic['gas'][gaslist[i]]['params']['log_abund']['initialization'])
-            if  gastype_values[i]=='N':
+            if gastype_values[i] in ('N', 'I'):
                 gas.append("p_ref_%s"%gaslist[i])
                 gas.append("alpha_%s"%gaslist[i])
                 gas_values.append(dic['gas'][gaslist[i]]['params']['p_ref']['initialization'])
                 gas_values.append(dic['gas'][gaslist[i]]['params']['alpha']['initialization'])    
 
-            elif gastype_values[i]=='H':
-                gas.append("p_ref_%s"%gaslist[i])
-                gas_values.append(dic['gas'][gaslist[i]]['params']['p_ref']['initialization'])
-        
-            
     # -------------------------------
     # Refinement parameters
     # -------------------------------
@@ -1549,6 +1611,12 @@ def get_all_parametres(dic):
 
         all_params += added_dic
         all_params_values += added_values
+
+    if dic.get('hminus', {}).get('enabled', False):
+        hminus_params = dic['hminus']['params']
+        all_params += list(hminus_params.keys())
+        all_params_values += [
+            info['initialization'] for info in hminus_params.values()]
 
     # -------------------------------
     # Remove duplicate parameters, preserving first occurrence
@@ -1604,12 +1672,9 @@ def update_dictionary(dic, params_instance):
     gaslist=list(dic['gas'].keys())
     for i in range(len(gaslist)):
         dic['gas'][gaslist[i]]['params']['log_abund']['initialization'] = getattr(params_instance, gaslist[i])
-        if gastype_values[i]=='N':
+        if gastype_values[i] in ('N', 'I'):
             dic['gas'][gaslist[i]]['params']['p_ref']['initialization'] = getattr(params_instance, "p_ref_%s"%gaslist[i])
             dic['gas'][gaslist[i]]['params']['alpha']['initialization'] = getattr(params_instance, "alpha_%s"%gaslist[i])
-
-        if gastype_values[i]=='H':
-            dic['gas'][gaslist[i]]['params']['p_ref']['initialization'] = getattr(params_instance, "p_ref_%s"%gaslist[i])
 
     # -------------------------------
     # Update refinement parameters
@@ -1629,6 +1694,11 @@ def update_dictionary(dic, params_instance):
     if 'added_params' in dic.keys():
         for param in dic['added_params'].keys():
             dic['added_params'][param]['initialization'] = getattr(params_instance, param)
+
+    if dic.get('hminus', {}).get('enabled', False):
+        for param in dic['hminus']['params']:
+            dic['hminus']['params'][param]['initialization'] = getattr(
+                params_instance, param)
     
     # -------------------------------
     # Update cloud parameters
@@ -1792,6 +1862,12 @@ def get_dis_range_priors(dic):
     # ---------------------------------
     if 'added_params' in dic:
         for param, info in dic['added_params'].items():
+            mc_ranges[param] = info.get('MC_prior_range')
+            mc_init_dis[param] = info.get('MC_init_dis')
+            multinest_priors[param] = info.get('Multinest_prior')
+
+    if dic.get('hminus', {}).get('enabled', False):
+        for param, info in dic['hminus']['params'].items():
             mc_ranges[param] = info.get('MC_prior_range')
             mc_init_dis[param] = info.get('MC_init_dis')
             multinest_priors[param] = info.get('Multinest_prior')
@@ -2179,8 +2255,8 @@ def get_opacities(gaslist,w1,w2,press,xpath='../Linelists',xlist='gaslistR10K.da
 
     malk : int, optional
         Special substitutions for alkali lines:
-          - 0 : no change
-          - 1 : use Mike's K_/Na_ files
+          - 0 : no change  Allard (the default)
+          - 1 : use Mike's K_/Na_ files  Burrows' alkali opacities 
           - 2 : use 2021 K_/Na_ files
           
     Returns
@@ -2513,17 +2589,16 @@ def sort_bff_and_CE(chemeq,ce_table,press,gaslist):
     if (chemeq == 0):
         # Just want the ion fractions for solar metallicity in this case
         ab_myP = np.empty([nabtemp,nlayers,nabgas])
-        i1 = np.where(metscale == 0.0)  #high metallicity, solar metallicity=0.0
+        i1 = np.where(metscale == 0.0)
         i2 = np.where(coscale == 1.0)
         for gas in range (0,nabgas):
             for i in range (0,nabtemp):
                 pfit = InterpolatedUnivariateSpline(Pgrid,np.log10(abunds[i1[0],i2[0],i,:,gas]),k=1)
                 ab_myP[i,:,gas] = pfit(np.log10(press))
-                
+
         bff_raw[:,:,0] = ab_myP[:,:,0]
         bff_raw[:,:,1] = ab_myP[:,:,2]
         bff_raw[:,:,2] = ab_myP[:,:,4]
-        #bff_raw[:,:,2] = 10**-50
 
     else:
 
@@ -2580,6 +2655,37 @@ def sort_bff_and_CE(chemeq,ce_table,press,gaslist):
 
 
     return bff_raw,Tgrid,metscale,coscale,gases_myP
+
+
+def sort_bff_and_CE_met(chemeq, ce_table, press, gaslist):
+    """Load BFF ion grids while retaining metallicity and C/O as axes.
+
+    This is the metallicity-aware counterpart to :func:`sort_bff_and_CE`.
+    For free chemistry, the returned BFF array has shape
+    ``(nmet, nco, nT, nP_grid, 3)`` for e-, H, and H-. Pressure interpolation
+    is intentionally deferred until model evaluation, after interpolation at
+    the retrieved metallicity and fixed C/O.
+    """
+    if chemeq != 0:
+        bff_raw, Tgrid, metscale, coscale, gases_myP = sort_bff_and_CE(
+            chemeq, ce_table, press, gaslist)
+        return bff_raw, Tgrid, None, metscale, coscale, gases_myP
+
+    metscale, coscale, Tgrid, Pgrid, _, abunds = pickle.load(
+        open(ce_table, "rb"))
+    nmet = metscale.size
+    nco = coscale.size
+    nabtemp = Tgrid.size
+    ngas = len(gaslist)
+
+    bff_raw = np.empty((nmet, nco, nabtemp, Pgrid.size, 3))
+    ion_indices = (0, 2, 4)  # e-, H, H-
+    for output_index, gas_index in enumerate(ion_indices):
+        bff_raw[..., output_index] = abunds[..., gas_index]
+
+    gases_myP = np.zeros(
+        (nmet, nco, nabtemp, press.size, ngas + 3))
+    return bff_raw, Tgrid, Pgrid, metscale, coscale, gases_myP
 
 
 
@@ -2903,6 +3009,9 @@ class ArgsGen:
         Atmospheric profile.
     do_bff : bool
         BFF flag.
+        Enable do_bff when the atmospheric P–T profile reaches temperatures
+        where H⁻ bound-free and H/e⁻ free-free continuum opacity may become significant,
+        particularly in hot photospheric layers (∼2000−3000+ K).
     bff_raw : np.array
         Raw BFF grid.
     ceTgrid : np.array
@@ -2918,7 +3027,7 @@ class ArgsGen:
         Generate the required model arguments.
     """
 
-    def __init__(self, re_params, model, instrument, obspec,Mass_priorange=[1.0,80.0],R_priorange=[0.5,2.0], num_coarsePress=12, num_finePress=100):
+    def __init__(self, re_params, model, instrument, obspec,Mass_priorange=[1.0,80.0],R_priorange=[0.5,2.0], num_coarsePress=12, num_finePress=100, num_coarsePress=13, num_finePress=64):
         self.re_params = re_params
         self.model = model
         self.instrument = instrument
@@ -2927,14 +3036,22 @@ class ArgsGen:
         self.R_priorange= R_priorange
         self.num_coarsePress = num_coarsePress
         self.num_finePress = num_finePress
+        self.num_coarsePress = num_coarsePress
+        self.num_finePress = num_finePress
 
         # Generate all necessary model arguments on initialization
         self.generate()
 
     def generate(self):
         # Set up pressure grids in log(bar)
-        # logcoarsePress = np.arange(-4.0, 2.5, 0.53)
+        # # logcoarsePress = np.arange(-4.0, 2.5, 0.53)
         logcoarsePress = np.linspace(-4.0, 2.5, self.num_coarsePress)
+        logfinePress = np.linspace(-4.0, 2.5, self.num_finePress)
+
+        if self.model.pfile == 4:
+            logfinePress = np.arange(-4.0, 2.4, 0.05)
+        else:
+            logcoarsePress = np.linspace(-4.0, 2.5, self.num_coarsePress)
         logfinePress = np.linspace(-4.0, 2.5, self.num_finePress)
 
         if self.model.pfile == 4:
@@ -3025,9 +3142,33 @@ class ArgsGen:
         self.cia[:, :, :] = self.tmpcia[:, :, :self.nwave]
         self.ciatemps = np.asfortranarray(self.ciatemps, dtype='float32')
         
-        # BFF and Chemical grids
-        self.bff_raw, self.ceTgrid, self.metscale, self.coscale, self.gases_myP = sort_bff_and_CE(
-            self.chemeq, "data/chem_eq_tables_P3K.pic", self.press, self.gaslist)
+        # BFF and Chemical grids.  Keep the legacy solar-metallicity loader
+        # unless this retrieval explicitly requests perturbed H- and met.
+        perturb_hminus = self.re_params.dictionary.get(
+            'hminus', {}).get('enabled', False)
+        if perturb_hminus and self.chemeq != 0:
+            raise ValueError(
+                "H- perturbation is only supported with free chemistry (chemeq=0)")
+        if perturb_hminus and not self.do_bff:
+            raise ValueError("H- perturbation requires do_bff=1")
+        bff_sorter = sort_bff_and_CE_met if perturb_hminus else sort_bff_and_CE
+        if perturb_hminus:
+            (self.bff_raw, self.ceTgrid, self.Pgrid, self.metscale,
+             self.coscale, self.gases_myP) = bff_sorter(
+                self.chemeq, "data/chem_eq_tables_P3K.pic", self.press,
+                self.gaslist)
+        else:
+            (self.bff_raw, self.ceTgrid, self.metscale, self.coscale,
+             self.gases_myP) = bff_sorter(
+                self.chemeq, "data/chem_eq_tables_P3K.pic", self.press,
+                self.gaslist)
+            self.Pgrid = None
+        if perturb_hminus:
+            fixed_co = self.re_params.dictionary['hminus']['fixed_co']
+            if not self.coscale[0] <= fixed_co <= self.coscale[-1]:
+                raise ValueError(
+                    f"fixed H- C/O={fixed_co} is outside the CE grid "
+                    f"[{self.coscale[0]}, {self.coscale[-1]}]")
         
     def __str__(self):
 
@@ -3116,7 +3257,7 @@ def get_endchain(runname,fin,results_path='./'):
     """
         
     if (fin == 1):
-        pic = results_path+runname+".pk1"
+        pic = results_path+runname+".pic"
         sampler = pickle_load(pic)
         nwalkers = sampler.chain.shape[0]
         niter = sampler.chain.shape[1]

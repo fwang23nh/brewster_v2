@@ -349,7 +349,9 @@ class Priors:
             if 'gastype' in info
         ]
 
-        self.count_N = self.gastype_values.count('N')
+        self.count_nonuniform = sum(
+            gastype in ('N', 'I') for gastype in self.gastype_values
+        )
 
         if self.samplemode == 'mcmc':
 
@@ -428,7 +430,7 @@ class Priors:
         for i, gas in enumerate(self.gaslist):
             self.gaspara.append(gas)
 
-            if self.gastype_values[i] == 'N':
+            if self.gastype_values[i] in ('N', 'I'):
                 self.gaspara += [f"p_ref_{gas}",f"alpha_{gas}"]
 
             elif self.gastype_values[i] == 'H':
@@ -887,17 +889,25 @@ class Priors:
             invmr = np.array([getattr(self.params_instance, key) for key in gas_keys])
             prior_gas = (np.sum(10.**invmr) < 1.0)
 
-            if self.count_N > 0:
-                gas_profile = np.full((self.count_N, self.args_instance.press.size), -1.0)
+            if self.count_nonuniform > 0:
+                gas_profile = np.full(
+                    (self.count_nonuniform, self.args_instance.press.size), -1.0
+                )
                 gas_profile_index = 0
                 for i, gastype in enumerate(self.gastype_values):
-                    if gastype == "N":
+                    if gastype in ("N", "I"):
                         P_gas = getattr(self.params_instance, f"p_ref_{gas_keys[i]}")
                         gas_alpha = getattr(self.params_instance, f"alpha_{gas_keys[i]}")
                         t_gas = getattr(self.params_instance, gas_keys[i])
 
                         if (np.log10(self.args_instance.press[0]) <= P_gas <= np.log10(self.args_instance.press[-1])):
-                            gas_profile[gas_profile_index, :] = gas_nonuniform.non_uniform_gas(self.args_instance.press, P_gas, t_gas, gas_alpha)
+                            if gastype == "N":
+                                profile_function = gas_nonuniform.non_uniform_gas
+                            else:
+                                profile_function = gas_nonuniform.non_uniform_gas_inverted
+                            gas_profile[gas_profile_index, :] = profile_function(
+                                self.args_instance.press, P_gas, t_gas, gas_alpha
+                            )
                         else:
                             gas_profile[gas_profile_index, :] = -30
                         gas_profile_index += 1
@@ -1160,7 +1170,6 @@ class Priors:
                 f"{param_prior_text}\n"
             )
                 
-
 
 
 

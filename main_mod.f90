@@ -66,7 +66,7 @@ contains
     call init_all
     !wavenum[nwave],wavelen[nwave])
 
-  !write(1,*) 'here main 69'
+    !write(1,*) 'here main 69'
 
 
     do ipatch = 1, npatch
@@ -220,37 +220,19 @@ contains
              ! we'll just use  rg, and rsig as w0 and gg
              ! for the cloud
              if (cloudmap(ipatch,icloud) .ne. 0) then
-                if (index(trim(cloudname(icloud)),'grey') .ne. 0 &
-                     .or. index(trim(cloudname(icloud)),'power') .ne. 0) then
 
-                 !write(1,*) 'here main 223'   
-
-                   do ilayer= 1, nlayers
-                      patch(ipatch)%atm(ilayer)%opd_ext = &
-                           patch(ipatch)%atm(ilayer)%opd_ext + &
-                           ((cloudprof(ilayer,icloud) * &
-                           (wavelen**cloudsig(ilayer,icloud))))
-                      patch(ipatch)%atm(ilayer)%opd_scat = &
-                           patch(ipatch)%atm(ilayer)%opd_scat + &
-                           ((cloudprof(ilayer,icloud) * &
-                           (wavelen**cloudsig(ilayer,icloud))* &
-                           cloudrad(ilayer,icloud)))
-                      patch(ipatch)%atm(ilayer)%gg = 0.d0 
-                   end do ! layer loop
-                else !if cloud not grey or power
-                   do ilayer = 1, nlayers
-                     !write(1,*) 'here main 242'
-                      patch(ipatch)%atm(ilayer)%cloud(icloud)%name = cloudname(icloud)
-                      patch(ipatch)%atm(ilayer)%cloud(icloud)%dtau1 = &
-                           cloudprof(ilayer,icloud)
-                     !write(1,*) 'dtau in layer ',ilayer,'= ', patch(ipatch)%atm(ilayer)%cloud(icloud)%dtau1
-                      patch(ipatch)%atm(ilayer)%cloud(icloud)%rg = cloudrad(ilayer,icloud)
-                     !write(1,*) 'rg in layer ',ilayer,'= ', patch(ipatch)%atm(ilayer)%cloud(icloud)%rg
-
-                      patch(ipatch)%atm(ilayer)%cloud(icloud)%rsig = cloudsig(ilayer,icloud)
-                     !write(1,*) 'rsig in layer ',ilayer,'= ', patch(ipatch)%atm(ilayer)%cloud(icloud)%rsig
-                   end do ! layer loop
-                end if ! grey/power if 
+                do ilayer = 1, nlayers
+                   !write(1,*) 'here main 242'
+                   patch(ipatch)%atm(ilayer)%cloud(icloud)%name = cloudname(icloud)
+                   patch(ipatch)%atm(ilayer)%cloud(icloud)%dtau1 = &
+                        cloudprof(ilayer,icloud)
+                   !write(1,*) 'dtau in layer ',ilayer,'= ', patch(ipatch)%atm(ilayer)%cloud(icloud)%dtau1
+                   patch(ipatch)%atm(ilayer)%cloud(icloud)%rg = cloudrad(ilayer,icloud)
+                   !write(1,*) 'rg in layer ',ilayer,'= ', patch(ipatch)%atm(ilayer)%cloud(icloud)%rg
+                   
+                   patch(ipatch)%atm(ilayer)%cloud(icloud)%rsig = cloudsig(ilayer,icloud)
+                   !write(1,*) 'rsig in layer ',ilayer,'= ', patch(ipatch)%atm(ilayer)%cloud(icloud)%rsig
+                end do ! layer loop
              end if ! cloudmap icloud if 
           end do ! cloud do
           call cloudcalcs(patch(ipatch)%atm,sizdist,miewave,mierad,clouddata)

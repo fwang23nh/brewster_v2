@@ -118,143 +118,136 @@ def NoCloud_Tdwarf(xpath,xlist):
           return False
 
 
-# def MieClouds_Ldwarf(xpath,xlist):
-#      fwhm=555
-#      R_file = 'examples/example_data/code_test_R_file.txt'
-#      obspec = np.asfortranarray(np.loadtxt("LSR1835_data_realcalib_new_trimmed.dat",dtype='d',unpack='true'))
-#      wavelength_range=[1,15]
-#      ndata=1
 
-#      #retrieval_params
-#      ##gas
-#      chemeq=0
-#      gaslist = ['h2o','co','co2','ch4','tio','vo','crh','feh','k','na']
-#      gastype_list=['U','U','U','U','U','U','U','U','U','U']
-#      ptype=2
 
-#      ## clouds
-#      do_clouds=1
-#      npatches=1
-#      #cloudname = ['Mie scattering cloud slab--MgSiO3Cry','Mie scattering cloud deck--Fe2O3_WS15']
-#      #cloud_name = ['ZnS_WS15.mieff', 'tholin_WS15.mieff']
-#      #cloud_type = ['deck','deck']
-#      #cloudpacth_index=[[1,2],[1]]
-#      #particle_dis=['hansen','log_normal']
+def MieClouds_Ldwarf(xpath,xlist,cloudpath):
      
-#      cloud_name=['MgSiO3.mieff','Fe.mieff']
-#      cloud_type=['slab','deck']
-#      cloudpatch_index=[[1],[1]]
-#      particle_dis=['hansen','hansen']
-#      cloudpath='/Users/fw23aao/Downloads/cloud_pickles/'
-#      # ModelConfig:
+     Rfile = 'examples/example_data/code_test_R_file.txt'
+     obspec = np.loadtxt('data/test_data/Mie_cloud_1800K_model_benchmark_SPEC.dat',skiprows=0,unpack=True)
+     wavelength_range=[1,15]
+     ndata=1
 
-#      do_fudge = 1
-#      samplemode='mcmc'
-#      instrument_instance = utils.Instrument(fwhm=fwhm, wavelength_range=wavelength_range, R_file=R_file,obspec=obspec)
-#      rfile = np.loadtxt(R_file)
-#      instrument_instance.scales = rfile[:, 3]
-#      instrument_instance.logf_flag = rfile[:,2]
-#      re_params = utils.Retrieval_params(samplemode,chemeq,gaslist,gastype_list,fwhm,do_fudge,ptype,do_clouds,npatches,cloud_name,cloud_type,cloudpatch_index,particle_dis, instrument_instance)
-#      print('re_params: ',re_params)
-#      model_config_instance = utils.ModelConfig(samplemode,do_fudge,cloudpath=cloudpath)
-#      io_config_instance = utils.IOConfig()
+     #retrieval_params
+     ##gas
+     chemeq=0
+     gaslist = ['h2o','co','co2','ch4','tio','vo','crh','feh','k','na']
+     gastype_list=['U','U','U','U','U','U','U','U','U','U']
+     ptype=2
 
+     ## clouds
+     do_clouds=1
+     npatches=1
 
+     cloud_name=['MgSiO3.mieff','Fe.mieff']
+     cloud_type=['slab','deck']
+     cloudpatch_index=[[1],[1]]
+     particle_dis=['hansen','hansen']
+     cloudpath=cloudpath
+     # ModelConfig:
 
-#      model_config_instance.do_bff=1
-#      model_config_instance.malk=0
-#      model_config_instance.pfile="t1700g1000f3.dat"
-#      model_config_instance.xlist=xlist #'gaslistR10K.dat'
-#      model_config_instance.xpath=xpath
-#      model_config_instance.dist=11.35
-#      model_config_instance.update_dictionary()
+     do_fudge = 1
+     samplemode='mcmc'
+     instrument_instance = utils.Instrument(wavelength_range=wavelength_range, R_file=Rfile,obspec=obspec)
 
+     rfile = np.loadtxt(Rfile)
+     instrument_instance.scales = rfile[:, 3]
+     instrument_instance.logf_flag = rfile[:,2]
 
-
-#      obspec= np.loadtxt('data/test_data/Mie_cloud_1800K_model_benchmark_SPEC.dat',skiprows=3,unpack=True)
-#      args_instance = utils.ArgsGen(re_params,model_config_instance,instrument_instance,obspec)
-#      settings.init(args_instance)
-#      args_instance=settings.runargs
-
-#      all_params,all_params_values =utils.get_all_parametres(re_params.dictionary) 
-#      params_master = namedtuple('params',all_params)
-#      theta =[-3.55278369e+00,-2.83012757e+00,-4.31062021e+00,-4.95190596e+00,-9.77059307e+00,-8.85409603e+00,-8.41539430e+00,-7.85745521e+00,-6.57250890e+00,5.46814691e+00,2.68655361e-20,1.07209671e+00,1.11922607e+00,2.83604013e-03,-3.16119701e+01,-3.32775232e+01,-3.46762823e+01,5.42024548e+00,-2.76574938e+00,4.38059949e-01,-5.73919866e-01,8.58329576e-02,8.72374998e-01,4.39392990e+00,-1.96757779e+00,6.24967679e-02,3.45025551e-01,6.78307874e-02,7.56891116e-02,1.71616709e+00,4.88646433e+03]
-#      #theta =[-3.55278369e+00,-2.83012757e+00,-4.31062021e+00,-4.95190596e+00,-9.77059307e+00,-8.85409603e+00,-8.41539430e+00,-7.85745521e+00,-6.57250890e+00,5.46814691e+00,2.68655361e-20,1.07209671e+00,1.11922607e+00,2.83604013e-03,-3.16119701e+01,-3.32775232e+01,-3.46762823e+00,5.42024548e-01,-2.76574938e+00,4.38059949e-01,-5.73919866e-01,8.58329576e-02,8.72374998e-01,4.39392990e+00,-1.96757779e+00,6.24967679e-02,3.45025551e-01,6.78307874e-02,7.56891116e-02,1.71616709e+00,0.0]
-#      theta_master=theta[0:17]+theta[26:]+theta[17:26]
-#      #print("len(theta_master):", len(theta_master))
-#      #print("params_master fields:", len(params_master._fields))
-#      #print("dir(re_params):", dir(re_params))
-#      #all_params = re_params.retrieval_para_dic_gen()
-#      all_params,all_params_values =utils.get_all_parametres(re_params.dictionary) 
-     
-#      #print("len(all_params):", len(all_params))
-#      #print("len(theta_master):", len(theta_master))
-
-             
-#      # print('all_params: ',all_params)
-#      # print('\n')
-#      # print("len of cloudpatch_index:", len(cloudpatch_index))
-
-#      #npatch = npatches
+     re_params = utils.Retrieval_params(samplemode=samplemode, chemeq=chemeq, gaslist=gaslist,
+     gastype_list=gastype_list,do_fudge=do_fudge, ptype=ptype, do_clouds=do_clouds,
+     npatches=npatches, cloud_name=cloud_name, cloud_type=cloud_type,
+     cloudpatch_index=cloudpatch_index, particle_dis=particle_dis,
+     instrument=instrument_instance,vrad=False,vsini=False,fwhm=None)
 
 
-#      params_instance = params_master(*theta_master)
-#      #params_instance = params_master(*theta_master[:len(all_params)])
-     
-#      # print('params_instance: ',params_instance)
-#      # print('\n')
-#      # print("npatches:", npatches)
-#      # print('\n')
-#      # print("re_params.dictionary['cloud'].keys():", re_params.dictionary['cloud'].keys())
-
-#      gnostics=0
-#      shiftspec, cloud_phot_press,other_phot_press,cfunc=test_module.modelspec(params_instance,re_params,args_instance,gnostics)
-
-#      obspec=args_instance.obspec
-#      modspec = np.array([shiftspec[0,::-1],shiftspec[1,::-1]])
-#      mr1 = np.where(modspec[0,:] < 2.5)
-#      or1  = np.where(obspec[0,:] < 2.5)
-#      spec1 = prism_non_uniform(obspec[:,or1],modspec,3.3)
-
-#      # Mike Cushing supplied L band R = 425 
-#      # dispersion constant across order 0.0097um
-#      # R = 425
-#      R = 425
-#      mr2 = np.where(np.logical_and(modspec[0,:] > 2.5,modspec[0,:] < 5.0))
-#      or2 = np.where(np.logical_and(obspec[0,:] > 2.5,obspec[0,:] < 5.0))
-#      spec2 = params_instance.scale1 * conv_uniform_R(obspec[:,or2],modspec,R)
-
-#      # Spitzer IRS
-#      # R roughly constant within orders, and orders both appear to
-#      # have R ~ 100
-#      R = 100.0
-#      mr3 = np.where(modspec[0,:] > 5.0)
-#      or3 = np.where(obspec[0,:] > 5.0)
-#      spec3 = params_instance .scale2 * conv_uniform_R(obspec[:,or3],modspec,R)
-#      outspec =  np.array(np.concatenate((spec1,spec2,spec3),axis=0))
+     model_config_instance = utils.ModelConfig(samplemode,do_fudge,cloudpath=cloudpath)
+     io_config_instance = utils.IOConfig()
 
 
-#      difference_spectrum = outspec / obspec[1,:]
+     model_config_instance.do_bff=1
+     model_config_instance.malk=0
+     model_config_instance.pfile="t1700g1000f3.dat"
+     model_config_instance.xlist=xlist #'gaslistR10K.dat'
+     model_config_instance.xpath=xpath
 
-#      print('*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-')
-#      print('------------------------------------------------------------')
-#      print(' Test for L dwarf case, plotting via theta and testmodule')
-#      print(' theta taken from 2M2224 case with Mie clouds')
-#      print(' crystalline enstatite slab + rust deck')
-#      print(' optical data as at February 2020 in benchmark spectrum')
-#      print('------------------------------------------------------')
-#      print('mean value of modelspectrum / L benchmark = '+str(np.mean(difference_spectrum)))
-#      print('std deviation of modelspectrum / L benchmark = '+str(np.std(difference_spectrum)))
-#      percent_change = np.mean(abs(outspec - obspec[1,:])/obspec[1,:])
-     
-#      if (percent_change < 0.01):
-#           print("less than 1percent difference with L dwarf regime benchmark")
-#           print('-------------------------------------------------------')
-#           return True
-#      else:
-#           print("greater than 1 percent difference with L dwarf regime benchmark")
-#           print('-------------------------------------------------------')
+     model_config_instance.dist=11.35
+     model_config_instance.update_dictionary()
 
-#           return False
 
-     
+     args_instance = utils.ArgsGen(re_params,model_config_instance,instrument_instance,obspec)
+     settings.init(args_instance)
+     settings.cia = args_instance.cia
+     settings.linelist= utils.get_opacities(args_instance.gaslist,args_instance.w1,args_instance.w2,args_instance.press,args_instance.xpath,args_instance.xlist,args_instance.malk)
+     settings.cloudata = args_instance.cloudata
+
+
+     all_params,all_params_values =utils.get_all_parametres(re_params.dictionary) 
+     params_master = namedtuple('params',all_params)
+
+
+     params_dict = dict(
+     h2o=-3.55278369,
+     co=-2.83012757,
+     co2=-4.31062021,
+     ch4=-4.95190596,
+     tio=-9.77059307,
+     vo=-8.85409603,
+     crh=-8.4153943,
+     feh=-7.85745521,
+     K_Na=-6.5725089,
+     logg=5.46814691,
+     r2d2=2.68655361e-20,
+     dlambda=0.00283604013,
+     scale1=1.07209671,
+     scale2=1.11922607,
+     tolerance_parameter_1=-31.6119701,
+     tolerance_parameter_2=-33.2775232,
+     tolerance_parameter_3=-34.6762823,
+     alpha1=0.345025551,
+     alpha2=0.0678307874,
+     logP1=0.0756891116,
+     logP3=1.71616709,
+     T3=4886.46433,
+     tau_mcs_MgSiO3Cry=5.42024548,
+     logp_mcs_MgSiO3Cry=-2.76574938,
+     dp_mcs_MgSiO3Cry=0.438059949,
+     hansan_a_mcs_MgSiO3Cry=-0.573919866,
+     hansan_b_mcs_MgSiO3Cry=0.0858329576,
+     logp_mcd_Fe2O3_WS15=0.872374998,
+     dp_mcd_Fe2O3_WS15=4.3939299,
+     hansan_a_mcd_Fe2O3_WS15=-1.96757779,
+     hansan_b_mcd_Fe2O3_WS15=0.0624967679
+     )
+
+     theta = list(params_dict.values())
+     params_instance = params_master(*theta)
+     # print(params_instance)
+
+
+     gnostics=0
+     trimspec, cloud_phot_press,other_phot_press,cfunc=test_module.modelspec(params_instance,re_params,args_instance,gnostics)
+     wave,topspec=proc_spec(inputspec=trimspec, theta=params_instance, re_params=re_params, args_instance=args_instance, do_scales=args_instance.do_scales, do_shift=args_instance.do_shift)
+
+     obspec=args_instance.obspec
+     outspec = topspec
+     difference_spectrum = outspec / obspec[1,:]
+
+     print('*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-')
+     print('------------------------------------------------------------')
+     print(' Test for L dwarf case, plotting via theta and testmodule')
+     print(' theta taken from 2M2224 case with Mie clouds')
+     print(' crystalline enstatite slab + rust deck')
+     print('------------------------------------------------------')
+     print('mean value of modelspectrum / L benchmark = '+str(np.mean(difference_spectrum)))
+     print('std deviation of modelspectrum / L benchmark = '+str(np.std(difference_spectrum)))
+     percent_change = np.mean(abs(outspec - obspec[1,:])/obspec[1,:])
+
+     if (percent_change < 0.01):
+          print("less than 1percent difference with L dwarf regime benchmark")
+          print('-------------------------------------------------------')
+          return True
+     else:
+          print("greater than 1 percent difference with L dwarf regime benchmark")
+          print('-------------------------------------------------------')
+          return False
+
