@@ -534,7 +534,25 @@ class Retrieval_params:
         String representation of the class instance.
     """
     
-    def __init__(self, samplemode,chemeq=None, gaslist=None, gastype_list=None,do_fudge=1,ptype=None,do_clouds=1,npatches=None,cloud_name=None,cloud_type=None,cloudpatch_index=None,particle_dis=None, instrument=None,vrad=False,vsini=False,fwhm=None):
+    def __init__(self, 
+                 samplemode,
+                 chemeq=None, 
+                 gaslist=None, 
+                 gastype_list=None,
+                 do_fudge=1,
+                 ptype=None,
+                 num_coarsePress = None,
+                 num_finePress = None,
+                 do_clouds=1,
+                 npatches=None,
+                 cloud_name=None,
+                 cloud_type=None,
+                 cloudpatch_index=None,
+                 particle_dis=None, 
+                 instrument=None,
+                 vrad=False,
+                 vsini=False,
+                 fwhm=None):
         self.samplemode = samplemode
         self.chemeq = chemeq
         self.gaslist = gaslist
@@ -542,6 +560,37 @@ class Retrieval_params:
         self.fwhm = fwhm
         self.do_fudge = do_fudge
         self.ptype = ptype
+
+        # Set default num_coarsePress and num_finePress depending on chosen profile type
+        if self.ptype == 4 and num_coarsePress == None and num_finePress == None:
+            self.num_coarsePress = 6
+            self.num_finePress = 100
+
+        elif num_coarsePress == None and num_finePress == None:
+            self.num_coarsePress = 13
+            self.num_finePress = 64
+
+        elif num_coarsePress == None:
+            if self.ptype == 4:
+                self.num_coarsePress = 7
+            else:
+                self.num_coarsePress = 13
+            self.num_finePress = num_finePress
+
+        elif num_finePress == None:
+            if self.ptype == 4:
+                self.num_finePress = 100
+            else:
+                self.num_finePress = 64
+            self.num_coarsePress = num_coarsePress
+
+        else:
+            self.num_coarsePress = num_coarsePress
+            self.num_finePress = num_finePress
+
+        if self.ptype == 4 and self.num_finePress < 100:
+            raise ValueError(f"Fine pressure grid must have at least 100 points for the Zhang+2023 profile")
+
         self.do_clouds = do_clouds
         self.cloud_name = cloud_name
         self.cloud_type = cloud_type
@@ -552,7 +601,7 @@ class Retrieval_params:
         self.vrad=vrad
         self.vsini=vsini
         
-        self.dictionary = self.retrieval_para_dic_gen(chemeq, gaslist, gastype_list,fwhm,do_fudge, ptype,do_clouds,npatches,cloud_name,cloud_type,cloudpatch_index,particle_dis)
+        self.dictionary = self.retrieval_para_dic_gen(chemeq, gaslist, gastype_list,fwhm,do_fudge, ptype,self.num_coarsePress,self.num_finePress,do_clouds,npatches,cloud_name,cloud_type,cloudpatch_index,particle_dis)
         
         
         
@@ -598,7 +647,7 @@ class Retrieval_params:
     
     
     
-    def pt_dic_gen(self,ptype):
+    def pt_dic_gen(self,ptype, num_coarsePress, num_finePress):
         dictionary = {}
 
         if ptype==1:
@@ -611,7 +660,7 @@ class Retrieval_params:
                             'Multinest_prior':['uniform',0,5000]}
                             }}
             
-            for i in range(13):
+            for i in range(num_coarsePress):
                 dictionary['params']["T_%d" % (i+1)] = {
                     'initialization': None,
                     'MC_init_dis':['normal',500, 50],
@@ -696,96 +745,66 @@ class Retrieval_params:
                          }}
 
         elif ptype==4:
-            dictionary={
+            if num_coarsePress == 6:
+                dictionary={
+                    'ptype':ptype,
+                    'params':{'Tbottom':
+                            {'initialization':None,
+                                'MC_init_dis':['uniform',2000,10000],
+                                'MC_prior_range':[2000,10000],
+                                'Multinest_prior':None},
+
+                              'dTdP1':
+                               {'initialization':None,
+                                'MC_init_dis':['truncated_gaussian',0.25,0.025],
+                                'MC_prior_range':[0.18,0.32],
+                                'Multinest_prior':None},
+
+                            'dTdP2':
+                               {'initialization':None,
+                                'MC_init_dis':['truncated_gaussian',0.25,0.045],
+                                'MC_prior_range':[0.12,0.36],
+                                'Multinest_prior':None},
+
+                            'dTdP3':
+                               {'initialization':None,
+                                'MC_init_dis':['truncated_gaussian',0.26,0.05],
+                                'MC_prior_range':[0.12,0.4],
+                                'Multinest_prior':None},
+
+                            'dTdP4':
+                               {'initialization':None,
+                                'MC_init_dis':['truncated_gaussian',0.2,0.05],
+                                'MC_prior_range':[0.08,0.34],
+                                'Multinest_prior':None},
+
+                            'dTdP5':
+                               {'initialization':None,
+                                'MC_init_dis':['truncated_gaussian',0.12,0.045],
+                                'MC_prior_range':[0,0.24],
+                                'Multinest_prior':None},
+
+                            'dTdP6':
+                               {'initialization':None,
+                                'MC_init_dis':['truncated_gaussian',0.07,0.07],
+                                'MC_prior_range':[-0.1,0.26],
+                                'Multinest_prior':None},
+                            }}
+            else:
+                dictionary={
                 'ptype':ptype,
                 'params':{'Tbottom':
-                           {'initialization':None,
-                            'MC_init_dis':['uniform',2000,10000],
-                            'MC_prior_range':[2000,10000],
-                            'Multinest_prior':None},
-
-                          'dtdp1':
-                           {'initialization':None,
-                            'MC_init_dis':['truncated_gaussian',0.25,0.025],
-                            'MC_prior_range':[0.18,0.32],
-                            'Multinest_prior':None},
-
-                        'dtdp2':
-                           {'initialization':None,
-                            'MC_init_dis':['truncated_gaussian',0.25,0.045],
-                            'MC_prior_range':[0.12,0.36],
-                            'Multinest_prior':None},
-
-                        'dtdp3':
-                           {'initialization':None,
-                            'MC_init_dis':['truncated_gaussian',0.26,0.05],
-                            'MC_prior_range':[0.12,0.4],
-                            'Multinest_prior':None},
-
-                        'dtdp4':
-                           {'initialization':None,
-                            'MC_init_dis':['truncated_gaussian',0.2,0.05],
-                            'MC_prior_range':[0.08,0.34],
-                            'Multinest_prior':None},
-
-                        'dtdp5':
-                           {'initialization':None,
-                            'MC_init_dis':['truncated_gaussian',0.12,0.045],
-                            'MC_prior_range':[0,0.24],
-                            'Multinest_prior':None},
-
-                        'dtdp6':
-                           {'initialization':None,
-                            'MC_init_dis':['truncated_gaussian',0.07,0.07],
-                            'MC_prior_range':[-0.1,0.26],
-                            'Multinest_prior':None},
-                         }}
-
-        elif ptype==4:
-            dictionary={
-                'ptype':ptype,
-                'params':{'Tbottom':
-                           {'initialization':None,
-                            'MC_init_dis':['uniform',2000,10000],
-                            'MC_prior_range':[2000,10000],
-                            'Multinest_prior':None},
-
-                          'dtdp1':
-                           {'initialization':None,
-                            'MC_init_dis':['truncated_gaussian',0.25,0.025],
-                            'MC_prior_range':[0.18,0.32],
-                            'Multinest_prior':None},
-
-                        'dtdp2':
-                           {'initialization':None,
-                            'MC_init_dis':['truncated_gaussian',0.25,0.045],
-                            'MC_prior_range':[0.12,0.36],
-                            'Multinest_prior':None},
-
-                        'dtdp3':
-                           {'initialization':None,
-                            'MC_init_dis':['truncated_gaussian',0.26,0.05],
-                            'MC_prior_range':[0.12,0.4],
-                            'Multinest_prior':None},
-
-                        'dtdp4':
-                           {'initialization':None,
-                            'MC_init_dis':['truncated_gaussian',0.2,0.05],
-                            'MC_prior_range':[0.08,0.34],
-                            'Multinest_prior':None},
-
-                        'dtdp5':
-                           {'initialization':None,
-                            'MC_init_dis':['truncated_gaussian',0.12,0.045],
-                            'MC_prior_range':[0,0.24],
-                            'Multinest_prior':None},
-
-                        'dtdp6':
-                           {'initialization':None,
-                            'MC_init_dis':['truncated_gaussian',0.07,0.07],
-                            'MC_prior_range':[-0.1,0.26],
-                            'Multinest_prior':None},
-                         }}
+                            {'initialization':None,
+                                'MC_init_dis':['uniform',2000,10000],
+                                'MC_prior_range':[2000,10000],
+                                'Multinest_prior':None}
+                }}
+                for i in range(num_coarsePress):
+                    dictionary['params']["dTdP%d" % (i+1)] = {
+                        'initialization': None,
+                        'MC_init_dis': None,
+                        'MC_prior_range': None,
+                        'Multinest_prior': None}
 
         elif ptype==7 :
 
@@ -1451,11 +1470,11 @@ class Retrieval_params:
 
     
     
-    def retrieval_para_dic_gen(self,chemeq,gaslist,gastype_list,fwhm,do_fudge,ptype,do_clouds,npatches,cloud_name,cloud_type,cloudpatch_index,particle_dis):
+    def retrieval_para_dic_gen(self,chemeq,gaslist,gastype_list,fwhm,do_fudge,ptype,num_coarsePress,num_finePress,do_clouds,npatches,cloud_name,cloud_type,cloudpatch_index,particle_dis):
         retrieval_param={}
         gas_dic=self.gas_allparams_gen(chemeq,gaslist,gastype_list)
         refinement_dic=self.refinement_params_dic_gen()
-        pt_dic=self.pt_dic_gen(ptype)
+        pt_dic=self.pt_dic_gen(ptype,num_coarsePress,num_finePress)
         cloud_type_name=self.cloud_type_name_gen(do_clouds,cloud_name,cloud_type)
         cloud_dic=self.cloud_allparams_gen(do_clouds,npatches,cloud_type_name,cloudpatch_index,particle_dis) 
         retrieval_param["gas"]=gas_dic
@@ -3027,38 +3046,25 @@ class ArgsGen:
         Generate the required model arguments.
     """
 
-    def __init__(self, re_params, model, instrument, obspec,Mass_priorange=[1.0,80.0],R_priorange=[0.5,2.0], num_coarsePress=12, num_finePress=100, num_coarsePress=13, num_finePress=64):
+    def __init__(self, re_params, model, instrument, obspec,Mass_priorange=[1.0,80.0],R_priorange=[0.5,2.0]):
         self.re_params = re_params
         self.model = model
         self.instrument = instrument
         self.obspec = obspec
         self.Mass_priorange= Mass_priorange
         self.R_priorange= R_priorange
-        self.num_coarsePress = num_coarsePress
-        self.num_finePress = num_finePress
-        self.num_coarsePress = num_coarsePress
-        self.num_finePress = num_finePress
+        self.num_coarsePress = re_params.num_coarsePress
+        self.num_finePress = re_params.num_finePress
 
         # Generate all necessary model arguments on initialization
         self.generate()
 
     def generate(self):
         # Set up pressure grids in log(bar)
-        # # logcoarsePress = np.arange(-4.0, 2.5, 0.53)
-        logcoarsePress = np.linspace(-4.0, 2.5, self.num_coarsePress)
-        logfinePress = np.linspace(-4.0, 2.5, self.num_finePress)
 
-        if self.model.pfile == 4:
-            logfinePress = np.arange(-4.0, 2.4, 0.05)
-        else:
-            logcoarsePress = np.linspace(-4.0, 2.5, self.num_coarsePress)
-        logfinePress = np.linspace(-4.0, 2.5, self.num_finePress)
+        logcoarsePress = np.linspace(-4.0, 2.4, self.num_coarsePress)
+        logfinePress = np.linspace(-4.0, 2.4, self.num_finePress)
 
-        if self.model.pfile == 4:
-            logfinePress = np.arange(-4.0, 2.4, 0.05)
-        else:
-            logfinePress = np.arange(-4.0, 2.4, 0.1) #np.linspace(-4.0, 2.4, 100)#logfinePress = np.arange(-4.0, 2.4, 0.1) #PRESSURE LAYER CHANGE
-        
         # Pressure in bar
         self.coarsePress = pow(10, logcoarsePress)
         self.press = pow(10, logfinePress)
