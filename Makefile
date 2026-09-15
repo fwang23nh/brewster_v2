@@ -125,8 +125,8 @@ pysig:
 	f2py -m forwardmodel -h forwardmodel.pyf sizes_mod.f90 marv.f90
 
 pymod: sizes_mod.o
-	FC=$(FC) $(F2PY) --backend $(F2PY_BACKEND) --f90flags="-O2" $(F2PY_INCFLAGS) $(F2PY_LIBFLAGS) -c libmarvin.so forwardmodel.pyf marv.f90
-#	FC=ifort $(F2PY) --backend $(F2PY_BACKEND) --f90flags="-O2" $(F2PY_INCFLAGS) $(F2PY_LIBFLAGS) -c libmarvin.so forwardmodel.pyf marv.f90
+	FC=$(FC) $(F2PY) --backend $(F2PY_BACKEND) --f90flags="-O2 -Wl,-rpath,$(CURDIR)" $(F2PY_INCFLAGS) $(F2PY_LIBFLAGS) -L$(CURDIR) -lmarvin -c forwardmodel.pyf marv.f90
+#	FC=ifort $(F2PY) --backend $(F2PY_BACKEND) --f90flags="-O2 -Wl,-rpath,$(CURDIR)" $(F2PY_INCFLAGS) $(F2PY_LIBFLAGS) -L$(CURDIR) -lmarvin -c forwardmodel.pyf marv.f90
 
 ciasig:
 	f2py -m ciamod -h ciamod.pyf sizes_mod.f90 read_cia.f90
