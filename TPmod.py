@@ -145,7 +145,7 @@ def set_prof(proftype, coarsePress,press,intemp):
         num_sub = len(p_use_sub)
 
         #Pressure layers dependent on the paper: 6 layers between 10^-3 to 10^3, evenly space in log scale
-        layer_pressures = np.logspace(-3,3,6)
+        layer_pressures = np.logspace(-3,3,len(coarsePress))
 
         #
         # press_zhang = press[np.where(press >= 1e-3)]
