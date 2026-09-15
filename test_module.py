@@ -397,8 +397,8 @@ def modelspec(theta,re_params,args_instance,gnostics):
                 gas_alpha= getattr(params_instance, "alpha_%s"%gas_keys[i])
                 t_gas= getattr(params_instance, gas_keys[i])
                 if gastype_values[i] == "N":
-                    # profile_function = gas_nonuniform.non_uniform_gas
-                    profile_function = gas_nonuniform.non_uniform_gas_inverted
+                    profile_function = gas_nonuniform.non_uniform_gas
+                    #profile_function = gas_nonuniform.non_uniform_gas_inverted
                 else:
                     profile_function = gas_nonuniform.non_uniform_gas_inverted
                 gas_profile = profile_function(press, P_gas, t_gas, gas_alpha)
