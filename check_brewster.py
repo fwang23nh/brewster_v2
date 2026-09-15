@@ -3,7 +3,9 @@ import numpy as np
 
 xpath = '/Volumes/DudleyDisk/LineLists/'
 xlist = 'data/gaslistR10K_old.dat'
-results = [ct.NoCloud_Tdwarf(xpath,xlist)] #,ct.MieClouds_Ldwarf(xpath,xlist)
+cloud_path= '../../cloud_pickles/'
+
+results = [ct.NoCloud_Tdwarf(xpath,xlist),ct.MieClouds_Ldwarf(xpath,xlist,cloud_path)] #
 
 if np.all(results):
     print('     ')

@@ -349,7 +349,9 @@ class Priors:
             if 'gastype' in info
         ]
 
-        self.count_N = self.gastype_values.count('N')
+        self.count_nonuniform = sum(
+            gastype in ('N', 'I') for gastype in self.gastype_values
+        )
 
         if self.samplemode == 'mcmc':
 
@@ -428,7 +430,7 @@ class Priors:
         for i, gas in enumerate(self.gaslist):
             self.gaspara.append(gas)
 
-            if self.gastype_values[i] == 'N':
+            if self.gastype_values[i] in ('N', 'I'):
                 self.gaspara += [f"p_ref_{gas}",f"alpha_{gas}"]
 
             elif self.gastype_values[i] == 'H':
@@ -761,6 +763,18 @@ class Priors:
                 T = TPmod.set_prof(self.args_instance.proftype, self.args_instance.coarsePress,self.args_instance.press, self.intemp)
                 prior_T_overall = (min(T) > 1.0) and (max(T) < 6000.)
             
+        elif self.args_instance.proftype==4:
+
+            prior_T_params = (2000. < self.params_instance.Tbottom < 10000. and 0.18 < self.params_instance.dtdp1 < 0.32
+                              and 0.12 < self.params_instance.dtdp2 < 0.36 and 0.12 < self.params_instance.dtdp3 < 0.4
+                              and 0.08 < self.params_instance.dtdp4 < 0.34 and 0. < self.params_instance.dtdp5 < 0.24
+                              and -0.1 < self.params_instance.dtdp6 < 0.26)
+
+            prior_T_overall =False
+            if prior_T_params==True:
+                T = TPmod.set_prof(self.args_instance.proftype, self.args_instance.coarsePress,self.args_instance.press, self.intemp)
+                prior_T_overall = (min(T) > 1.0) and (max(T) < 6000.)
+            
 
         elif self.args_instance.proftype==7:
 
@@ -875,17 +889,25 @@ class Priors:
             invmr = np.array([getattr(self.params_instance, key) for key in gas_keys])
             prior_gas = (np.sum(10.**invmr) < 1.0)
 
-            if self.count_N > 0:
-                gas_profile = np.full((self.count_N, self.args_instance.press.size), -1.0)
+            if self.count_nonuniform > 0:
+                gas_profile = np.full(
+                    (self.count_nonuniform, self.args_instance.press.size), -1.0
+                )
                 gas_profile_index = 0
                 for i, gastype in enumerate(self.gastype_values):
-                    if gastype == "N":
+                    if gastype in ("N", "I"):
                         P_gas = getattr(self.params_instance, f"p_ref_{gas_keys[i]}")
                         gas_alpha = getattr(self.params_instance, f"alpha_{gas_keys[i]}")
                         t_gas = getattr(self.params_instance, gas_keys[i])
 
                         if (np.log10(self.args_instance.press[0]) <= P_gas <= np.log10(self.args_instance.press[-1])):
-                            gas_profile[gas_profile_index, :] = gas_nonuniform.non_uniform_gas(self.args_instance.press, P_gas, t_gas, gas_alpha)
+                            if gastype == "N":
+                                profile_function = gas_nonuniform.non_uniform_gas
+                            else:
+                                profile_function = gas_nonuniform.non_uniform_gas_inverted
+                            gas_profile[gas_profile_index, :] = profile_function(
+                                self.args_instance.press, P_gas, t_gas, gas_alpha
+                            )
                         else:
                             gas_profile[gas_profile_index, :] = -30
                         gas_profile_index += 1
@@ -1148,7 +1170,6 @@ class Priors:
                 f"{param_prior_text}\n"
             )
                 
-
 
 
 
