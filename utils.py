@@ -63,6 +63,7 @@ class Instrument:
         self.wl = None
         self.logf_flag = None
         self.scales = None
+        self.conv_mode = None
         self.obspec = obspec
         self.obs_wl = None
         self.R_interp = None
@@ -79,7 +80,7 @@ class Instrument:
     def load_R_file(self):
         """
         loads the R(first column) vs wl (second column) vs flag for tolerance param (third column) 
-        vs scales flag (fourth column) txt file if provided
+        vs scales flag (fourth column) vs convolution mode(fifth column) txt file if provided
         """
         try:
             data = np.loadtxt(self.R_file)
@@ -87,7 +88,8 @@ class Instrument:
             self.wl = data[:,1]
             self.logf_flag = data[:,2]
             self.scales = data[:,3]
-            self.R_data = {'R': self.R, 'wl': self.wl, 'logf_flag': self.logf_flag, 'scales': self.scales}
+            self.conv_mode = data[:,4]
+            self.R_data = {'R': self.R, 'wl': self.wl, 'logf_flag': self.logf_flag, 'scales': self.scales, 'conv_mode':self.conv_mode}
             
             
             self.obs_wl = self.obspec[0, :]
@@ -3046,7 +3048,7 @@ class ArgsGen:
         Generate the required model arguments.
     """
 
-    def __init__(self, re_params, model, instrument, obspec,Mass_priorange=[1.0,80.0],R_priorange=[0.5,2.0]):
+    def __init__(self, re_params, model, instrument, obspec,Mass_priorange=[1.0,80.0],R_priorange=[0.5,2.0], num_coarsePress=13, num_finePress=64):
         self.re_params = re_params
         self.model = model
         self.instrument = instrument
@@ -3104,6 +3106,7 @@ class ArgsGen:
         self.wl = self.instrument.wl
         self.logf_flag = self.instrument.logf_flag #!!!!!!!!!!!!!!!!
         self.scales = self.instrument.scales
+        self.conv_mode = self.instrument.conv_mode
         
         # Profile type and cloud parameters
         self.proftype = self.re_params.ptype
@@ -3263,7 +3266,7 @@ def get_endchain(runname,fin,results_path='./'):
     """
         
     if (fin == 1):
-        pic = results_path+runname+".pic"
+        pic = results_path+runname+".pk1"
         sampler = pickle_load(pic)
         nwalkers = sampler.chain.shape[0]
         niter = sampler.chain.shape[1]

@@ -1,4 +1,5 @@
 import numpy as np
+from scipy.stats import binned_statistic
 from bbconv import prism
 from bbconv import convfwhm
 from bbconv import convr
@@ -122,7 +123,22 @@ def proc_spec(inputspec,theta,re_params, args_instance, do_scales=True,do_shift=
             for logf_flag_val, scale_flag_val in region_flags: #loop thru them, so we get each flags
                 or_indices = np.where( (log_f_param == logf_flag_val) & (scales_param == scale_flag_val) ) #getting wl regions where both conditions are met
                 obs_wl_i = args_instance.obspec[0, :]
-                spec_i = conv_non_uniform_R(modspec[1, :], modspec[0, :], args_instance.R[or_indices], obs_wl_i[or_indices])
+
+                conv_value = args_instance.conv_mode[or_indices] # pulling out smaller slices first
+                R_i = args_instance.R[or_indices]
+                wl_i = obs_wl_i[or_indices]
+
+                spec_i = np.zeros_like(wl_i) # empty array
+
+                for j in range(len(wl_i)):    # probs a more efficient way to do it but this goes thru every point instead of grouping them together
+                    if conv_value[j] == 0:
+                      spec_i[j] = conv_non_uniform_R(modspec[1, :], modspec[0, :], R_i[j:j+1], wl_i[j:j+1])[0] # run the spectroscopy convolution, grabbing just the R and wl for that value, it has to be in the form of an array to be happy, sticks it into spec_i
+                    elif conv_value[j] == 1:
+                      spec_i[j] = conv_binning_values(modspec[1, :], modspec[0, :], R_i[j:j+1], wl_i[j:j+1])[0] # same here but for photometry
+
+                
+
+                #spec_i = conv_binning_values(modspec[1, :], modspec[0, :], args_instance.R[or_indices], obs_wl_i[or_indices])
 
                 if do_scales==True and scale_flag_val > 0:
                     # IF THERE ARE SCALE PARAMETERS
@@ -170,7 +186,39 @@ def conv_uniform_R(obspec,modspec,R):
     
     return fluxout
     
+def conv_binning_values(model_flux, model_wl, BW, obs_wl):
+    """
+    Convolve a model spectrum with a wavelength-dependent band width onto the observed wavelength grid
+
+    Parameters:
+    - model_flux: 1D array of model flux values
+    - model_wl: 1D array of model wl values
+    - obs_wl: 1D array of observed center wl values
+    - BW: 1D array of band-width values (for the obs_wl grid)
+
+    Returns: 
+    - convolved_flux: 1D array of convolved flux values on the obs_wl grid
+    """
+
+    # create the array for the convolved flux
+
+    convolved_flux = np.zeros_like(obs_wl)
+
+    # Calculate the upper and lower bounds, while also removing NaN values
+    lw = (obs_wl - BW/2)
+    up = (obs_wl + BW/2)
     
+    lw1 = lw[~np.isnan(lw)]
+    up1 = up[~np.isnan(up)]
+    centers = obs_wl[~np.isnan(obs_wl)]
+
+    # Creating bins 
+    bin_edges = np.concatenate(([lw1[0]], up1))
+
+    # Calculate Mean Flux for each channel
+    convolved_flux, _, _ = binned_statistic(model_wl, model_flux, statistic='mean', bins=bin_edges)
+
+    return convolved_flux    
 
 def conv_non_uniform_R(model_flux, model_wl, R, obs_wl):
     """
