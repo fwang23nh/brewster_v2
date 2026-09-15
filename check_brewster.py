@@ -1,7 +1,7 @@
 import code_test as ct
 import numpy as np
 
-xpath = '../../Linelists/'
+xpath = '/Volumes/DudleyDisk/LineLists/'
 xlist = 'data/gaslistR10K_old.dat'
 cloud_path= '../../cloud_pickles/'
 

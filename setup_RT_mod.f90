@@ -266,8 +266,9 @@ contains
              upflux(iwave) = FLUP(1) / wint
              
           else
+             nlevel = nlayers + 1
              call gfluxi(temper,DTAUC,SSALB,COSBAR,wavenum(iwave),ALBEDO,gflup,&
-                  fdi)
+                  fdi,nlayers,nlevel)
              upflux(iwave) = gflup(1) !/ wint
           endif
           
