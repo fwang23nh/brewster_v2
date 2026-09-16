@@ -433,8 +433,6 @@ class Priors:
             if self.gastype_values[i] in ('N', 'I'):
                 self.gaspara += [f"p_ref_{gas}",f"alpha_{gas}"]
 
-            elif self.gastype_values[i] == 'H':
-                self.gaspara += [f"p_ref_{gas}"]
 
     def _build_pt_parameter_list(self):
         self.ptpara = list(self.re_params.dictionary['pt']['params'].keys())
@@ -473,6 +471,10 @@ class Priors:
         if 'added_params' in self.re_params.dictionary:
 
             self.refinepara += list(self.re_params.dictionary['added_params'].keys())
+
+        if self.re_params.dictionary.get('hminus', {}).get('enabled', False):
+            self.refinepara += list(
+                self.re_params.dictionary['hminus']['params'].keys())
 
 
     # GAS TRANSFORM 
@@ -614,9 +616,24 @@ class Priors:
             #tolerance params 
             if name.startswith('tolerance_parameter') and prior_spec is None:
                 tol_idx = int(name.split('_')[-1])
-                s_indices = np.where(args.logf_flag == float(tol_idx))
-                minerr = np.log10((0.01 * np.min(args.obspec[2, s_indices]))**2.)
-                maxerr = np.log10((100. * np.max(args.obspec[2, s_indices]))**2.)
+
+                # R-file instruments can define a separate tolerance parameter
+                # for each flagged wavelength region.  A fixed-FWHM instrument
+                # has no logf_flag array and uses one tolerance parameter for
+                # the entire observed spectrum instead.
+                if args.fwhm is not None:
+                    spectral_errors = args.obspec[2, :]
+                else:
+                    logf_flag = np.asarray(args.logf_flag)
+                    s_indices = np.where(logf_flag == float(tol_idx))[0]
+                    if s_indices.size == 0:
+                        raise ValueError(
+                            f"No data have logf_flag={tol_idx} for {name}."
+                        )
+                    spectral_errors = args.obspec[2, s_indices]
+
+                minerr = np.log10((0.01 * np.min(spectral_errors))**2.)
+                maxerr = np.log10((100. * np.max(spectral_errors))**2.)
 
                 phi[idx] = (cube[idx]* (maxerr - minerr)+ minerr)
                 self.resolved_prior_dict[name]= ['uniform',minerr,maxerr]
@@ -765,10 +782,10 @@ class Priors:
             
         elif self.args_instance.proftype==4:
 
-            prior_T_params = (2000. < self.params_instance.Tbottom < 10000. and 0.18 < self.params_instance.dtdp1 < 0.32
-                              and 0.12 < self.params_instance.dtdp2 < 0.36 and 0.12 < self.params_instance.dtdp3 < 0.4
-                              and 0.08 < self.params_instance.dtdp4 < 0.34 and 0. < self.params_instance.dtdp5 < 0.24
-                              and -0.1 < self.params_instance.dtdp6 < 0.26)
+            prior_T_params = (2000. < self.params_instance.Tbottom < 10000. and 0.18 < self.params_instance.dTdP1 < 0.32
+                              and 0.12 < self.params_instance.dTdP2 < 0.36 and 0.12 < self.params_instance.dTdP3 < 0.4
+                              and 0.08 < self.params_instance.dTdP4 < 0.34 and 0. < self.params_instance.dTdP5 < 0.24
+                              and -0.1 < self.params_instance.dTdP6 < 0.26)
 
             prior_T_overall =False
             if prior_T_params==True:
@@ -825,7 +842,15 @@ class Priors:
             prior_T_overall=False
             if prior_T_params==True:
                 T = TPmod.set_prof(self.args_instance.proftype, self.args_instance.coarsePress,self.args_instance.press, self.intemp)
+                # To allow a temperature inversion, use the original check below
+                # and comment out the non-inversion block that follows.
                 prior_T_overall = (min(T) > 1.0) and (max(T) < 6000.)
+
+                # Non-inversion prior.
+                # Tconnect = (((3/4) * self.params_instance.Tint**4) * ((2/3) + 0.1))**(1/4)
+                # prior_T_overall = (min(T) > 1.0) and (max(T) < 6000.) \
+                #     and (self.params_instance.T1 < self.params_instance.T2 < self.params_instance.T3 < Tconnect) \
+                #     and np.all(np.diff(T) >= 0.0)
 
         elif self.args_instance.proftype==77:
             """
@@ -912,6 +937,22 @@ class Priors:
                             gas_profile[gas_profile_index, :] = -30
                         gas_profile_index += 1
                 prior_gas = prior_gas and (np.all(gas_profile > -25.0) and np.all(gas_profile < 0.0))
+
+            if self.re_params.dictionary.get('hminus', {}).get('enabled', False):
+                log_p_ref = self.params_instance.logP_ref_hmins
+                dp = self.params_instance.dp_hmins
+                top = log_p_ref - 0.5 * dp
+                base = log_p_ref + 0.5 * dp
+                prior_gas = prior_gas and (
+                    np.log10(self.args_instance.press[0]) <= top
+                    and base <= np.log10(self.args_instance.press[-1])
+                    and dp > 0)
+                metallicity = self.re_params.dictionary['hminus'].get('fixed_met')
+                if metallicity is None:
+                    metallicity = self.params_instance.met
+                prior_gas = prior_gas and (
+                    self.args_instance.metscale[0] <= metallicity
+                    <= self.args_instance.metscale[-1])
 
         # 3. Mass and Radius check
         D = 3.086e+16 * self.args_instance.dist  # Distance in meters
@@ -1170,12 +1211,6 @@ class Priors:
                 f"{param_prior_text}\n"
             )
                 
-
-
-
-
-
-
 
 
 
