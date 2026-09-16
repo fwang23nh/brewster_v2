@@ -116,16 +116,19 @@ f77mods:
 #f90wrap:
 #	f90wrap -m forwardmodel *.f90
 
-
 libfile:
-	$(FC) -fPIC -shared -O2 *.o -o libmarvin.so -Wl,-rpath,$(CURDIR)
+	ar rcs libmarvin.a *.o
+###libfile:
+#	$(FC) -fPIC -shared -O2  -Wl,-rpath,$(CURDIR) *.o -o libmarvin.so
 #	$(FC) -fPIC -shared -O2 *.o -o libmarvin.so
 
 pysig:
 	f2py -m forwardmodel -h forwardmodel.pyf sizes_mod.f90 marv.f90
 
+#pymod: sizes_mod.o
+#	FC=$(FC) LDFLAGS="-Wl,-rpath,$(CURDIR)" $(F2PY) --backend $(F2PY_BACKEND) --f90flags="-O2" $(F2PY_INCFLAGS) $(F2PY_LIBFLAGS) -L$(CURDIR) -lmarvin -c forwardmodel.pyf marv.f90
 pymod: sizes_mod.o
-	FC=$(FC) $(F2PY) --backend $(F2PY_BACKEND) --f90flags="-O2 -Wl,-rpath,$(CURDIR)" $(F2PY_INCFLAGS) $(F2PY_LIBFLAGS) -L$(CURDIR) -lmarvin -c forwardmodel.pyf marv.f90
+	FC=$(FC) $(F2PY) --backend $(F2PY_BACKEND) --f90flags="-O2" $(F2PY_INCFLAGS) $(F2PY_LIBFLAGS) -L$(CURDIR) -lmarvin -c forwardmodel.pyf marv.f90
 #	FC=ifort $(F2PY) --backend $(F2PY_BACKEND) --f90flags="-O2 -Wl,-rpath,$(CURDIR)" $(F2PY_INCFLAGS) $(F2PY_LIBFLAGS) -L$(CURDIR) -lmarvin -c forwardmodel.pyf marv.f90
 
 ciasig:
@@ -152,4 +155,4 @@ cloudpost:
 .PHONY: clean 
 
 clean:
-	rm -f *.o *.mod *.MOD f90wrap*  *.pyc *.pyf *.so
+	rm -f *.o *.mod *.MOD f90wrap*  *.pyc *.pyf *.so *.a
