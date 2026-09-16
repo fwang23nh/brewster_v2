@@ -118,7 +118,7 @@ f77mods:
 
 
 libfile:
-	$(FC) -fPIC -shared -O2 *.o -o libmarvin.so
+	$(FC) -fPIC -shared -O2 *.o -o libmarvin.so -Wl,-rpath,$(CURDIR)
 #	$(FC) -fPIC -shared -O2 *.o -o libmarvin.so
 
 pysig:
