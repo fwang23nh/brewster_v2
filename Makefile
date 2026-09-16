@@ -63,6 +63,21 @@ F2PY_BACKEND = meson
 F2PY_INCFLAGS = -I$(CURDIR) $(if $(wildcard /usr/include),-I/usr/include)
 F2PY_LIBFLAGS = $(if $(wildcard /usr/local/lib),-L/usr/local/lib)
 
+# On macOS, a shared library that's built without an explicit install
+# name gets a bare "libmarvin.so" identity baked in. When another .so
+# links against it, dyld only consults an embedded -rpath (see pymod
+# below) for dependencies recorded as "@rpath/...", not for bare
+# filenames - so without this, forwardmodel*.so can only find libmarvin.so
+# when run from the exact directory it was built in. Setting the install
+# name to @rpath/libmarvin.so makes it resolve via rpath from anywhere.
+# (Linux's SONAME/RPATH handling doesn't need this, so it's a no-op there.)
+UNAME_S := $(shell uname -s)
+ifeq ($(UNAME_S),Darwin)
+LIBMARVIN_LDFLAGS = -Wl,-install_name,@rpath/libmarvin.so
+else
+LIBMARVIN_LDFLAGS =
+endif
+
 # "make" builds all
 all: $(PROGRAMS)
 
@@ -118,8 +133,8 @@ f77mods:
 
 
 libfile:
-	$(FC) -fPIC -shared -O2 *.o -o libmarvin.so
-#	$(FC) -fPIC -shared -O2 *.o -o libmarvin.so
+	$(FC) -fPIC -shared -O2 *.o -o libmarvin.so $(LIBMARVIN_LDFLAGS)
+#	$(FC) -fPIC -shared -O2 *.o -o libmarvin.so $(LIBMARVIN_LDFLAGS)
 
 pysig:
 	f2py -m forwardmodel -h forwardmodel.pyf sizes_mod.f90 marv.f90
