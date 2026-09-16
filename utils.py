@@ -80,7 +80,7 @@ class Instrument:
     def load_R_file(self):
         """
         loads the R(first column) vs wl (second column) vs flag for tolerance param (third column) 
-        vs scales flag (fourth column) vs convolution mode(fifth column) txt file if provided
+        vs scales flag (fourth column) vs optional convolution mode (fifth column).
         """
         try:
             data = np.loadtxt(self.R_file)
@@ -88,7 +88,7 @@ class Instrument:
             self.wl = data[:,1]
             self.logf_flag = data[:,2]
             self.scales = data[:,3]
-            self.conv_mode = data[:,4]
+            self.conv_mode = data[:,4] if data.shape[1] > 4 else None
             self.R_data = {'R': self.R, 'wl': self.wl, 'logf_flag': self.logf_flag, 'scales': self.scales, 'conv_mode':self.conv_mode}
             
             
@@ -543,8 +543,6 @@ class Retrieval_params:
                  gastype_list=None,
                  do_fudge=1,
                  ptype=None,
-                 num_coarsePress = None,
-                 num_finePress = None,
                  do_clouds=1,
                  npatches=None,
                  cloud_name=None,
@@ -554,7 +552,11 @@ class Retrieval_params:
                  instrument=None,
                  vrad=False,
                  vsini=False,
-                 fwhm=None):
+                 fwhm=None,
+                 num_coarsePress = None,
+                 num_finePress = None):
+
+        
         self.samplemode = samplemode
         self.chemeq = chemeq
         self.gaslist = gaslist
@@ -1435,19 +1437,27 @@ class Retrieval_params:
                 'MC_prior_range': None,
                 'Multinest_prior': None}
 
-    def add_hminus_perturbation(self, fixed_co=1.0):
+    def add_hminus_perturbation(self, fixed_co=1.0, fixed_met=None):
         """Enable metallicity-dependent H- BFF profile perturbations.
 
         H- is obtained from the chemical-equilibrium ion grid rather than
         treated as a directly retrieved gas abundance.
+        fixed_met=None retrieves metallicity (the default); fixed_met=0.0
+        fixes the BFF grid metallicity to solar, in dex relative to solar.
         """
         if self.chemeq != 0:
             raise ValueError(
                 "H- perturbation requires free chemistry (chemeq=0)")
 
+        if fixed_met is not None:
+            fixed_met = float(fixed_met)
+            if not np.isfinite(fixed_met):
+                raise ValueError("fixed_met must be finite or None")
+
         self.dictionary["hminus"] = {
             "enabled": True,
             "fixed_co": float(fixed_co),
+            "fixed_met": fixed_met,
             "params": {
                 "logP_ref_hmins": {
                     'initialization': None,
@@ -1469,6 +1479,8 @@ class Retrieval_params:
                     'MC_init_dis': ['uniform', -1, 2],
                     'MC_prior_range': [-1, 2],
                     'Multinest_prior': ['uniform', -1, 2]}}}
+        if fixed_met is not None:
+            del self.dictionary["hminus"]["params"]["met"]
 
     
     
@@ -1898,7 +1910,7 @@ def get_dis_range_priors(dic):
 
 
 
-def MC_P0_gen(updated_dic,model_config_instance,args_instance):
+def MC_P0_gen(updated_dic,model_config_instance,args_instance, max_prior_attempts=1000):
 
     """
     Generate initial positions (p0) for MCMC walkers based on parameter distributions.
@@ -1925,7 +1937,8 @@ def MC_P0_gen(updated_dic,model_config_instance,args_instance):
     Notes
     -----
     - Supports 'normal', 'uniform', and 'customized' distributions.
-    - For temperature profile (proftype=1), ensures all initial temperatures are physically valid (>1 K).
+    - Redraws rejected walkers until the full MCMC prior is finite.
+    - Raises RuntimeError if max_prior_attempts is exhausted.
     """
 
     nwalkers=model_config_instance.nwalkers
@@ -1942,21 +1955,60 @@ def MC_P0_gen(updated_dic,model_config_instance,args_instance):
     #     warnings.warn(f"Number of distributions ({len(all_distributions)}) "
     #                   f"does not match ndim ({ndim}).", RuntimeWarning)
     
-    # -------------------------------
-    # Initialize walkers based on distributions
-    # -------------------------------
-    for i in range(model_config_instance.ndim):
-        if all_distributions[i][0]=='normal' or all_distributions[i][0]=='truncated_gaussian':
-            mu,sigma=all_distributions[i][1:]
-            p0[:,i]=mu+sigma*np.random.randn(nwalkers).reshape(nwalkers)
-            
-        elif  all_distributions[i][0]=='uniform':
-            pmin,pmax=all_distributions[i][1:]
-            p0[:,i]= np.random.uniform(pmin, pmax, nwalkers).reshape(nwalkers)
+    # Import locally because Priors imports utils as well.
+    from Priors import Priors
+    from types import SimpleNamespace
 
-        elif  all_distributions[i][0]=='customized':
-            f = all_distributions[i][1]
-            p0[:, i] = f(nwalkers).reshape(nwalkers)
+    if max_prior_attempts < 1:
+        raise ValueError("max_prior_attempts must be positive")
+    if len(all_distributions) != ndim:
+        raise ValueError("Initialization distributions do not match ndim")
+    re_params = SimpleNamespace(dictionary=updated_dic, samplemode="mcmc")
+    pending = np.arange(nwalkers)
+    last_failure = ""
+
+    for attempt in range(1, max_prior_attempts + 1):
+        # Redraw whole rejected vectors to preserve correlations imposed by
+        # the joint prior; retain walkers that have already passed.
+        for i, distribution in enumerate(all_distributions):
+            kind = distribution[0]
+            if kind in ("normal", "truncated_gaussian"):
+                mu, sigma = distribution[1:]
+                values = mu + sigma * np.random.randn(pending.size)
+            elif kind == "uniform":
+                values = np.random.uniform(*distribution[1:], size=pending.size)
+            elif kind == "customized":
+                values = np.asarray(distribution[1](pending.size)).reshape(pending.size)
+            else:
+                raise ValueError(f"Unsupported initialization distribution: {kind}")
+            p0[pending, i] = values
+
+        rejected = []
+        for walker in pending:
+            theta = p0[walker]
+            invalid = [
+                name for (name, bounds), value in zip(mc_ranges.items(), theta)
+                if not np.isfinite(value)
+                or (bounds is not None and not bounds[0] < value < bounds[1])
+            ]
+            if invalid:
+                last_failure = f"Parameter bounds/non-finite values: {invalid}"
+            else:
+                prior = Priors(theta, re_params, args_instance)
+                if np.isfinite(prior.priors):
+                    continue
+                last_failure = prior.post_check_info
+            rejected.append(walker)
+        pending = np.asarray(rejected, dtype=int)
+        if pending.size == 0:
+            return p0
+
+    raise RuntimeError(
+        f"Could not initialize {pending.size}/{nwalkers} walkers after "
+        f"{max_prior_attempts} draws per rejected walker. "
+        f"Check initialization distributions against the joint prior. "
+        f"Last rejection: {last_failure}"
+    )
 
     # -------------------------------
     # Special initialization for temperature profiles (proftype = 1)
@@ -3178,6 +3230,12 @@ class ArgsGen:
                 raise ValueError(
                     f"fixed H- C/O={fixed_co} is outside the CE grid "
                     f"[{self.coscale[0]}, {self.coscale[-1]}]")
+            fixed_met = self.re_params.dictionary['hminus'].get('fixed_met')
+            if fixed_met is not None and not (
+                    self.metscale[0] <= fixed_met <= self.metscale[-1]):
+                raise ValueError(
+                    f"fixed H- metallicity={fixed_met} is outside the CE grid "
+                    f"[{self.metscale[0]}, {self.metscale[-1]}]")
         
     def __str__(self):
 

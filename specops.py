@@ -124,17 +124,21 @@ def proc_spec(inputspec,theta,re_params, args_instance, do_scales=True,do_shift=
                 or_indices = np.where( (log_f_param == logf_flag_val) & (scales_param == scale_flag_val) ) #getting wl regions where both conditions are met
                 obs_wl_i = args_instance.obspec[0, :]
 
-                conv_value = args_instance.conv_mode[or_indices] # pulling out smaller slices first
                 R_i = args_instance.R[or_indices]
                 wl_i = obs_wl_i[or_indices]
 
-                spec_i = np.zeros_like(wl_i) # empty array
+                if getattr(args_instance, 'conv_mode', None) is None:
+                    # Four-column R files contain spectroscopic resolving powers.
+                    spec_i = conv_non_uniform_R(modspec[1, :], modspec[0, :], R_i, wl_i)
+                else:
+                    conv_value = args_instance.conv_mode[or_indices] # pulling out smaller slices first
+                    spec_i = np.zeros_like(wl_i) # empty array
 
-                for j in range(len(wl_i)):    # probs a more efficient way to do it but this goes thru every point instead of grouping them together
-                    if conv_value[j] == 0:
-                      spec_i[j] = conv_non_uniform_R(modspec[1, :], modspec[0, :], R_i[j:j+1], wl_i[j:j+1])[0] # run the spectroscopy convolution, grabbing just the R and wl for that value, it has to be in the form of an array to be happy, sticks it into spec_i
-                    elif conv_value[j] == 1:
-                      spec_i[j] = conv_binning_values(modspec[1, :], modspec[0, :], R_i[j:j+1], wl_i[j:j+1])[0] # same here but for photometry
+                    for j in range(len(wl_i)):    # probs a more efficient way to do it but this goes thru every point instead of grouping them together
+                        if conv_value[j] == 0:
+                          spec_i[j] = conv_non_uniform_R(modspec[1, :], modspec[0, :], R_i[j:j+1], wl_i[j:j+1])[0] # run the spectroscopy convolution, grabbing just the R and wl for that value, it has to be in the form of an array to be happy, sticks it into spec_i
+                        elif conv_value[j] == 1:
+                          spec_i[j] = conv_binning_values(modspec[1, :], modspec[0, :], R_i[j:j+1], wl_i[j:j+1])[0] # same here but for photometry
 
                 
 
