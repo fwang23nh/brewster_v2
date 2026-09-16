@@ -56,7 +56,25 @@ def NoCloud_Tdwarf(xpath,xlist):
      samplemode='mcmc'
 
      instrument_instance = utils.Instrument(wavelength_range=wavelength_range, R_file=R_file,obspec=obspec,fwhm=fwhm)
-     re_params = utils.Retrieval_params(samplemode,chemeq,gaslist,gastype_list,do_fudge,ptype,do_clouds,npatches,cloud_name,cloud_type,cloudpatch_index,particle_dis,instrument_instance,fwhm=fwhm)
+     re_params = utils.Retrieval_params(samplemode=samplemode,
+                                   chemeq=chemeq,
+                                   gaslist=gaslist,
+                                   gastype_list=gastype_list,
+                                   do_fudge=do_fudge,
+                                   ptype=ptype,
+                                   do_clouds=do_clouds,
+                                   npatches=npatches,
+                                   cloud_name=cloud_name,
+                                   cloud_type=cloud_type,
+                                   cloudpatch_index=cloudpatch_index,
+                                   particle_dis=particle_dis, 
+                                   instrument=instrument_instance,
+                                   vrad=False,
+                                   vsini=False,
+                                   fwhm=fwhm,
+                                   num_coarsePress = None,
+                                   num_finePress = None)
+
      model_config_instance = utils.ModelConfig(samplemode,do_fudge,cloudpath=cloudpath)
      io_config_instance = utils.IOConfig()
 
@@ -148,11 +166,31 @@ def MieClouds_Ldwarf(xpath,xlist,cloudpath):
      instrument_instance.scales = rfile[:, 3]
      instrument_instance.logf_flag = rfile[:,2]
 
-     re_params = utils.Retrieval_params(samplemode=samplemode, chemeq=chemeq, gaslist=gaslist,
-     gastype_list=gastype_list,do_fudge=do_fudge, ptype=ptype, do_clouds=do_clouds,
-     npatches=npatches, cloud_name=cloud_name, cloud_type=cloud_type,
-     cloudpatch_index=cloudpatch_index, particle_dis=particle_dis,
-     instrument=instrument_instance,vrad=False,vsini=False,fwhm=None)
+     # re_params = utils.Retrieval_params(samplemode=samplemode, chemeq=chemeq, gaslist=gaslist,
+     # gastype_list=gastype_list,do_fudge=do_fudge, ptype=ptype, do_clouds=do_clouds,
+     # npatches=npatches, cloud_name=cloud_name, cloud_type=cloud_type,
+     # cloudpatch_index=cloudpatch_index, particle_dis=particle_dis,
+     # instrument=instrument_instance,vrad=False,vsini=False,fwhm=None)
+
+
+     re_params = utils.Retrieval_params(samplemode=samplemode,
+                                   chemeq=chemeq,
+                                   gaslist=gaslist,
+                                   gastype_list=gastype_list,
+                                   do_fudge=do_fudge,
+                                   ptype=ptype,
+                                   do_clouds=do_clouds,
+                                   npatches=npatches,
+                                   cloud_name=cloud_name,
+                                   cloud_type=cloud_type,
+                                   cloudpatch_index=cloudpatch_index,
+                                   particle_dis=particle_dis, 
+                                   instrument=instrument_instance,
+                                   vrad=False,
+                                   vsini=False,
+                                   fwhm=None,
+                                   num_coarsePress = None,
+                                   num_finePress = None)
 
 
      model_config_instance = utils.ModelConfig(samplemode,do_fudge,cloudpath=cloudpath)
