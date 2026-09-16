@@ -80,7 +80,7 @@ class Instrument:
     def load_R_file(self):
         """
         loads the R(first column) vs wl (second column) vs flag for tolerance param (third column) 
-        vs scales flag (fourth column) vs optional convolution mode (fifth column).
+        vs scales flag (fourth column) vs convolution mode(fifth column) txt file if provided
         """
         try:
             data = np.loadtxt(self.R_file)
