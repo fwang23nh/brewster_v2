@@ -565,6 +565,10 @@ class Retrieval_params:
         self.do_fudge = do_fudge
         self.ptype = ptype
 
+        if num_finePress > 1000:
+            raise ValueError(f"Number of user-specified layers greater than maximum number of pressure layers specified\
+                             in sizes_mod.f90 (1000 layers). Either specify less layers or modify the .f90 file and recompile.")
+
         # Set default num_coarsePress and num_finePress depending on chosen profile type
         if self.ptype == 4 and num_coarsePress == None and num_finePress == None:
             self.num_coarsePress = 6
@@ -3100,7 +3104,7 @@ class ArgsGen:
         Generate the required model arguments.
     """
 
-    def __init__(self, re_params, model, instrument, obspec,Mass_priorange=[1.0,80.0],R_priorange=[0.5,2.0], num_coarsePress=13, num_finePress=64):
+    def __init__(self, re_params, model, instrument, obspec,Mass_priorange=[1.0,80.0],R_priorange=[0.5,2.0]):
         self.re_params = re_params
         self.model = model
         self.instrument = instrument
