@@ -583,7 +583,7 @@ class Retrieval_params:
         else:
             raise ValueError(f"Input profile type is not known. Select either 1, 2, 3, 4, 7, or 9.")
 
-        if num_finePress > 1000:
+        if num_finePress is not None and num_finePress > 1000:
             raise ValueError(f"Number of user-specified layers greater than maximum number of pressure layers specified\
                              in sizes_mod.f90 (1000 layers). Either specify less layers or modify the .f90 file and recompile.")
 
