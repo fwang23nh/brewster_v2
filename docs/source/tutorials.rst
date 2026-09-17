@@ -17,6 +17,7 @@ them locally.
    Tutorial_1_ClassIntro <tutorials/Brewster_v2_Tutorial_1_ClassIntro.ipynb>
    Tutorial_2_Make_a_Spectrum <tutorials/Brewster_v2_Tutorial_2_Make_a_Spectrum.ipynb>
    Tutorial_3_Make_a_R_file <tutorials/Brewster_v2_Tutorial_3_R_file_template_Fei.ipynb>
+   Tutorial_3_Updated_R_file <tutorials/Brewster_v2_Tutorial_3_Updated_R_file_template.ipynb>
    Tutorial_4_Retrieval_Analysis <tutorials/Brewster_v2_Tutorial_4_Retrieval_Analysis.ipynb>
    Tutorial_5_MultiNest_Prior_Introduction <tutorials/Brewster_v2_Tutorial_5_multinest_prior_intro.ipynb>
    Tutorial_6_Cloud_Postprocessing <tutorials/Brewster_v2_Tutorial_6_Cloud_Postprocessing.ipynb>
