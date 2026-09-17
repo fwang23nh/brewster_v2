@@ -18,7 +18,7 @@ module sizes
   integer, protected :: nlayers
 
   ! max number of layers
-  integer,parameter :: maxlayers = 100
+  integer,parameter :: maxlayers = 1000
   
   ! number of temperatures in line list grid
   !integer, parameter :: nlinetemps = 27

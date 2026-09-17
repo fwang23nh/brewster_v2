@@ -42,6 +42,7 @@ def set_prof(proftype, coarsePress,press,intemp):
         - 1        : 13 spline interpolation from coarse T-P profile
         - 2        : Madhusudhan & Seager 2009 parameterised profile, no inversion (a1, a2, P1, P3, T3)
         - 3        : Madhusudhan & Seager 2009 with an inversion (a1, a2, P1, P2, P3, T3)
+        - 4        : Zhang+ 2023 profile, fitting d(lnT)/d(lnP) gradients at specified pressure layers
         - 7 or 77  : Mollière / petitRADTRANS hybrid radiative-convective profile
     coarsePress : ndarray
         Coarse pressure grid (used only for proftype 1 or 9).
