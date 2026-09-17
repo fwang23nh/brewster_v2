@@ -488,18 +488,10 @@ class Retrieval_params:
         List of gas types, corresponding to the gas names in gaslist. ``N``
         selects the standard non-uniform profile and ``I`` selects the inverted
         non-uniform profile; both use log_abund, p_ref, and alpha parameters.
-    fwhm : float, optional
-        Full width at half maximum of the spectral lines. 
     do_fudge : int, optional
         Flag indicating whether to apply tolerance_parameter to the data.
         Enables retrieval of an additional error-inflation term that is added to the observational variance
         in the likelihood, accounting for underestimated uncertainties and/or residual model–data scatter. 
-    vrad:bool
-     Flag indicating whether to apply vrad to do doppler shift to spectral lines
-     -defalut False
-    vsini
-     Flag indicating whether to apply rotationally broaden to modelspec
-     -defalut False
     ptype : int
         Type of pressure-temperature profile.
     do_clouds : int, optional
@@ -515,6 +507,23 @@ class Retrieval_params:
         Distribution type for particles in the cloud. Default is None.
         E.g., 'log_normal', 'hansen', etc.
         only used when include Mie cloud.
+    instrument : Instrument
+        Instance of Instrument class.
+    vrad : bool
+        Flag indicating whether to apply vrad to do doppler shift to spectral lines
+        -default False
+    vsini : bool
+        Flag indicating whether to apply rotationally broaden to modelspec
+        -default False
+    fwhm : float, optional
+        Full width at half maximum of the spectral lines. 
+    num_coarsePress : int, optional
+        Used for profile types 1, 4, or 9. Specifies at how many pressure
+        levels to interpolate a spline (ptype 1 or 9), or at how many levels
+        to fit the dlnT/dlnP gradient (ptype 4).
+    num_finePress : int, optional
+        Number of layers to build the fine pressure grid with, on which
+        temperature is returned.
     
     Methods
     -------
