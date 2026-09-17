@@ -21,6 +21,7 @@ them locally.
    Tutorial_5_MultiNest_Prior_Introduction <tutorials/Brewster_v2_Tutorial_5_multinest_prior_intro.ipynb>
    Tutorial_6_Cloud_Postprocessing <tutorials/Brewster_v2_Tutorial_6_Cloud_Postprocessing.ipynb>
    Tutorial_7_Gas_Abundances_vs_Chemical_Equilibrium <tutorials/Brewster_v2_Tutorial_7_Gas_Abundances_vs_Chemical_Equilibrium.ipynb>
+   Tutorial_8_TP_Profile_Type_4 <tutorials/Brewster_v2_Tutorial_8_TP_Profile_Type_4.ipynb>
 
 Cloud post-processing
 ---------------------
