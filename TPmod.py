@@ -42,9 +42,11 @@ def set_prof(proftype, coarsePress,press,intemp):
         - 1        : 13 spline interpolation from coarse T-P profile
         - 2        : Madhusudhan & Seager 2009 parameterised profile, no inversion (a1, a2, P1, P3, T3)
         - 3        : Madhusudhan & Seager 2009 with an inversion (a1, a2, P1, P2, P3, T3)
-        - 7 or 77  : Mollière / petitRADTRANS hybrid radiative-convective profile
+        - 4        : Zhang+ 2023 profile, fitting d(lnT)/d(lnP) gradients at specified pressure layers
+        - 7        : Mollière / petitRADTRANS hybrid radiative-convective profile
+        - 9        : User input T-P profile
     coarsePress : ndarray
-        Coarse pressure grid (used only for proftype 1 or 9).
+        Coarse pressure grid (used only for proftype 1, 4, or 9).
     press : ndarray
         Fine pressure grid on which the temperature profile is returned.
         Must be strictly positive and monotonic.
@@ -184,11 +186,10 @@ def set_prof(proftype, coarsePress,press,intemp):
         # temp1 = temp
 
 
-    elif (proftype == 7 or proftype == 77):
+    elif (proftype == 7):
         # this is Molliere's hybrid profile, hacked by Michelle Colantoni from
         # petitRadTran. But, using dry adiabat for H2/He atmosphere
         # a few variable names changed by BB, and a bit of restructuring
-        # 77 is the same, but has a smoothing prior as for Line+2015 profile
         # https://gitlab.com/mauricemolli/petitRADTRANS/-/blob/master/petitRADTRANS/physics.py ref:PT_ret_model
 
         """

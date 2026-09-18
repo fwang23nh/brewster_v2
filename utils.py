@@ -472,7 +472,12 @@ cloud_dic = {
     "mixto": 99
 }
 
-
+PTYPE_LIST = [1,
+              2,
+              3,
+              4,
+              7,
+              9]
 
 class Retrieval_params:
     """
@@ -488,18 +493,10 @@ class Retrieval_params:
         List of gas types, corresponding to the gas names in gaslist. ``N``
         selects the standard non-uniform profile and ``I`` selects the inverted
         non-uniform profile; both use log_abund, p_ref, and alpha parameters.
-    fwhm : float, optional
-        Full width at half maximum of the spectral lines. 
     do_fudge : int, optional
         Flag indicating whether to apply tolerance_parameter to the data.
         Enables retrieval of an additional error-inflation term that is added to the observational variance
         in the likelihood, accounting for underestimated uncertainties and/or residual model–data scatter. 
-    vrad:bool
-     Flag indicating whether to apply vrad to do doppler shift to spectral lines
-     -defalut False
-    vsini
-     Flag indicating whether to apply rotationally broaden to modelspec
-     -defalut False
     ptype : int
         Type of pressure-temperature profile.
     do_clouds : int, optional
@@ -515,6 +512,23 @@ class Retrieval_params:
         Distribution type for particles in the cloud. Default is None.
         E.g., 'log_normal', 'hansen', etc.
         only used when include Mie cloud.
+    instrument : Instrument
+        Instance of Instrument class.
+    vrad : bool
+        Flag indicating whether to apply vrad to do doppler shift to spectral lines
+        -default False
+    vsini : bool
+        Flag indicating whether to apply rotationally broaden to modelspec
+        -default False
+    fwhm : float, optional
+        Full width at half maximum of the spectral lines. 
+    num_coarsePress : int, optional
+        Used for profile types 1, 4, or 9. Specifies at how many pressure
+        levels to interpolate a spline (ptype 1 or 9), or at how many levels
+        to fit the dlnT/dlnP gradient (ptype 4).
+    num_finePress : int, optional
+        Number of layers to build the fine pressure grid with, on which
+        temperature is returned.
     
     Methods
     -------
@@ -563,7 +577,19 @@ class Retrieval_params:
         self.gastype_list = gastype_list
         self.fwhm = fwhm
         self.do_fudge = do_fudge
-        self.ptype = ptype
+
+        if ptype in PTYPE_LIST:
+            self.ptype = ptype
+        else:
+            raise ValueError(f"Input profile type is not known. Select either 1, 2, 3, 4, 7, or 9.")
+
+        if num_finePress is not None and num_finePress > 1000:
+            raise ValueError(f"Number of user-specified layers greater than maximum number of pressure layers specified\
+                             in sizes_mod.f90 (1000 layers). Either specify less layers or modify the .f90 file and recompile.")
+
+        if num_finePress > 1000:
+            raise ValueError(f"Number of user-specified layers greater than maximum number of pressure layers specified\
+                             in sizes_mod.f90 (1000 layers). Either specify less layers or modify the .f90 file and recompile.")
 
         # Set default num_coarsePress and num_finePress depending on chosen profile type
         if self.ptype == 4 and num_coarsePress == None and num_finePress == None:
@@ -849,53 +875,6 @@ class Retrieval_params:
                             'MC_init_dis':['normal',1200,200],
                             'MC_prior_range':[0,5000],
                             'Multinest_prior':None}
-                         }}
-
-        elif ptype==77:
-
-            dictionary={
-                'ptype':ptype,
-                'params':{'gamma':
-                           {'initialization':None,
-                            'MC_init_dis':['normal',50,1],
-                            'MC_prior_range':[0,5000],
-                            'Multinest_prior':['uniform',0,5000]},
-
-                          'Tint':
-                           {'initialization':None,
-                            'MC_init_dis':['normal',1200,200],
-                            'MC_prior_range':[0,5000],
-                            'Multinest_prior':['uniform',300,2300]},
-
-                          'alpha':
-                           {'initialization':None,
-                            'MC_init_dis':['uniform',1,2],
-                            'MC_prior_range':[1,2],
-                            'Multinest_prior':['uniform',1, 2]},
-                            
-                          'lndelta':
-                           {'initialization':None,
-                            'MC_init_dis': ['normal', -2.5, 1.5],
-                            'MC_prior_range':[-10, 4],
-                            'Multinest_prior':None},
-
-                          'T1':
-                           {'initialization':None,
-                            'MC_init_dis':['normal',1200,200],
-                            'MC_prior_range':[0,5000],
-                            'Multinest_prior':['uniform',10, 4010]},
-
-                          'T2':
-                           {'initialization':None,
-                            'MC_init_dis':['normal',1200,200],
-                            'MC_prior_range':[0,5000],
-                            'Multinest_prior':['uniform',10, 4010]},
-
-                          'T3':
-                           {'initialization':None,
-                            'MC_init_dis':['normal',1200,200],
-                            'MC_prior_range':[0,5000],
-                            'Multinest_prior':['uniform',10, 4010]}
                          }}
 
         elif ptype==9:
@@ -1290,17 +1269,6 @@ class Retrieval_params:
                 ndata=1
             else:
                 ndata=0
-
-        # if self.fwhm in [777]:
-
-        #     dictionary['params']['frac_param'] =  {
-        #     'initialization': None,
-        #     'distribution': ['normal', 0.5, 0.1],
-        #     'range':[0.1,1],
-        #     'prior': None
-        # }
-        #     if self.do_fudge==1:
-        #         ndata=0
 
         # Add tolerance parameters after 'dlambda'
         if self.do_fudge==1:
@@ -3100,7 +3068,7 @@ class ArgsGen:
         Generate the required model arguments.
     """
 
-    def __init__(self, re_params, model, instrument, obspec,Mass_priorange=[1.0,80.0],R_priorange=[0.5,2.0], num_coarsePress=13, num_finePress=64):
+    def __init__(self, re_params, model, instrument, obspec,Mass_priorange=[1.0,80.0],R_priorange=[0.5,2.0]):
         self.re_params = re_params
         self.model = model
         self.instrument = instrument
