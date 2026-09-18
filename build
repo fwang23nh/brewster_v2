@@ -1,25 +1,33 @@
-make f77mods
-make sizes_mod.o
-make phys_const_mod.o
-make define_types_mod.o
-make common_arrays_mod.o
-make atmos_ops_mod.o
-make gas_opacity_mod.o
-make clouds_mod.o
-make setup_RT_mod.o
-make main_mod.o
-make libfile
-make pysig
-make pymod
-make ciasig
-make ciamod
-make bbconvsig
-make bbconv
-make cloudpostsig
-make cloudpost
+#!/bin/sh
+# Build script for the Fortran/f2py modules.
+#
+# Plain "make target" lines and "||" are valid in bash, zsh, and tcsh
+# alike, so this one script works under all three:
+#   ./build            (bash or zsh, via the #!/bin/sh shebang above)
+#   bash build          or   zsh build
+#   tcsh build           or  source build   (from within tcsh)
+#
+# Each step is followed by "|| exit 1" so the script stops immediately
+# if a step fails, instead of continuing on to later steps (e.g.
+# running pymod against a stale/missing libmarvin.so) and masking the
+# real error.
 
-
-
-
-
-
+make f77mods || exit 1
+make sizes_mod.o || exit 1
+make phys_const_mod.o || exit 1
+make define_types_mod.o || exit 1
+make common_arrays_mod.o || exit 1
+make atmos_ops_mod.o || exit 1
+make gas_opacity_mod.o || exit 1
+make clouds_mod.o || exit 1
+make setup_RT_mod.o || exit 1
+make main_mod.o || exit 1
+make libfile || exit 1
+make pysig || exit 1
+make pymod || exit 1
+make ciasig || exit 1
+make ciamod || exit 1
+make bbconvsig || exit 1
+make bbconv || exit 1
+make cloudpostsig || exit 1
+make cloudpost || exit 1

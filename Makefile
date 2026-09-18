@@ -45,6 +45,24 @@ LDFLAGS = -L/usr/local/lib/
 # List of executables to be built within the package
 #PROGRAMS = forward
 
+# f2py build backend.
+# numpy.distutils has been removed from numpy as of Python 3.12, so f2py's
+# compile mode (f2py -c) now uses the "meson" backend instead. Meson picks
+# up the Fortran/C compiler from the FC/CC environment variables rather
+# than the old --fcompiler=... flag, and needs meson + ninja installed
+# (pip install meson ninja, or via your package manager).
+F2PY = f2py
+F2PY_BACKEND = meson
+
+# Unlike distutils, meson's f2py backend hard-fails if an -I/-L directory
+# doesn't exist (e.g. /usr/include is absent by default on Apple Silicon
+# macOS), and it also builds in an *isolated temp directory* rather than
+# in-place. That means .mod files already compiled into this project
+# directory (e.g. sizes.mod, built earlier by `make`) aren't visible to
+# it unless we explicitly point at CURDIR.
+F2PY_INCFLAGS = -I$(CURDIR) $(if $(wildcard /usr/include),-I/usr/include)
+F2PY_LIBFLAGS = $(if $(wildcard /usr/local/lib),-L/usr/local/lib)
+
 # "make" builds all
 all: $(PROGRAMS)
 
@@ -98,40 +116,43 @@ f77mods:
 #f90wrap:
 #	f90wrap -m forwardmodel *.f90
 
-
 libfile:
-	$(FC) -fPIC -shared -O2 *.o -o libmarvin.so
+	ar rcs libmarvin.a *.o
+###libfile:
+#	$(FC) -fPIC -shared -O2  -Wl,-rpath,$(CURDIR) *.o -o libmarvin.so
 #	$(FC) -fPIC -shared -O2 *.o -o libmarvin.so
 
 pysig:
 	f2py -m forwardmodel -h forwardmodel.pyf sizes_mod.f90 marv.f90
 
-pymod:
-	f2py --fcompiler=gfortran --f90flags="-O2" -I/usr/include -L/usr/local/lib -c libmarvin.so forwardmodel.pyf marv.f90
-#	f2py --fcompiler=intelem --f90flags="-O2" -I/usr/include -L/usr/local/lib -c libmarvin.so forwardmodel.pyf marv.f90
+#pymod: sizes_mod.o
+#	FC=$(FC) LDFLAGS="-Wl,-rpath,$(CURDIR)" $(F2PY) --backend $(F2PY_BACKEND) --f90flags="-O2" $(F2PY_INCFLAGS) $(F2PY_LIBFLAGS) -L$(CURDIR) -lmarvin -c forwardmodel.pyf marv.f90
+pymod: sizes_mod.o
+	FC=$(FC) $(F2PY) --backend $(F2PY_BACKEND) --f90flags="-O2" $(F2PY_INCFLAGS) $(F2PY_LIBFLAGS) -L$(CURDIR) -lmarvin -c forwardmodel.pyf marv.f90
+#	FC=ifort $(F2PY) --backend $(F2PY_BACKEND) --f90flags="-O2 -Wl,-rpath,$(CURDIR)" $(F2PY_INCFLAGS) $(F2PY_LIBFLAGS) -L$(CURDIR) -lmarvin -c forwardmodel.pyf marv.f90
 
 ciasig:
 	f2py -m ciamod -h ciamod.pyf sizes_mod.f90 read_cia.f90
 
 ciamod:
-	f2py --fcompiler=gfortran --f90flags="-O2" -I/usr/include -L/usr/local/lib -c ciamod.pyf sizes_mod.f90 read_cia.f90
-#	f2py --fcompiler=intelem --f90flags="-O2" -I/usr/include -L/usr/local/lib -c ciamod.pyf read_cia.f90
+	FC=$(FC) $(F2PY) --backend $(F2PY_BACKEND) --f90flags="-O2" $(F2PY_INCFLAGS) $(F2PY_LIBFLAGS) -c ciamod.pyf sizes_mod.f90 read_cia.f90
+#	FC=ifort $(F2PY) --backend $(F2PY_BACKEND) --f90flags="-O2" $(F2PY_INCFLAGS) $(F2PY_LIBFLAGS) -c ciamod.pyf read_cia.f90
 
 bbconvsig:
 	f2py -m bbconv -h bbconv.pyf bbconv.f90
 
 bbconv:
-	f2py --fcompiler=gfortran --f90flags="-O2" -I/usr/include -L/usr/local/lib -c bbconv.pyf bbconv.f90
+	FC=$(FC) $(F2PY) --backend $(F2PY_BACKEND) --f90flags="-O2" $(F2PY_INCFLAGS) $(F2PY_LIBFLAGS) -c bbconv.pyf bbconv.f90
 
 cloudpostsig:
 	f2py -m cloudpost -h cloudpost.pyf cloudpost.f90
 
 cloudpost:
-	f2py --fcompiler=gfortran --f90flags="-O2 -fPIC -frecord-marker=4 -fbounds-check " -I/usr/include -L/usr/local/lib -c cloudpost.pyf cloudpost.f90
+	FC=$(FC) $(F2PY) --backend $(F2PY_BACKEND) --f90flags="-O2 -fPIC -frecord-marker=4 -fbounds-check " $(F2PY_INCFLAGS) $(F2PY_LIBFLAGS) -c cloudpost.pyf cloudpost.f90
 
 # Utility targets
 
 .PHONY: clean 
 
 clean:
-	rm -f *.o *.mod *.MOD f90wrap*  *.pyc *.pyf *.so
+	rm -f *.o *.mod *.MOD f90wrap*  *.pyc *.pyf *.so *.a
