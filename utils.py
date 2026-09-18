@@ -63,6 +63,7 @@ class Instrument:
         self.wl = None
         self.logf_flag = None
         self.scales = None
+        self.conv_mode = None
         self.obspec = obspec
         self.obs_wl = None
         self.R_interp = None
@@ -79,7 +80,7 @@ class Instrument:
     def load_R_file(self):
         """
         loads the R(first column) vs wl (second column) vs flag for tolerance param (third column) 
-        vs scales flag (fourth column) txt file if provided
+        vs scales flag (fourth column) vs convolution mode(fifth column) txt file if provided
         """
         try:
             data = np.loadtxt(self.R_file)
@@ -87,7 +88,8 @@ class Instrument:
             self.wl = data[:,1]
             self.logf_flag = data[:,2]
             self.scales = data[:,3]
-            self.R_data = {'R': self.R, 'wl': self.wl, 'logf_flag': self.logf_flag, 'scales': self.scales}
+            self.conv_mode = data[:,4] if data.shape[1] > 4 else None
+            self.R_data = {'R': self.R, 'wl': self.wl, 'logf_flag': self.logf_flag, 'scales': self.scales, 'conv_mode':self.conv_mode}
             
             
             self.obs_wl = self.obspec[0, :]
@@ -470,7 +472,12 @@ cloud_dic = {
     "mixto": 99
 }
 
-
+PTYPE_LIST = [1,
+              2,
+              3,
+              4,
+              7,
+              9]
 
 class Retrieval_params:
     """
@@ -486,18 +493,10 @@ class Retrieval_params:
         List of gas types, corresponding to the gas names in gaslist. ``N``
         selects the standard non-uniform profile and ``I`` selects the inverted
         non-uniform profile; both use log_abund, p_ref, and alpha parameters.
-    fwhm : float, optional
-        Full width at half maximum of the spectral lines. 
     do_fudge : int, optional
         Flag indicating whether to apply tolerance_parameter to the data.
         Enables retrieval of an additional error-inflation term that is added to the observational variance
         in the likelihood, accounting for underestimated uncertainties and/or residual model–data scatter. 
-    vrad:bool
-     Flag indicating whether to apply vrad to do doppler shift to spectral lines
-     -defalut False
-    vsini
-     Flag indicating whether to apply rotationally broaden to modelspec
-     -defalut False
     ptype : int
         Type of pressure-temperature profile.
     do_clouds : int, optional
@@ -513,6 +512,23 @@ class Retrieval_params:
         Distribution type for particles in the cloud. Default is None.
         E.g., 'log_normal', 'hansen', etc.
         only used when include Mie cloud.
+    instrument : Instrument
+        Instance of Instrument class.
+    vrad : bool
+        Flag indicating whether to apply vrad to do doppler shift to spectral lines
+        -default False
+    vsini : bool
+        Flag indicating whether to apply rotationally broaden to modelspec
+        -default False
+    fwhm : float, optional
+        Full width at half maximum of the spectral lines. 
+    num_coarsePress : int, optional
+        Used for profile types 1, 4, or 9. Specifies at how many pressure
+        levels to interpolate a spline (ptype 1 or 9), or at how many levels
+        to fit the dlnT/dlnP gradient (ptype 4).
+    num_finePress : int, optional
+        Number of layers to build the fine pressure grid with, on which
+        temperature is returned.
     
     Methods
     -------
@@ -534,14 +550,73 @@ class Retrieval_params:
         String representation of the class instance.
     """
     
-    def __init__(self, samplemode,chemeq=None, gaslist=None, gastype_list=None,do_fudge=1,ptype=None,do_clouds=1,npatches=None,cloud_name=None,cloud_type=None,cloudpatch_index=None,particle_dis=None, instrument=None,vrad=False,vsini=False,fwhm=None):
+    def __init__(self, 
+                 samplemode,
+                 chemeq=None, 
+                 gaslist=None, 
+                 gastype_list=None,
+                 do_fudge=1,
+                 ptype=None,
+                 do_clouds=1,
+                 npatches=None,
+                 cloud_name=None,
+                 cloud_type=None,
+                 cloudpatch_index=None,
+                 particle_dis=None, 
+                 instrument=None,
+                 vrad=False,
+                 vsini=False,
+                 fwhm=None,
+                 num_coarsePress = None,
+                 num_finePress = None):
+
+        
         self.samplemode = samplemode
         self.chemeq = chemeq
         self.gaslist = gaslist
         self.gastype_list = gastype_list
         self.fwhm = fwhm
         self.do_fudge = do_fudge
-        self.ptype = ptype
+
+        if ptype in PTYPE_LIST:
+            self.ptype = ptype
+        else:
+            raise ValueError(f"Input profile type is not known. Select either 1, 2, 3, 4, 7, or 9.")
+
+        if (num_finePress is not None) and (num_finePress > 1000):
+            raise ValueError(f"Number of user-specified layers greater than maximum number of pressure layers specified\
+                             in sizes_mod.f90 (1000 layers). Either specify less layers or modify the .f90 file and recompile.")
+
+        # Set default num_coarsePress and num_finePress depending on chosen profile type
+        if self.ptype == 4 and num_coarsePress == None and num_finePress == None:
+            self.num_coarsePress = 6
+            self.num_finePress = 100
+
+        elif num_coarsePress == None and num_finePress == None:
+            self.num_coarsePress = 13
+            self.num_finePress = 64
+
+        elif num_coarsePress == None:
+            if self.ptype == 4:
+                self.num_coarsePress = 7
+            else:
+                self.num_coarsePress = 13
+            self.num_finePress = num_finePress
+
+        elif num_finePress == None:
+            if self.ptype == 4:
+                self.num_finePress = 100
+            else:
+                self.num_finePress = 64
+            self.num_coarsePress = num_coarsePress
+
+        else:
+            self.num_coarsePress = num_coarsePress
+            self.num_finePress = num_finePress
+
+        if self.ptype == 4 and self.num_finePress < 100:
+            raise ValueError(f"Fine pressure grid must have at least 100 points for the Zhang+2023 profile")
+
         self.do_clouds = do_clouds
         self.cloud_name = cloud_name
         self.cloud_type = cloud_type
@@ -552,7 +627,7 @@ class Retrieval_params:
         self.vrad=vrad
         self.vsini=vsini
         
-        self.dictionary = self.retrieval_para_dic_gen(chemeq, gaslist, gastype_list,fwhm,do_fudge, ptype,do_clouds,npatches,cloud_name,cloud_type,cloudpatch_index,particle_dis)
+        self.dictionary = self.retrieval_para_dic_gen(chemeq, gaslist, gastype_list,fwhm,do_fudge, ptype,self.num_coarsePress,self.num_finePress,do_clouds,npatches,cloud_name,cloud_type,cloudpatch_index,particle_dis)
         
         
         
@@ -598,7 +673,7 @@ class Retrieval_params:
     
     
     
-    def pt_dic_gen(self,ptype):
+    def pt_dic_gen(self,ptype, num_coarsePress, num_finePress):
         dictionary = {}
 
         if ptype==1:
@@ -611,7 +686,7 @@ class Retrieval_params:
                             'Multinest_prior':['uniform',0,5000]}
                             }}
             
-            for i in range(13):
+            for i in range(num_coarsePress):
                 dictionary['params']["T_%d" % (i+1)] = {
                     'initialization': None,
                     'MC_init_dis':['normal',500, 50],
@@ -696,50 +771,66 @@ class Retrieval_params:
                          }}
 
         elif ptype==4:
-            dictionary={
+            if num_coarsePress == 6:
+                dictionary={
+                    'ptype':ptype,
+                    'params':{'Tbottom':
+                            {'initialization':None,
+                                'MC_init_dis':['uniform',2000,10000],
+                                'MC_prior_range':[2000,10000],
+                                'Multinest_prior':None},
+
+                              'dTdP1':
+                               {'initialization':None,
+                                'MC_init_dis':['truncated_gaussian',0.25,0.025],
+                                'MC_prior_range':[0.18,0.32],
+                                'Multinest_prior':None},
+
+                            'dTdP2':
+                               {'initialization':None,
+                                'MC_init_dis':['truncated_gaussian',0.25,0.045],
+                                'MC_prior_range':[0.12,0.36],
+                                'Multinest_prior':None},
+
+                            'dTdP3':
+                               {'initialization':None,
+                                'MC_init_dis':['truncated_gaussian',0.26,0.05],
+                                'MC_prior_range':[0.12,0.4],
+                                'Multinest_prior':None},
+
+                            'dTdP4':
+                               {'initialization':None,
+                                'MC_init_dis':['truncated_gaussian',0.2,0.05],
+                                'MC_prior_range':[0.08,0.34],
+                                'Multinest_prior':None},
+
+                            'dTdP5':
+                               {'initialization':None,
+                                'MC_init_dis':['truncated_gaussian',0.12,0.045],
+                                'MC_prior_range':[0,0.24],
+                                'Multinest_prior':None},
+
+                            'dTdP6':
+                               {'initialization':None,
+                                'MC_init_dis':['truncated_gaussian',0.07,0.07],
+                                'MC_prior_range':[-0.1,0.26],
+                                'Multinest_prior':None},
+                            }}
+            else:
+                dictionary={
                 'ptype':ptype,
                 'params':{'Tbottom':
-                           {'initialization':None,
-                            'MC_init_dis':['uniform',2000,10000],
-                            'MC_prior_range':[2000,10000],
-                            'Multinest_prior':None},
-
-                          'dtdp1':
-                           {'initialization':None,
-                            'MC_init_dis':['truncated_gaussian',0.25,0.025],
-                            'MC_prior_range':[0.18,0.32],
-                            'Multinest_prior':None},
-
-                        'dtdp2':
-                           {'initialization':None,
-                            'MC_init_dis':['truncated_gaussian',0.25,0.045],
-                            'MC_prior_range':[0.12,0.36],
-                            'Multinest_prior':None},
-
-                        'dtdp3':
-                           {'initialization':None,
-                            'MC_init_dis':['truncated_gaussian',0.26,0.05],
-                            'MC_prior_range':[0.12,0.4],
-                            'Multinest_prior':None},
-
-                        'dtdp4':
-                           {'initialization':None,
-                            'MC_init_dis':['truncated_gaussian',0.2,0.05],
-                            'MC_prior_range':[0.08,0.34],
-                            'Multinest_prior':None},
-
-                        'dtdp5':
-                           {'initialization':None,
-                            'MC_init_dis':['truncated_gaussian',0.12,0.045],
-                            'MC_prior_range':[0,0.24],
-                            'Multinest_prior':None},
-
-                        'dtdp6':
-                           {'initialization':None,
-                            'MC_init_dis':['truncated_gaussian',0.07,0.07],
-                            'MC_prior_range':[-0.1,0.26],
-                            'Multinest_prior':None},
-                         }}
+                            {'initialization':None,
+                                'MC_init_dis':['uniform',2000,10000],
+                                'MC_prior_range':[2000,10000],
+                                'Multinest_prior':None}
+                }}
+                for i in range(num_coarsePress):
+                    dictionary['params']["dTdP%d" % (i+1)] = {
+                        'initialization': None,
+                        'MC_init_dis': None,
+                        'MC_prior_range': None,
+                        'Multinest_prior': None}
 
         elif ptype==7 :
 
@@ -780,53 +871,6 @@ class Retrieval_params:
                             'MC_init_dis':['normal',1200,200],
                             'MC_prior_range':[0,5000],
                             'Multinest_prior':None}
-                         }}
-
-        elif ptype==77:
-
-            dictionary={
-                'ptype':ptype,
-                'params':{'gamma':
-                           {'initialization':None,
-                            'MC_init_dis':['normal',50,1],
-                            'MC_prior_range':[0,5000],
-                            'Multinest_prior':['uniform',0,5000]},
-
-                          'Tint':
-                           {'initialization':None,
-                            'MC_init_dis':['normal',1200,200],
-                            'MC_prior_range':[0,5000],
-                            'Multinest_prior':['uniform',300,2300]},
-
-                          'alpha':
-                           {'initialization':None,
-                            'MC_init_dis':['uniform',1,2],
-                            'MC_prior_range':[1,2],
-                            'Multinest_prior':['uniform',1, 2]},
-                            
-                          'lndelta':
-                           {'initialization':None,
-                            'MC_init_dis': ['normal', -2.5, 1.5],
-                            'MC_prior_range':[-10, 4],
-                            'Multinest_prior':None},
-
-                          'T1':
-                           {'initialization':None,
-                            'MC_init_dis':['normal',1200,200],
-                            'MC_prior_range':[0,5000],
-                            'Multinest_prior':['uniform',10, 4010]},
-
-                          'T2':
-                           {'initialization':None,
-                            'MC_init_dis':['normal',1200,200],
-                            'MC_prior_range':[0,5000],
-                            'Multinest_prior':['uniform',10, 4010]},
-
-                          'T3':
-                           {'initialization':None,
-                            'MC_init_dis':['normal',1200,200],
-                            'MC_prior_range':[0,5000],
-                            'Multinest_prior':['uniform',10, 4010]}
                          }}
 
         elif ptype==9:
@@ -1222,17 +1266,6 @@ class Retrieval_params:
             else:
                 ndata=0
 
-        # if self.fwhm in [777]:
-
-        #     dictionary['params']['frac_param'] =  {
-        #     'initialization': None,
-        #     'distribution': ['normal', 0.5, 0.1],
-        #     'range':[0.1,1],
-        #     'prior': None
-        # }
-        #     if self.do_fudge==1:
-        #         ndata=0
-
         # Add tolerance parameters after 'dlambda'
         if self.do_fudge==1:
             for i in range(ndata):
@@ -1368,19 +1401,27 @@ class Retrieval_params:
                 'MC_prior_range': None,
                 'Multinest_prior': None}
 
-    def add_hminus_perturbation(self, fixed_co=1.0):
+    def add_hminus_perturbation(self, fixed_co=1.0, fixed_met=None):
         """Enable metallicity-dependent H- BFF profile perturbations.
 
         H- is obtained from the chemical-equilibrium ion grid rather than
         treated as a directly retrieved gas abundance.
+        fixed_met=None retrieves metallicity (the default); fixed_met=0.0
+        fixes the BFF grid metallicity to solar, in dex relative to solar.
         """
         if self.chemeq != 0:
             raise ValueError(
                 "H- perturbation requires free chemistry (chemeq=0)")
 
+        if fixed_met is not None:
+            fixed_met = float(fixed_met)
+            if not np.isfinite(fixed_met):
+                raise ValueError("fixed_met must be finite or None")
+
         self.dictionary["hminus"] = {
             "enabled": True,
             "fixed_co": float(fixed_co),
+            "fixed_met": fixed_met,
             "params": {
                 "logP_ref_hmins": {
                     'initialization': None,
@@ -1402,14 +1443,16 @@ class Retrieval_params:
                     'MC_init_dis': ['uniform', -1, 2],
                     'MC_prior_range': [-1, 2],
                     'Multinest_prior': ['uniform', -1, 2]}}}
+        if fixed_met is not None:
+            del self.dictionary["hminus"]["params"]["met"]
 
     
     
-    def retrieval_para_dic_gen(self,chemeq,gaslist,gastype_list,fwhm,do_fudge,ptype,do_clouds,npatches,cloud_name,cloud_type,cloudpatch_index,particle_dis):
+    def retrieval_para_dic_gen(self,chemeq,gaslist,gastype_list,fwhm,do_fudge,ptype,num_coarsePress,num_finePress,do_clouds,npatches,cloud_name,cloud_type,cloudpatch_index,particle_dis):
         retrieval_param={}
         gas_dic=self.gas_allparams_gen(chemeq,gaslist,gastype_list)
         refinement_dic=self.refinement_params_dic_gen()
-        pt_dic=self.pt_dic_gen(ptype)
+        pt_dic=self.pt_dic_gen(ptype,num_coarsePress,num_finePress)
         cloud_type_name=self.cloud_type_name_gen(do_clouds,cloud_name,cloud_type)
         cloud_dic=self.cloud_allparams_gen(do_clouds,npatches,cloud_type_name,cloudpatch_index,particle_dis) 
         retrieval_param["gas"]=gas_dic
@@ -1480,6 +1523,7 @@ def get_all_parametres(dic):
       - Gas parameters (either free chemistry or chemical equilibrium)
       - Refinement parameters
       - Temperature profile (PT) parameters
+    - Cloud parameters (including patchy clouds)
     - Cloud parameters (including patchy clouds)
       - Any user-added parameters
 
@@ -1830,7 +1874,7 @@ def get_dis_range_priors(dic):
 
 
 
-def MC_P0_gen(updated_dic,model_config_instance,args_instance):
+def MC_P0_gen(updated_dic,model_config_instance,args_instance, max_prior_attempts=1000):
 
     """
     Generate initial positions (p0) for MCMC walkers based on parameter distributions.
@@ -1857,7 +1901,8 @@ def MC_P0_gen(updated_dic,model_config_instance,args_instance):
     Notes
     -----
     - Supports 'normal', 'uniform', and 'customized' distributions.
-    - For temperature profile (proftype=1), ensures all initial temperatures are physically valid (>1 K).
+    - Redraws rejected walkers until the full MCMC prior is finite.
+    - Raises RuntimeError if max_prior_attempts is exhausted.
     """
 
     nwalkers=model_config_instance.nwalkers
@@ -1874,21 +1919,60 @@ def MC_P0_gen(updated_dic,model_config_instance,args_instance):
     #     warnings.warn(f"Number of distributions ({len(all_distributions)}) "
     #                   f"does not match ndim ({ndim}).", RuntimeWarning)
     
-    # -------------------------------
-    # Initialize walkers based on distributions
-    # -------------------------------
-    for i in range(model_config_instance.ndim):
-        if all_distributions[i][0]=='normal' or all_distributions[i][0]=='truncated_gaussian':
-            mu,sigma=all_distributions[i][1:]
-            p0[:,i]=mu+sigma*np.random.randn(nwalkers).reshape(nwalkers)
-            
-        elif  all_distributions[i][0]=='uniform':
-            pmin,pmax=all_distributions[i][1:]
-            p0[:,i]= np.random.uniform(pmin, pmax, nwalkers).reshape(nwalkers)
+    # Import locally because Priors imports utils as well.
+    from Priors import Priors
+    from types import SimpleNamespace
 
-        elif  all_distributions[i][0]=='customized':
-            f = all_distributions[i][1]
-            p0[:, i] = f(nwalkers).reshape(nwalkers)
+    if max_prior_attempts < 1:
+        raise ValueError("max_prior_attempts must be positive")
+    if len(all_distributions) != ndim:
+        raise ValueError("Initialization distributions do not match ndim")
+    re_params = SimpleNamespace(dictionary=updated_dic, samplemode="mcmc")
+    pending = np.arange(nwalkers)
+    last_failure = ""
+
+    for attempt in range(1, max_prior_attempts + 1):
+        # Redraw whole rejected vectors to preserve correlations imposed by
+        # the joint prior; retain walkers that have already passed.
+        for i, distribution in enumerate(all_distributions):
+            kind = distribution[0]
+            if kind in ("normal", "truncated_gaussian"):
+                mu, sigma = distribution[1:]
+                values = mu + sigma * np.random.randn(pending.size)
+            elif kind == "uniform":
+                values = np.random.uniform(*distribution[1:], size=pending.size)
+            elif kind == "customized":
+                values = np.asarray(distribution[1](pending.size)).reshape(pending.size)
+            else:
+                raise ValueError(f"Unsupported initialization distribution: {kind}")
+            p0[pending, i] = values
+
+        rejected = []
+        for walker in pending:
+            theta = p0[walker]
+            invalid = [
+                name for (name, bounds), value in zip(mc_ranges.items(), theta)
+                if not np.isfinite(value)
+                or (bounds is not None and not bounds[0] < value < bounds[1])
+            ]
+            if invalid:
+                last_failure = f"Parameter bounds/non-finite values: {invalid}"
+            else:
+                prior = Priors(theta, re_params, args_instance)
+                if np.isfinite(prior.priors):
+                    continue
+                last_failure = prior.post_check_info
+            rejected.append(walker)
+        pending = np.asarray(rejected, dtype=int)
+        if pending.size == 0:
+            return p0
+
+    raise RuntimeError(
+        f"Could not initialize {pending.size}/{nwalkers} walkers after "
+        f"{max_prior_attempts} draws per rejected walker. "
+        f"Check initialization distributions against the joint prior. "
+        f"Last rejection: {last_failure}"
+    )
 
     # -------------------------------
     # Special initialization for temperature profiles (proftype = 1)
@@ -2980,30 +3064,25 @@ class ArgsGen:
         Generate the required model arguments.
     """
 
-    def __init__(self, re_params, model, instrument, obspec,Mass_priorange=[1.0,80.0],R_priorange=[0.5,2.0], num_coarsePress=13, num_finePress=64):
+    def __init__(self, re_params, model, instrument, obspec,Mass_priorange=[1.0,80.0],R_priorange=[0.5,2.0]):
         self.re_params = re_params
         self.model = model
         self.instrument = instrument
         self.obspec = obspec
         self.Mass_priorange= Mass_priorange
         self.R_priorange= R_priorange
-        self.num_coarsePress = num_coarsePress
-        self.num_finePress = num_finePress
+        self.num_coarsePress = re_params.num_coarsePress
+        self.num_finePress = re_params.num_finePress
 
         # Generate all necessary model arguments on initialization
         self.generate()
 
     def generate(self):
         # Set up pressure grids in log(bar)
-        # logcoarsePress = np.arange(-4.0, 2.5, 0.53)
-        logcoarsePress = np.linspace(-4.0, 2.5, self.num_coarsePress)
-        logfinePress = np.linspace(-4.0, 2.5, self.num_finePress)
 
-        if self.model.pfile == 4:
-            logfinePress = np.arange(-4.0, 2.4, 0.05)
-        else:
-            logfinePress = np.arange(-4.0, 2.4, 0.1) #np.linspace(-4.0, 2.4, 100)#logfinePress = np.arange(-4.0, 2.4, 0.1) #PRESSURE LAYER CHANGE
-        
+        logcoarsePress = np.linspace(-4.0, 2.4, self.num_coarsePress)
+        logfinePress = np.linspace(-4.0, 2.4, self.num_finePress)
+
         # Pressure in bar
         self.coarsePress = pow(10, logcoarsePress)
         self.press = pow(10, logfinePress)
@@ -3043,6 +3122,7 @@ class ArgsGen:
         self.wl = self.instrument.wl
         self.logf_flag = self.instrument.logf_flag #!!!!!!!!!!!!!!!!
         self.scales = self.instrument.scales
+        self.conv_mode = self.instrument.conv_mode
         
         # Profile type and cloud parameters
         self.proftype = self.re_params.ptype
@@ -3114,6 +3194,12 @@ class ArgsGen:
                 raise ValueError(
                     f"fixed H- C/O={fixed_co} is outside the CE grid "
                     f"[{self.coscale[0]}, {self.coscale[-1]}]")
+            fixed_met = self.re_params.dictionary['hminus'].get('fixed_met')
+            if fixed_met is not None and not (
+                    self.metscale[0] <= fixed_met <= self.metscale[-1]):
+                raise ValueError(
+                    f"fixed H- metallicity={fixed_met} is outside the CE grid "
+                    f"[{self.metscale[0]}, {self.metscale[-1]}]")
         
     def __str__(self):
 
@@ -3202,7 +3288,7 @@ def get_endchain(runname,fin,results_path='./'):
     """
         
     if (fin == 1):
-        pic = results_path+runname+".pic"
+        pic = results_path+runname+".pk1"
         sampler = pickle_load(pic)
         nwalkers = sampler.chain.shape[0]
         niter = sampler.chain.shape[1]
