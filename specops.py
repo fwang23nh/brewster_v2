@@ -140,8 +140,6 @@ def proc_spec(inputspec,theta,re_params, args_instance, do_scales=True,do_shift=
                         elif conv_value[j] == 1:
                           spec_i[j] = conv_binning_values(modspec[1, :], modspec[0, :], R_i[j:j+1], wl_i[j:j+1])[0] # same here but for photometry
 
-                
-
                 #spec_i = conv_binning_values(modspec[1, :], modspec[0, :], args_instance.R[or_indices], obs_wl_i[or_indices])
 
                 if do_scales==True and scale_flag_val > 0:

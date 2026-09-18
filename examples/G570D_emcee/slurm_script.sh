@@ -40,7 +40,7 @@ setenv PYTHONPATH ${WDIR}
 cd ${WDIR}
 
 # --- Load OpenMPI module ---
-eval `/usr/bin/modulecmd tcsh load openmpi-4.0.5`
+eval `/usr/bin/modulecmd tcsh load openmpi-5.0.5`
 
 
 

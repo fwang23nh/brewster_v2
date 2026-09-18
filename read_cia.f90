@@ -13,7 +13,8 @@ subroutine read_cia(filename,wavenum,outcia,ciatemps)
   !f2py intent(out) outcia
   !f2py intent(out) ciatemps
   
-  character(len=50):: filename
+  ! Preserve the full caller-supplied path, including absolute paths.
+  character(len=*),intent(in):: filename
   real,allocatable,dimension(:,:,:) :: ciaarray
   real,dimension(4,nciatemps,maxwave)::outcia
   real,dimension(nciatemps) :: ciatemps
