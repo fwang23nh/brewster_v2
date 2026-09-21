@@ -9,6 +9,7 @@ retrieval configuration and forward-model path.
 
    temperature_pressure
    gases
+   opacities
    clouds
 
 Choosing a model

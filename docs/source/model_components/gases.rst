@@ -70,8 +70,62 @@ pressure on the varying branch; negative ``alpha`` reverses that trend.
 ``alpha=0`` is undefined. ``I`` selects which side varies, rather than
 specifying the sign of the gradient.
 
-Example
--------
+Visual comparison
+-----------------
+
+The three panels below use the same reference volume mixing ratio,
+:math:`f_\mathrm{ref}=10^{-4}`. For ``N`` and ``I``, the reference pressure
+is :math:`P_\mathrm{ref}=0.1` bar (``p_ref=-1``), with curves for
+``alpha=+2`` and ``alpha=-2``. These are illustrative free-chemistry
+profiles, not predictions from the equilibrium table or a fitted atmosphere.
+
+.. figure:: /_static/gas_profiles.png
+   :alt: Three gas profiles with pressure increasing downward. U is constant; N varies above 0.1 bar; I varies below 0.1 bar. Positive and negative alpha give opposite gradients.
+   :width: 100%
+
+   Uniform (``U``), non-uniform (``N``), and inverted non-uniform (``I``)
+   profiles evaluated on an increasing pressure grid. Dotted lines mark the
+   reference pressure for the two non-uniform profiles.
+
+* ``U`` holds the abundance fixed throughout the atmosphere and has no
+  reference-pressure or gradient parameter.
+* ``N`` varies at lower pressures and reaches a constant deep abundance.
+  Positive ``alpha`` depletes the gas towards the top; negative ``alpha``
+  enriches it there.
+* ``I`` holds the upper abundance fixed and varies at higher pressures.
+  Positive ``alpha`` enriches the gas towards the bottom; negative ``alpha``
+  depletes it there.
+
+Changing ``log_abund`` shifts a curve horizontally. Changing ``p_ref`` moves
+the transition vertically. Larger :math:`|\alpha|` gives a weaker abundance
+gradient because the slope is :math:`1/\alpha`; it is not a transition width.
+For example, with ``alpha=2``, increasing pressure by one decade on the
+varying branch increases :math:`\log_{10} f` by 0.5 dex.
+
+Reproduce the figure
+~~~~~~~~~~~~~~~~~~~~
+
+The script calls the same non-uniform profile functions as the forward
+model. Their outputs are already :math:`\log_{10}` VMR, so the horizontal
+axis is linear in those returned values. Pressure is plotted logarithmically
+and increases downward.
+
+From the Brewster repository root, run
+``PYTHONPATH=. python docs/source/_scripts/plot_gas_profiles.py`` with NumPy,
+SciPy, and Matplotlib installed. The figure is saved in ``docs/source/_static``.
+
+.. literalinclude:: /_scripts/plot_gas_profiles.py
+   :language: python
+   :lines: 3-
+
+These profile functions do not enforce the retrieval priors. When choosing
+other example parameters, check that the resulting VMRs remain physically
+admissible throughout the pressure grid; do not clip an invalid profile to
+make it look acceptable. The retrieval applies additional checks in
+:mod:`Priors`.
+
+Configuration example
+---------------------
 
 .. code-block:: python
 

@@ -148,6 +148,10 @@ class ModelConfig:
         Path to line lists (default: "../Linelists/")
     xlist : str, optional
         Line list file (default: "gaslistRox.dat")
+    cia_path : str, optional
+        CIA data file (default: "data/CIA_DS_aug_2015.dat")
+    chem_eq_table_path : str, optional
+        Chemical equilibrium table (default: "data/chem_eq_tables_P3K.pic")
     dist : float, optional
         Distance parameter (default: None)
     pfile : str, optional
@@ -163,7 +167,7 @@ class ModelConfig:
         Update the model configuration dictionary with the current attributes.
     """
 
-    def __init__(self, samplemode, do_fudge, use_disort=0, malk=0, mch4=0, do_bff=1, fresh=0,cloudpath=None,xpath="../Linelists/", xlist=None, dist=None, pfile="data/LSR1835_eqpt.dat",do_scales=True,do_shift=True,do_conv=True):
+    def __init__(self, samplemode, do_fudge, use_disort=0, malk=0, mch4=0, do_bff=1, fresh=0,cloudpath=None,xpath="../Linelists/", xlist=None, dist=None, pfile="data/LSR1835_eqpt.dat",do_scales=True,do_shift=True,do_conv=True,cia_path="data/CIA_DS_aug_2015.dat",chem_eq_table_path="data/chem_eq_tables_P3K.pic"):
         self.samplemode = samplemode
         self.use_disort = use_disort
         self.do_fudge = do_fudge
@@ -173,6 +177,8 @@ class ModelConfig:
         self.fresh = fresh
         self.xpath = xpath
         self.xlist = xlist
+        self.cia_path = cia_path
+        self.chem_eq_table_path = chem_eq_table_path
         self.cloudpath = cloudpath
         self.do_scales=do_scales
         self.do_shift=do_shift
@@ -233,6 +239,8 @@ class ModelConfig:
                 'fresh': self.fresh,
                 'xpath': self.xpath,
                 'xlist': self.xlist,
+                'cia_path': self.cia_path,
+                'chem_eq_table_path': self.chem_eq_table_path,
                 'dist': self.dist,
                 'pfile': self.pfile,
                 'cloudpath':self.cloudpath,
@@ -303,6 +311,8 @@ class ModelConfig:
             f"- fresh : {self.fresh}\n"
             f"- xpath : {self.xpath}\n"
             f"- xlist : {self.xlist}\n"
+            f"- cia_path : {self.cia_path}\n"
+            f"- chem_eq_table_path : {self.chem_eq_table_path}\n"
             f"- dist : {self.dist}\n"
             f"- pfile : {self.pfile}\n"
             f"- cloudpath : {self.cloudpath}\n"
@@ -583,7 +593,7 @@ class Retrieval_params:
         else:
             raise ValueError(f"Input profile type is not known. Select either 1, 2, 3, 4, 7, or 9.")
 
-        if num_finePress is not None and num_finePress > 1000:
+        if (num_finePress is not None) and (num_finePress > 1000):
             raise ValueError(f"Number of user-specified layers greater than maximum number of pressure layers specified\
                              in sizes_mod.f90 (1000 layers). Either specify less layers or modify the .f90 file and recompile.")
 
@@ -975,8 +985,7 @@ class Retrieval_params:
                 
                 cloudspecies=cloud_type_name.split('--')[1].split('.mieff')[0]
                 # cloudnum=50
-
-
+                
                 if particle_dis=="hansen":
                     dictionary["patch"]={
                         # 'cloudnum': cloudnum,
@@ -1141,7 +1150,6 @@ class Retrieval_params:
 
             elif cloud_type_name=='clear':
                 dictionary["patch"]={'params':{}}
-
 
             return dictionary
     
@@ -1874,15 +1882,24 @@ def get_dis_range_priors(dic):
 
 
 
-def MC_P0_gen(updated_dic,model_config_instance,args_instance, max_prior_attempts=1000):
+def MC_P0_gen(updated_dic,model_config_instance,args_instance, max_prior_attempts=2000):
 
     """
-    Generate initial positions (p0) for MCMC walkers based on parameter distributions.
+    Draw MCMC starting positions and retain only prior-valid walkers.
+
+    Each candidate walker is drawn from the configured MC_init_dis distributions.
+    It must have finite parameter values, lie strictly inside every specified
+    MC_prior_range, and have a finite log prior from Priors.Priors. The full
+    prior check also tests coupled constraints, such as PT structure, cloud
+    placement, and mass/radius, which independent parameter draws may violate.
+    Accepted walkers are retained; every parameter of a rejected walker is
+    redrawn until it passes or the attempt limit is reached.
 
     Parameters
     ----------
     updated_dic : dict
-        Flattened retrieval dictionary with 'distribution' info for all parameters.
+        Nested retrieval parameter dictionary containing MC_init_dis and
+        MC_prior_range entries, in the order used by get_dis_range_priors.
     
     model_config_instance : object
         Configuration object with attributes:
@@ -1890,19 +1907,47 @@ def MC_P0_gen(updated_dic,model_config_instance,args_instance, max_prior_attempt
           - ndim : int, total number of parameters
     
     args_instance : object
-        Arguments instance containing retrieval settings (e.g., proftype, coarsePress, press).
+        Model arguments required by Priors.Priors, including the pressure grids,
+        profile type, instrument settings, distance, and mass/radius limits.
+
+    max_prior_attempts : int, optional
+        Maximum number of candidate draws for a walker that keeps failing,
+        including its first draw (default: 2000). This is a computational
+        safeguard against endless retries, not a physical or prior bound.
 
     Returns
     -------
     p0 : ndarray, shape (nwalkers, ndim)
         Initial positions for all walkers in the MCMC chain.
-        Values are drawn according to the parameter distributions in `updated_dic`.
+        Draws from the initialization distributions conditioned on passing the
+        bounds and finite-prior checks. These are not unrestricted draws from
+        MC_init_dis or samples weighted by the full prior density.
+
+    Raises
+    ------
+    ValueError
+        If the attempt limit is less than one, the number of initialization
+        distributions differs from ndim, or a distribution kind is unsupported.
+    RuntimeError
+        If walkers remain rejected after max_prior_attempts. The message gives
+        the number remaining and the last rejection reason. Check overlap
+        between initialization distributions and the joint prior before
+        increasing the limit.
 
     Notes
     -----
-    - Supports 'normal', 'uniform', and 'customized' distributions.
-    - Redraws rejected walkers until the full MCMC prior is finite.
-    - Raises RuntimeError if max_prior_attempts is exhausted.
+    - Supports 'normal', 'uniform', and 'customized' draws. The
+      'truncated_gaussian' label uses a normal proposal here; truncation is
+      enforced by the subsequent bounds and prior checks.
+    - Reusing Priors.Priors checks the same coupled constraints used during
+      MCMC, avoiding starting walkers at immediately rejected prior states.
+      Only finiteness is tested: a larger finite prior does not make a
+      candidate more likely to be accepted by this initializer.
+    - This conditions the starting ensemble without changing the posterior
+      evaluated by the sampler. It does not evaluate spectra or likelihoods,
+      guarantee adequate ensemble spread, or establish convergence.
+    - Draws use NumPy's global random state. Reproducibility also requires any
+      customized distribution callable to use a controlled random state.
     """
 
     nwalkers=model_config_instance.nwalkers
@@ -3162,7 +3207,7 @@ class ArgsGen:
         
         # Get opacities, CIA data
         self.inlinetemps,self.inwavenum,self.gasnames,self.gasmass,self.nwave=get_gasdetails(self.gaslist, self.w1, self.w2,self.xpath, self.xlist)
-        self.tmpcia, self.ciatemps = ciamod.read_cia("data/CIA_DS_aug_2015.dat", self.inwavenum)
+        self.tmpcia, self.ciatemps = ciamod.read_cia(self.model.cia_path, self.inwavenum)
         self.cia = np.asfortranarray(np.empty((4, self.ciatemps.size, self.nwave)), dtype='float32')
         self.cia[:, :, :] = self.tmpcia[:, :, :self.nwave]
         self.ciatemps = np.asfortranarray(self.ciatemps, dtype='float32')
@@ -3180,12 +3225,12 @@ class ArgsGen:
         if perturb_hminus:
             (self.bff_raw, self.ceTgrid, self.Pgrid, self.metscale,
              self.coscale, self.gases_myP) = bff_sorter(
-                self.chemeq, "data/chem_eq_tables_P3K.pic", self.press,
+                self.chemeq, self.model.chem_eq_table_path, self.press,
                 self.gaslist)
         else:
             (self.bff_raw, self.ceTgrid, self.metscale, self.coscale,
              self.gases_myP) = bff_sorter(
-                self.chemeq, "data/chem_eq_tables_P3K.pic", self.press,
+                self.chemeq, self.model.chem_eq_table_path, self.press,
                 self.gaslist)
             self.Pgrid = None
         if perturb_hminus:

@@ -424,7 +424,9 @@ def modelspec(theta,re_params,args_instance,gnostics):
             if bff_grid.ndim != 5:
                 raise ValueError(
                     "H- perturbation requires sort_bff_and_CE_met output")
-            metallicity = params_instance.met
+            metallicity = hminus_config.get("fixed_met")
+            if metallicity is None:
+                metallicity = params_instance.met
             mfit = interp1d(args_instance.metscale, bff_grid, axis=0)
             bff_at_met = mfit(metallicity)
             cfit = interp1d(args_instance.coscale, bff_at_met, axis=0)
@@ -503,3 +505,5 @@ def modelspec(theta,re_params,args_instance,gnostics):
 #     shiftspec[1,:] =  trimspec[1,:]
 
     return trimspec, cloud_phot_press,other_phot_press,cfunc
+
+
