@@ -22,7 +22,7 @@ Slab
 Deck
    An optically thick cloud whose top is retrieved. The layer optical depth
    grows exponentially below the top; by definition, cumulative cloud optical
-   depth is one at the deck-top pressure. ``dp`` controls its decay scale.
+   depth is one at the deck-top pressure. The ``dp`` parameter controls its decay scale in log space. This can be set to any value, but in practice the optical depth never falls off more slowly than the atmopshere scale height. Hence, it is recommended to apply a prior to this such that dp < 0.4 (in log-pressure dex).
 
 Opacity models
 --------------
