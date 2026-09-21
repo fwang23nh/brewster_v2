@@ -16,11 +16,14 @@ them locally.
 
    Tutorial_1_ClassIntro <tutorials/Brewster_v2_Tutorial_1_ClassIntro.ipynb>
    Tutorial_2_Make_a_Spectrum <tutorials/Brewster_v2_Tutorial_2_Make_a_Spectrum.ipynb>
-   Tutorial_3_Make_a_R_file <tutorials/Brewster_v2_Tutorial_3_R_file_template_Fei.ipynb>
-   Tutorial_4_Retrieval_Analysis <tutorials/Brewster_v2_Tutorial_4_Retrieval_Analysis.ipynb>
+   Tutorial_3_R_file_template <tutorials/Brewster_v2_Tutorial_3_R_file_template.ipynb>
+   Tutorial_4_Clear_Retrieval_Analysis <tutorials/Brewster_v2_Tutorial_4_Clear_Retrieval_Analysis.ipynb>
+   Tutorial_4.5_Cloudy_Retrieval_Analysis <tutorials/Brewster_v2_Tutorial_4.5_Cloudy_Retrieval_Analysis.ipynb>
    Tutorial_5_MultiNest_Prior_Introduction <tutorials/Brewster_v2_Tutorial_5_multinest_prior_intro.ipynb>
    Tutorial_6_Cloud_Postprocessing <tutorials/Brewster_v2_Tutorial_6_Cloud_Postprocessing.ipynb>
    Tutorial_7_Gas_Abundances_vs_Chemical_Equilibrium <tutorials/Brewster_v2_Tutorial_7_Gas_Abundances_vs_Chemical_Equilibrium.ipynb>
+   Tutorial_8_TP_Profile_Type_4 <tutorials/Brewster_v2_Tutorial_8_TP_Profile_Type_4.ipynb>
+   Tutorial_9_Gas_Opacity <tutorials/Brewster_v2_Tutorial_9_Gas_Opacity.ipynb>
 
 Cloud post-processing
 ---------------------

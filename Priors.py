@@ -203,52 +203,12 @@ def log_uniform_prior(r, x1, x2):
     return 10.0 ** (lx1 + r * (lx2 - lx1))
 
 
-
-def Tp77_lndelta(r, alpha, press):
-    """
-    Transform a uniform variable r in [0,1]
-    into a logarithmically distributed lndelta
-    parameter based on the pressure grid.
-
-    Parameters
-    ----------
-    r : float or array
-        Uniform samples between 0 and 1
-
-    alpha : float
-        Scaling parameter
-
-    press : array
-        Pressure grid
-
-    Returns
-    -------
-    lndelta : float or array
-        Transformed lndelta parameter
-
-    Notes
-    -----
-    If r <= 0, returns -1e32
-    """
-
-    if np.any(r <= 0.0):
-        return -1.0e32
-
-    plen = np.log10(press[-1]) - np.log10(press[0])
-
-    pmax = alpha * plen
-    p_diff = np.log(0.1) - alpha * np.log10(press[-1])
-
-    return r * pmax + p_diff
-
-
 PRIOR_FUNCTIONS = {
     'uniform': uniform_prior,
     'log_uniform': log_uniform_prior,
     'centered_log_abund': centered_log_abundance_prior,
     'gaussian': gaussian_prior,
     'truncated_gaussian': truncated_gaussian_prior,
-    'Tp77_lndelta': Tp77_lndelta
 }
 
 def query_priors(return_dict=False):
@@ -338,7 +298,7 @@ class Priors:
         self.intemp_keys = list(self.re_params.dictionary['pt']['params'].keys())
         self.intemp = np.array([getattr(self.params_instance, k) for k in self.intemp_keys])
 
-        if self.args_instance.proftype in [1, 77]:
+        if self.args_instance.proftype in [1]:
             self.intemp = self.intemp[1:]
 
         # -------- gas setup --------
@@ -559,10 +519,6 @@ class Priors:
         #LOOP
         for name in self.ptpara:
             idx = self.param_index[name]
-            
-            if pt == 77:
-                if name =='lndelta' and self.resolved_prior_dict['lndelta'] is None:
-                    self.resolved_prior_dict['lndelta']=['Tp77_lndelta', phi[self.param_index['alpha']],press]
 
             prior_spec = self.resolved_prior_dict.get(name)
 
@@ -669,7 +625,7 @@ class Priors:
         self.post_check_info=post_check_info
 
         if ok_basic and ok_post:
-            if self.args_instance.proftype in [1, 77]:
+            if self.args_instance.proftype in [1]:
                 gamma = self.params_instance.gamma
                 logbeta = -5.0
                 beta = 10.**logbeta
@@ -851,44 +807,6 @@ class Priors:
                 # prior_T_overall = (min(T) > 1.0) and (max(T) < 6000.) \
                 #     and (self.params_instance.T1 < self.params_instance.T2 < self.params_instance.T3 < Tconnect) \
                 #     and np.all(np.diff(T) >= 0.0)
-
-        elif self.args_instance.proftype==77:
-            """
-            delta=np.exp(lndelta)
-            tau=delta*(press)**alpha
-
-            delta=tau/(press)**alpha, alpha in [1,2]
-
-            find prior range of delta to keep τ ≈ 1 in a physically sensible region (typically around 0.1 -- 10 bar).
-
-            1. tau=1, alpha=1:
-
-            delta=1/press, press in [0.1, 10]
-            delta in [0.1,10]
-
-            2. tau=1, alpha=2:
-
-            delta=1/press**2, press in [0.1, 10]
-            delta in [0.01,100]
-        
-            # bits for smoothing in prior
-            gam = params_instance.gamma
-            """
-
-            delta= np.exp(self.params_instance.lndelta)
-            T = np.empty([self.args_instance.press.size])
-            T[:] = -100.
-            P1 = ((1/delta)**(1/self.params_instance.alpha))
-            # put prior on P1 to put it shallower than 100 bar   
-            prior_T_params= (1 < self.params_instance.alpha  < 2. and P1 < 100. and P1 > self.args_instance.press[0]
-                and self.params_instance.T1 > 0.0 and self.params_instance.T2 > 0.0 and self.params_instance.T3 > 0.0 and self.params_instance.Tint >0.0 and self.params_instance.gamma>0 and 0.01 <= delta <= 100)
-            
-            prior_T_overall=False
-            if prior_T_params==True:
-                T = TPmod.set_prof(self.args_instance.proftype, self.args_instance.coarsePress,self.args_instance.press, self.intemp)
-                prior_T_overall = (min(T) > 1.0) and (max(T) < 6000.)
-                diff=np.roll(T,-1)-2.*T+np.roll(T,1)
-                pp=len(T)
 
         elif self.args_instance.proftype==1:
             prior_T_params=(min(self.intemp) > 1.0) and (max(self.intemp) < 6000.)
@@ -1193,8 +1111,6 @@ class Priors:
 
                 if prior is None:
                     prior_text = "Default transform"
-                elif prior[0]=='Tp77_lndelta':
-                    prior_text = prior[:-1]+['press']
                 else:
                     prior_text = str(prior)
 

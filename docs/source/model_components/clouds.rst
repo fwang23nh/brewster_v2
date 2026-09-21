@@ -19,10 +19,60 @@ Slab
    Parameters include total optical depth at 1 µm, log base pressure, and
    thickness ``dp`` in pressure decades.
 
-Deck
-   An optically thick cloud whose top is retrieved. The layer optical depth
+ Deck
+
+ An optically thick cloud whose top is retrieved. The layer optical depth
    grows exponentially below the top; by definition, cumulative cloud optical
    depth is one at the deck-top pressure. The ``dp`` parameter controls its decay scale in log space. This can be set to any value, but in practice the optical depth never falls off more slowly than the atmopshere scale height. Hence, it is recommended to apply a prior to this such that dp < 0.4 (in log-pressure dex).
+
+   
+Visual comparison
+~~~~~~~~~~~~~~~~~
+
+.. figure:: /_static/cloud_vertical_profiles.png
+   :alt: Slab and deck layer optical depths versus pressure for dp of 0.3 and 1. Slabs have finite boundaries, while decks extend into the deep atmosphere.
+   :width: 100%
+
+   Grey cloud profiles returned by :func:`cloud_dic_new.atlas` on 64 layers.
+   Pressure increases downward. The horizontal axis is logarithmic above
+   0.001 and linear near zero so cloud-free slab layers remain visible.
+   These are illustrative profiles, not retrieved cloud properties.
+
+For the **slab**, the base pressure is 1 bar and total reference optical
+depth is 3. The dashed line marks the base; coloured dotted lines mark
+the two tops. The top pressure is
+
+.. math::
+
+   P_\mathrm{top} = P_\mathrm{base}\,10^{-dp}.
+
+Increasing ``dp`` extends the slab upward while keeping its base fixed.
+At fixed total optical depth, it redistributes that optical depth over a
+larger pressure interval. The code integrates :math:`d\tau/dP\propto P`
+over layer boundaries, including partially occupied top and base layers.
+The plotted values are optical depths **per layer**, not cumulative optical
+depth or :math:`d\tau/dP`; their sum is the slab's total optical depth.
+
+For the **deck**, the dashed line marks :math:`P_0=1` bar. Both examples
+use the same reference pressure, with
+
+.. math::
+
+   S = P_0(1-10^{-dp}), \qquad
+   \frac{d\tau}{dP} =
+   \frac{\exp[(P-P_0)/S]}{S[1-\exp(-P_0/S)]}.
+
+Here ``dp`` sets the pressure scale :math:`S`, not a finite cloud thickness.
+A smaller positive ``dp`` concentrates the rise more tightly around
+:math:`P_0`; larger values give a more extended upper tail.
+Unlike the slab, the deck has no independently retrieved total optical depth.
+
+The plotted deck includes the implementation's deep-layer rule: when either
+layer-boundary exponent exceeds 10, ``atlas`` assigns that layer
+:math:`\Delta\tau=100`. The deep plateau therefore reflects a numerical
+prescription. On a finite pressure grid, a cumulative sum also omits material
+above the grid and need not equal exactly one at a sampled layer centre.
+
 
 Opacity models
 --------------
@@ -44,6 +94,47 @@ Opacity models
      - condensate opacity plus particle-distribution parameters
      - Uses the saved efficiency grids for the condensate named after ``--``
        in the generated cloud identifier.
+
+Wavelength comparison
+~~~~~~~~~~~~~~~~~~~~~
+
+.. figure:: /_static/cloud_wavelength_scaling.png
+   :alt: Grey extinction is constant with wavelength. Power-law extinction decreases for alpha minus two and increases for alpha plus two; all curves equal one at one micron.
+   :width: 85%
+
+   Extinction relative to its value at 1 micron, independent of whether the
+   vertical geometry is a slab or deck.
+
+For the generic opacity models, ``clouds_mod.f90`` applies
+
+.. math::
+
+   \Delta\tau_\lambda = \Delta\tau_{1\,\mu\mathrm{m}}
+   \left(\frac{\lambda}{1\,\mu\mathrm{m}}\right)^\alpha.
+
+Grey clouds use ``alpha=0``. Negative ``alpha`` gives stronger extinction
+at shorter wavelengths, and positive ``alpha`` gives stronger extinction
+at longer wavelengths. This ``alpha`` is a wavelength exponent, distinct
+from the gas-profile gradient parameter. The single-scattering albedo
+``omega`` sets the scattering fraction of extinction; it does not change
+the extinction curves shown here.
+
+Mie extinction depends on the condensate's saved efficiency grid and the
+particle-size distribution. It cannot be represented by a single universal
+curve in this comparison.
+
+Reproduce the figures
+~~~~~~~~~~~~~~~~~~~~~
+
+From the Brewster repository root, run
+``PYTHONPATH=. python docs/source/_scripts/plot_cloud_profiles.py`` with
+NumPy, SciPy, Astropy, and Matplotlib installed. The script uses the actual
+``atlas`` profiles and the wavelength scaling implemented in Fortran; it
+does not run radiative transfer or load Mie opacity tables.
+
+.. literalinclude:: /_scripts/plot_cloud_profiles.py
+   :language: python
+   :lines: 3-
 
 Particle distributions
 ----------------------
