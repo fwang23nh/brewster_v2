@@ -19,13 +19,13 @@ Slab
    Parameters include total optical depth at 1 µm, log base pressure, and
    thickness ``dp`` in pressure decades.
 
-Deck
-   An optically thick cloud whose reference pressure is retrieved. The optical
-   depth per unit pressure grows exponentially with pressure; in the analytic
-   prescription, cumulative optical depth from zero pressure is one at the
-   reference pressure. This is often called the deck top, but it is not a
-   sharp boundary. ``dp`` controls its decay scale.
+ Deck
 
+ An optically thick cloud whose top is retrieved. The layer optical depth
+   grows exponentially below the top; by definition, cumulative cloud optical
+   depth is one at the deck-top pressure. The ``dp`` parameter controls its decay scale in log space. This can be set to any value, but in practice the optical depth never falls off more slowly than the atmopshere scale height. Hence, it is recommended to apply a prior to this such that dp < 0.4 (in log-pressure dex).
+
+   
 Visual comparison
 ~~~~~~~~~~~~~~~~~
 
@@ -72,6 +72,7 @@ layer-boundary exponent exceeds 10, ``atlas`` assigns that layer
 :math:`\Delta\tau=100`. The deep plateau therefore reflects a numerical
 prescription. On a finite pressure grid, a cumulative sum also omits material
 above the grid and need not equal exactly one at a sampled layer centre.
+
 
 Opacity models
 --------------
