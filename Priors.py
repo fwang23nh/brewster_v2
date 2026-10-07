@@ -667,7 +667,7 @@ class Priors:
                 continue
 
             # Uniform and normal prior range
-            if init_dis[0] == "uniform" or "normal":
+            if init_dis[0] == "uniform" or init_dis[0] == "normal":
                 if not (r[0] < value < r[1]):
                     return -np.inf
                 logp += 0
@@ -738,10 +738,7 @@ class Priors:
             
         elif self.args_instance.proftype==4:
 
-            prior_T_params = (2000. < self.params_instance.Tbottom < 10000. and 0.18 < self.params_instance.dTdP1 < 0.32
-                              and 0.12 < self.params_instance.dTdP2 < 0.36 and 0.12 < self.params_instance.dTdP3 < 0.4
-                              and 0.08 < self.params_instance.dTdP4 < 0.34 and 0. < self.params_instance.dTdP5 < 0.24
-                              and -0.1 < self.params_instance.dTdP6 < 0.26)
+            prior_T_params = (2000. < self.params_instance.Tbottom < 10000.)
 
             prior_T_overall =False
             if prior_T_params==True:
