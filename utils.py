@@ -1882,14 +1882,16 @@ def get_dis_range_priors(dic):
 
 
 
-def MC_P0_gen(updated_dic,model_config_instance,args_instance, max_prior_attempts=2000):
+def MC_P0_gen(updated_dic,model_config_instance,args_instance, max_prior_attempts=3000):
 
     """
     Draw MCMC starting positions and retain only prior-valid walkers.
 
     Each candidate walker is drawn from the configured MC_init_dis distributions.
-    It must have finite parameter values, lie strictly inside every specified
-    MC_prior_range, and have a finite log prior from Priors.Priors. The full
+    It must have finite parameter values, satisfy every specified
+    MC_prior_range, and have a finite log prior from Priors.Priors. Truncated
+    Gaussian ranges specify left/right sigma counts and include their endpoints;
+    other ranges specify strict lower/upper limits. The full
     prior check also tests coupled constraints, such as PT structure, cloud
     placement, and mass/radius, which independent parameter draws may violate.
     Accepted walkers are retained; every parameter of a rejected walker is
@@ -1995,11 +1997,21 @@ def MC_P0_gen(updated_dic,model_config_instance,args_instance, max_prior_attempt
         rejected = []
         for walker in pending:
             theta = p0[walker]
-            invalid = [
-                name for (name, bounds), value in zip(mc_ranges.items(), theta)
-                if not np.isfinite(value)
-                or (bounds is not None and not bounds[0] < value < bounds[1])
-            ]
+            invalid = []
+            for (name, bounds), value in zip(mc_ranges.items(), theta):
+                if not np.isfinite(value):
+                    invalid.append(name)
+                elif bounds is not None:
+                    distribution = mc_init_dis[name]
+                    if distribution[0] == "truncated_gaussian":
+                        mu, sigma = distribution[1:]
+                        nleft, nright = bounds
+                        lower = mu - nleft * sigma
+                        upper = mu + nright * sigma
+                        if not lower <= value <= upper:
+                            invalid.append(name)
+                    elif not bounds[0] < value < bounds[1]:
+                        invalid.append(name)
             if invalid:
                 last_failure = f"Parameter bounds/non-finite values: {invalid}"
             else:
