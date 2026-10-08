@@ -3,8 +3,8 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Tutorial Notebooks
-==================
+Tutorials
+=========
 
 The tutorials progress from configuration to inference and post-processing.
 Notebooks are displayed without re-execution during a documentation build, so
@@ -25,9 +25,5 @@ them locally.
    Tutorial_8_TP_Profile_Type_4 <tutorials/Brewster_v2_Tutorial_8_TP_Profile_Type_4.ipynb>
    Tutorial_9_Gas_Opacity <tutorials/Brewster_v2_Tutorial_9_Gas_Opacity.ipynb>
 
-Cloud post-processing
----------------------
-
-The new :doc:`postprocessing` guide explains how to calculate total and
-species-resolved cloud photospheres, as well as layer-by-layer optical depth.
-Tutorial 6 provides the complete runnable notebook workflow.
+For posterior distributions of bolometric luminosity, effective temperature,
+radius, and mass, see the separate :doc:`postprocessing` guide.

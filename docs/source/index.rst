@@ -36,5 +36,6 @@ Start here
    model_components/index
    retrieval_workflow
    tutorials
+   Cross-section_downsampling
    postprocessing
    api
