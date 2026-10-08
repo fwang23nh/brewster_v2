@@ -2,9 +2,8 @@ subroutine marv(temp,logg,R2D2,ingasname,molmass,logVMR,pcover,&
      cloudmap,cloud_opaname,cloudsize,clouddata,miewave,mierad, &
      cloudrad,cloudsig,cloudprof,&
      inlinetemps,inpress,inwavenum,inlinelist,cia,ciatemps,&
-     use_disort,make_cl_pspec,make_oth_pspec,make_cf,do_bff,bff,outspec,&
-     cl_phot_press,oth_phot_press,cfunc)
-
+     use_disort,make_cl_pspec,make_oth_pspec,make_cf,do_bff,bff,cfunc,&
+     outspec,cl_phot_press,oth_phot_press)
   use sizes
   use main
   
@@ -18,8 +17,8 @@ subroutine marv(temp,logg,R2D2,ingasname,molmass,logVMR,pcover,&
   !f2py intent(inout) cia, ciatemps
   !f2py intent(inout) inlinelist, inwavenum,bff,clouddata,miewave,mierad
   !f2py intent(inout) cloudmap,pcover,molmass
-  !f2py intent(out) out_spec, cl_phot_press,oth_phot_press,cfunc
-
+  !f2py intent(inout) cfunc
+  !f2py intent(out) out_spec, cl_phot_press,oth_phot_press
   real,intent(inout) :: cia(:,:,:)
   real,dimension(nciatemps) :: ciatemps
   real,intent(inout) :: inlinelist(:,:,:,:)
@@ -45,7 +44,11 @@ subroutine marv(temp,logg,R2D2,ingasname,molmass,logVMR,pcover,&
   double precision,dimension(maxpatch,maxwave),intent(OUT):: cl_phot_press,oth_phot_press
   double precision,dimension(:,:),allocatable :: out_spec, clphotspec,othphotspec
   double precision,dimension(:,:,:),allocatable :: cf
-  double precision,dimension(maxpatch,maxwave,maxlayers) :: cfunc
+  ! cfunc is supplied by the caller and filled in place. Pass a tiny (1,1,1)
+  ! array when no contribution function is wanted, or (npatch,nwave,nlayers)
+  ! when it is. This avoids allocating, zeroing and returning a
+  ! maxpatch*maxwave*maxlayers array on every call.
+  double precision,intent(inout) :: cfunc(:,:,:)
   double precision,intent(inout) :: inwavenum(:)
   real,intent(inout) :: inlinetemps(:)
   real,intent(inout) :: inpress(:)
@@ -99,6 +102,10 @@ subroutine marv(temp,logg,R2D2,ingasname,molmass,logVMR,pcover,&
 
   cfunc = 0.d0
   if (do_cf) then
+     if (size(cfunc,1) < npatch .or. size(cfunc,2) < nwave .or. size(cfunc,3) < nlayers) then
+        write(*,*) "marv: cfunc array too small; pass shape (npatch,nwave,nlayers)"
+        stop
+     end if
      do ipatch = 1, npatch
         do ilayer = 1, nlayers
            cfunc(ipatch,1:nwave,ilayer)  = cf(ipatch,1:nwave,ilayer)

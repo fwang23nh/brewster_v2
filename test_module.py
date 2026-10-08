@@ -258,6 +258,7 @@ def modelspec(theta,re_params,args_instance,gnostics):
 
     cfunc : ndarray, shape (npatches, nwave, nlayers)
         Contribution function as a function of patch, wavelength, and pressure layer.
+        none when gnostics == 0 (not computed).
     """
 
     all_params,all_params_values =utils.get_all_parametres(re_params.dictionary) 
@@ -474,11 +475,16 @@ def modelspec(theta,re_params,args_instance,gnostics):
         clphot = 1
         ophot = 1
         make_cf = 1
-
+    # Array for the contribution function, filled in place by marv.
+    # A dummy 1x1x1 array unless the contribution function is wanted.
+    if make_cf:
+        cf = np.zeros((npatches, args_instance.inwavenum.size, nlayers), dtype='float64', order='F')
+    else:
+        cf = np.zeros((1, 1, 1), dtype='float64', order='F')
 
 
     #now we can call the forward model
-    outspec,tmpclphotspec,tmpophotspec,cf = forwardmodel.marv(temp,logg,R2D2,args_instance.gasnames,args_instance.gasmass,logVMR,pcover,cloudmap,args_instance.cloud_opaname,cloudsize,settings.cloudata,args_instance.miewave,args_instance.mierad,cloudrad,cloudsig,cloudprof,args_instance.inlinetemps,press,args_instance.inwavenum,settings.linelist,settings.cia,args_instance.ciatemps,args_instance.use_disort,clphot,ophot,make_cf,args_instance.do_bff,bff)
+    outspec,tmpclphotspec,tmpophotspec = forwardmodel.marv(temp,logg,R2D2,args_instance.gasnames,args_instance.gasmass,logVMR,pcover,cloudmap,args_instance.cloud_opaname,cloudsize,settings.cloudata,args_instance.miewave,args_instance.mierad,cloudrad,cloudsig,cloudprof,args_instance.inlinetemps,press,args_instance.inwavenum,settings.linelist,settings.cia,args_instance.ciatemps,args_instance.use_disort,clphot,ophot,make_cf,args_instance.do_bff,bff,cf)
 
     # Trim to length where it is defined.
     nwave = args_instance.inwavenum.size
@@ -486,9 +492,10 @@ def modelspec(theta,re_params,args_instance,gnostics):
     trimspec = outspec[:,:nwave]
     cloud_phot_press = tmpclphotspec[0:npatches,:nwave].reshape(npatches,nwave)
     other_phot_press = tmpophotspec[0:npatches,:nwave].reshape(npatches,nwave)
-    cfunc = np.zeros([npatches,nwave,nlayers],dtype='d')
-    cfunc = cf[:npatches,:nwave,:nlayers].reshape(npatches,nwave,nlayers)
-    
+    if make_cf:
+        cfunc = cf[:npatches,:nwave,:nlayers].reshape(npatches,nwave,nlayers)
+    else:
+        cfunc = None   # not computed when gnostics == 0    
     trimspec[0,:] =  trimspec[0,::-1]
     trimspec[1,:] =  trimspec[1,::-1]
     
