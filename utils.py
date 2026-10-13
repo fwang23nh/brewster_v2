@@ -3219,10 +3219,14 @@ class ArgsGen:
         
         # Get opacities, CIA data
         self.inlinetemps,self.inwavenum,self.gasnames,self.gasmass,self.nwave=get_gasdetails(self.gaslist, self.w1, self.w2,self.xpath, self.xlist)
-        self.tmpcia, self.ciatemps = ciamod.read_cia(self.model.cia_path, self.inwavenum)
-        self.cia = np.asfortranarray(np.empty((4, self.ciatemps.size, self.nwave)), dtype='float32')
-        self.cia[:, :, :] = self.tmpcia[:, :, :self.nwave]
-        self.ciatemps = np.asfortranarray(self.ciatemps, dtype='float32')
+
+        # set up the CIA arrays.
+        # Current table has 198 temperatures, 1000 wavepoints
+        self.nciatemps = 198
+        self.nciawave =  1000
+        self.ciatemps = np.asfortranarray(np.zeros(self.nciatemps), dtype='float32')
+        self.cia = np.asfortranarray(np.zeros([4,self.nciatemps,self.nwave]),dtype='float32')
+        ciamod.read_cia(self.model.cia_path, self.nciawave,self.inwavenum,self.cia,self.ciatemps)
         
         # BFF and Chemical grids.  Keep the legacy solar-metallicity loader
         # unless this retrieval explicitly requests perturbed H- and met.

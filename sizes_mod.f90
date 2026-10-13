@@ -16,27 +16,15 @@ module sizes
   
   ! number of pressure layers
   integer, protected :: nlayers
-
-  ! max number of layers
-  integer,parameter :: maxlayers = 1000
   
   ! number of temperatures in line list grid
-  !integer, parameter :: nlinetemps = 27
+  
   integer, protected :: nlinetemps
  
   
   ! number of temperatures in CIA tables
-  integer,parameter :: nciatemps = 198
+  integer,protected :: nciatemps
 
-  ! number of wavenumbers in lowres CIA tables
-  integer,parameter :: ncwave = 1000
-
-  
-  ! max wave number
-  integer, parameter :: maxwave = 130000
-
-  ! max number of patches
-  integer, parameter :: maxpatch = 4
   
   ! number of wavelength/number bins in full range
   integer,protected :: nwave
@@ -57,13 +45,7 @@ contains
 
   subroutine initpatch(pval)
     integer :: pval
-    if (pval .le. maxpatch) then
-       npatch =  pval
-    else
-       write(*,*) "N patch > maxpatch (", maxpatch,")."
-       stop
-    end if
-
+    npatch =  pval
   end subroutine initpatch
 
   subroutine initcloud(pval)
@@ -80,5 +62,10 @@ contains
     integer :: pval
     nlinetemps =  pval
   end subroutine inittemps
-  
+
+  subroutine initcia(pval)
+    integer :: pval
+    nciatemps = pval
+  end subroutine initcia
+
 end module sizes

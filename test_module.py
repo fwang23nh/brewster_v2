@@ -467,50 +467,31 @@ def modelspec(theta,re_params,args_instance,gnostics):
     # ^^ i.e. the photosphere due to other (gas phase) opacities)
 
     # Set clphot,ophot and cfunc as we don't need these in the emcee run
-    if (gnostics == 0):
-        clphot = 0
-        ophot = 0
-        make_cf = 0
-    else:
-        clphot = 1
-        ophot = 1
-        make_cf = 1
+
     # Array for the contribution function, filled in place by marv.
     # A dummy 1x1x1 array unless the contribution function is wanted.
-    if make_cf:
-        cf = np.zeros((npatches, args_instance.inwavenum.size, nlayers), dtype='float64', order='F')
+    if gnostics:
+        cfunc = np.zeros((npatches, args_instance.inwavenum.size, nlayers), dtype='float64', order='F')
+        cloud_phot_press = np.zeros((npatches, args_instance.inwavenum.size), dtype='float64', order='F')
+        other_phot_press =  np.zeros((npatches, args_instance.inwavenum.size), dtype='float64', order='F')
     else:
-        cf = np.zeros((1, 1, 1), dtype='float64', order='F')
+        cfunc = np.zeros((1, 1, 1), dtype='float64', order='F')
+        cloud_phot_press = np.zeros((1, 1), dtype='float64', order='F')
+        other_phot_press = np.zeros((1, 1), dtype='float64', order='F')
 
-
-    #now we can call the forward model
-    outspec,tmpclphotspec,tmpophotspec = forwardmodel.marv(temp,logg,R2D2,args_instance.gasnames,args_instance.gasmass,logVMR,pcover,cloudmap,args_instance.cloud_opaname,cloudsize,settings.cloudata,args_instance.miewave,args_instance.mierad,cloudrad,cloudsig,cloudprof,args_instance.inlinetemps,press,args_instance.inwavenum,settings.linelist,settings.cia,args_instance.ciatemps,args_instance.use_disort,clphot,ophot,make_cf,args_instance.do_bff,bff,cf)
-
-    # Trim to length where it is defined.
     nwave = args_instance.inwavenum.size
-    trimspec = np.zeros([2,nwave],dtype='d')
-    trimspec = outspec[:,:nwave]
-    cloud_phot_press = tmpclphotspec[0:npatches,:nwave].reshape(npatches,nwave)
-    other_phot_press = tmpophotspec[0:npatches,:nwave].reshape(npatches,nwave)
-    if make_cf:
-        cfunc = cf[:npatches,:nwave,:nlayers].reshape(npatches,nwave,nlayers)
-    else:
-        cfunc = None   # not computed when gnostics == 0    
-    trimspec[0,:] =  trimspec[0,::-1]
-    trimspec[1,:] =  trimspec[1,::-1]
-    
-#     # now shift wavelen by delta_lambda
-#     shiftspec = np.empty_like(trimspec)
-# 
-#     if hasattr(params_instance, "vrad"):
-#         vrad = params_instance.vrad
-#         dlam = trimspec[0,:] * vrad/3e5
-#     else:
-#         dlam = params_instance.dlambda
-# 
-#     shiftspec[0,:] =  trimspec[0,:] + dlam
-#     shiftspec[1,:] =  trimspec[1,:]
+    out_spec = np.asfortranarray(np.zeros([2,nwave],dtype='d'))   
+    #now we can call the forward model
+    forwardmodel.marv(temp,logg,R2D2,args_instance.gasnames,args_instance.gasmass,logVMR,pcover,cloudmap,args_instance.cloud_opaname,cloudsize,settings.cloudata,args_instance.miewave,args_instance.mierad,cloudrad,cloudsig,cloudprof,args_instance.inlinetemps,press,args_instance.inwavenum,settings.linelist,settings.cia,args_instance.ciatemps,args_instance.use_disort,gnostics,args_instance.do_bff,bff,out_spec,cloud_phot_press,other_phot_press,cfunc)
 
-    return trimspec, cloud_phot_press,other_phot_press,cfunc
+    if (gnostics == 0):
+        cfunc = None   # not computed when gnostics == 0    
+
+    out_spec[0,:] =  out_spec[0,::-1]
+    out_spec[1,:] =  out_spec[1,::-1]
+    
+
+
+    return out_spec, cloud_phot_press,other_phot_press,cfunc
 
 
