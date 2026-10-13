@@ -7,7 +7,8 @@ contains
        cloudmap,cloudname,sizdist,clouddata,miewave,mierad,&
        cloudrad,cloudsig,cloudprof,&
        inlinetemps,inpress,inwavenum,linelist,cia,ciatemp,use_disort,&
-       clphot,othphot,do_cf,do_bff,bff,out_spec,clphotspec,othphotspec,cf)
+       gnostics,do_bff,bff,&
+       out_spec,cl_phot_press,oth_phot_press,cfunc)
     
     use sizes
     use common_arrays
@@ -43,22 +44,18 @@ contains
     double precision,intent(inout):: bff(:,:)
     real, dimension(nciatemps), intent(in):: ciatemp
     real, intent(inout) :: cia(:,:,:)
-    double precision,allocatable, dimension(:,:),INTENT(OUT) :: out_spec
-    double precision,allocatable, dimension(:,:),INTENT(INOUT) :: clphotspec, othphotspec
-    double precision,allocatable, dimension(:,:,:),INTENT(INOUT) :: cf
-    double precision,allocatable, dimension(:)::specflux
+    double precision,INTENT(INOUT) :: out_spec(:,:)
+    double precision,INTENT(INOUT) :: cl_phot_press(:,:), oth_phot_press(:,:)
+    double precision,INTENT(INOUT) :: cfunc(:,:,:)
+    !double precision,intent(inout)::specflux(:)
     real:: metal,grav,test,tau1
     ! counters
     integer :: ch4index,ipatch,icloud,ilayer,iwave,igas,nw1,nw2,use_disort
-    integer :: do_bff
+    integer :: do_bff,gnostics
     real:: totcover, fboth, fratio, tstart,tfinish, opstart,opfinish,allelse
     real:: linstart, linfinish,distart, difinish,cloudstart,cloudfinish
     real:: bfstart,bffinish
-    logical :: disorting,clphot,othphot,bfing,do_cf
-
-    ! Are we using DISORT
-    disorting = use_disort
-    bfing  = do_bff
+    
     ! HARD CODED to do line and CIA opacity calcs and everything
     ! apart from dust for first patch
     ! and copy to rest of patches before disort
@@ -100,7 +97,7 @@ contains
 
     end do
 
-    if (bfing) then
+    if (do_bff .eq. 1) then
        patch(1)%atm%fe = 10.**bff(1,:)
        patch(1)%atm%fH = 10.**bff(2,:)
        patch(1)%atm%fHmin = 10.**bff(3,:)
@@ -174,7 +171,7 @@ contains
     end do
     
     ! get the bff opacities
-    if (bfing) then
+    if (do_bff .eq. 1) then
        call get_hmbff
     end if
     
@@ -272,11 +269,11 @@ contains
     call cpu_time(distart)
 
     
-    call run_RT(specflux,clphotspec,othphotspec,cf,disorting,clphot,othphot,do_cf)
+    call run_RT(out_spec(2,:),cl_phot_press,oth_phot_press,cfunc,use_disort,gnostics)
 
-    allocate(out_spec(2,nwave))
+    !allocate(out_spec(2,nwave))
     out_spec(1,:) = wavelen
-    out_spec(2,:) = specflux * R2D2
+    out_spec(2,:) = out_spec(2,:) * R2D2
     ! scale by r2d2
     
     call cpu_time(difinish)

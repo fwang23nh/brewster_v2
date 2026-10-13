@@ -2,7 +2,7 @@
 
 contains
 
-  subroutine run_RT(spectrum,clphotspec,othphotspec,cf,disorting,clphot,othphot,do_cf)
+  subroutine run_RT(spectrum,clphotspec,othphotspec,cfunc,use_disort,gnostics)
 
     use sizes
     use common_arrays
@@ -28,10 +28,10 @@ contains
     integer ::ntau
     double precision,dimension(MAXULV) :: utau
     double precision, allocatable, dimension(:,:) :: tau_cloud, tau_others   
-    double precision,allocatable,dimension(:), INTENT(OUT):: spectrum
-    double precision,allocatable,dimension(:,:), INTENT(OUT):: clphotspec,othphotspec
-   
-    double precision,allocatable,dimension(:,:,:), INTENT(OUT):: cf
+    double precision, INTENT(INOUT):: spectrum(:)
+    double precision,INTENT(INOUT):: clphotspec(:,:),othphotspec(:,:)  
+    double precision,INTENT(INOUT):: cfunc(:,:,:)
+    
     double precision, dimension(nlayers) :: DTAUC, SSALB, COSBAR
     double precision, dimension(nlayers+1) :: temper
     double precision :: WVNMLO, WVNMHI, wint, tau1, tau2, p1, p2
@@ -47,9 +47,9 @@ contains
     double precision,allocatable,dimension(:):: upflux
     logical, dimension(5) :: PRNT
     character(len=0):: HEADER
-    integer :: NUMU,NSTR,NMOM,NLYR, NPHI, IBCND
-    logical :: LAMBER,  PLANK,  USRTAU, USRANG, ONLYFL,disorting
-    logical :: clphot,othphot,othdone, cldone,do_cf
+    integer :: NUMU,NSTR,NMOM,NLYR, NPHI, IBCND, use_disort, gnostics
+    logical :: LAMBER,  PLANK,  USRTAU, USRANG, ONLYFL
+    logical :: othdone, cldone
     double precision :: FBEAM, FISOT,  ALBEDO , ACCUR, TEMIS
     double precision :: bbplk
     external :: bbplk
@@ -89,9 +89,9 @@ contains
     ! all temps the same across patches
     call set_temp_levels(temper)
 
-    allocate(upflux(nwave),spectrum(nwave))
-    allocate(clphotspec(npatch,nwave),othphotspec(npatch,nwave))
-    allocate(cf(npatch,nwave,nlayers))
+    allocate(upflux(nwave))
+    !allocate(clphotspec(npatch,nwave),othphotspec(npatch,nwave))
+    !allocate(cfunc(npatch,nwave,nlayers))
     allocate(tau_cloud(nlayers,nwave),tau_others(nlayers,nwave))
 
     clphotspec = 0d0
@@ -180,7 +180,7 @@ contains
              DTAUC(ilayer) = patch(ipatch)%atm(ilayer)%opd_ext(iwave)
 
              ! now sort out the diagnostics for the photospheres
-             if (clphot .and. .not. (cldone)) then
+             if ((gnostics .eq. 1) .and. .not. (cldone)) then
                 
                 ! this bit calculates the pressure level where tau_cloud
                 ! reaches some value set above. Activate in python code with
@@ -203,7 +203,7 @@ contains
                 end if
              end if
              
-             if (othphot .and. .not. (othdone)) then
+             if ((gnostics .eq. 1) .and. .not. (othdone)) then
                 ! this bit calculates the pressure level where tau_other
                 ! (i.e. not clouds) reaches some value set above.
                 ! Activate in python code with gnostics
@@ -230,7 +230,7 @@ contains
           end do
           
           
-          if (disorting) then 
+          if (use_disort .eq. 1) then 
              
              
              ! set up wavenumber interval....
@@ -281,13 +281,13 @@ contains
        
     deallocate(upflux)
     ! Get the contribution function for them that want it...
-    if (do_CF) then
+    if (gnostics .eq. 1) then
        do ipatch = 1, npatch
           do iwave = 1, nwave
              tau = 0.d0
              do ilayer = 1, nlayers
                 tau = tau + patch(ipatch)%atm(ilayer)%opd_ext(iwave)
-                cf(ipatch,iwave,ilayer)  = &
+                cfunc(ipatch,iwave,ilayer)  = &
                      bbplk(wavenum(iwave),patch(ipatch)%atm(ilayer)%temp) * &
                      patch(ipatch)%atm(ilayer)%opd_ext(iwave) &
                      / exp(tau)
