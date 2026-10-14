@@ -84,7 +84,6 @@ def brewster_reterieval_run(re_params,model_config_instance,io_config_instance):
     if (rank == 0):
         # cia = np.asfortranarray(np.empty((4,ciatemps.size,nwave)),dtype='float32')
         settings.cia[:,:,:] = args_instance.cia
-    delattr(args_instance, 'tmpcia')
     delattr(args_instance, 'cia')
 
 
