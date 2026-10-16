@@ -57,13 +57,14 @@ def set_prof(proftype, coarsePress,press,intemp):
     Returns
     -------
     temp : ndarray
-        Temperature profile on the fine `press` grid (K), clipped to [100, 4000] K.
+        Temperature profile on the fine `press` grid (K), floored at 100 K.
+        Profiles other than type 4 are also capped at 4000 K.
 
     Notes
     -----
     - Final temperatures are smoothed with a 5-layer Gaussian kernel.
-    - Temperatures are clipped to the range 100-4000 K to avoid unphysical values
-      and opacity table limits.
+    - Temperatures are floored at 100 K and, except for type 4, capped at
+      4000 K. Type 4's upper temperature bound is enforced by the retrieval prior.
     - Several optional diagnostics issue warnings when parameters fall outside
       typical physical ranges.
     """
@@ -155,7 +156,8 @@ def set_prof(proftype, coarsePress,press,intemp):
 
         #Set up parameters from bottom to top
         T1 = intemp[0]
-        dtdp = intemp[1:]
+        # Parameters run bottom to top; interpolation knots run top to bottom.
+        dtdp = intemp[1:][::-1]
 
         #Quadratic interpolation between 6 layers
         # Create interp function based on priors for each of the 6 points
@@ -165,6 +167,7 @@ def set_prof(proftype, coarsePress,press,intemp):
         #org top to bottom
         # dtdp_fine = interp_func(press_zhang)
         temperatures_sub = np.ones(num_sub) * np.nan
+        # Anchor at the actual grid bottom, which need not reach the 1000-bar knot.
         temperatures_sub[-1] = T1
 
 

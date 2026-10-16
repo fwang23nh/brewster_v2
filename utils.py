@@ -608,7 +608,7 @@ class Retrieval_params:
 
         elif num_coarsePress == None:
             if self.ptype == 4:
-                self.num_coarsePress = 7
+                self.num_coarsePress = 6
             else:
                 self.num_coarsePress = 13
             self.num_finePress = num_finePress
@@ -788,43 +788,43 @@ class Retrieval_params:
                             {'initialization':None,
                                 'MC_init_dis':['uniform',2000,10000],
                                 'MC_prior_range':[2000,10000],
-                                'Multinest_prior':None},
+                                'Multinest_prior':['uniform',2000,10000]},
 
                               'dTdP1':
                                {'initialization':None,
                                 'MC_init_dis':['truncated_gaussian',0.25,0.025],
                                 'MC_prior_range':[3,3],
-                                'Multinest_prior':None},
+                                'Multinest_prior':['truncated_gaussian',0.25,0.025,3,3]},
 
                             'dTdP2':
                                {'initialization':None,
                                 'MC_init_dis':['truncated_gaussian',0.25,0.045],
                                 'MC_prior_range':[3,3],
-                                'Multinest_prior':None},
+                                'Multinest_prior':['truncated_gaussian',0.25,0.045,3,3]},
 
                             'dTdP3':
                                {'initialization':None,
                                 'MC_init_dis':['truncated_gaussian',0.26,0.05],
                                 'MC_prior_range':[3,3],
-                                'Multinest_prior':None},
+                                'Multinest_prior':['truncated_gaussian',0.26,0.05,3,3]},
 
                             'dTdP4':
                                {'initialization':None,
                                 'MC_init_dis':['truncated_gaussian',0.2,0.05],
                                 'MC_prior_range':[3,3],
-                                'Multinest_prior':None},
+                                'Multinest_prior':['truncated_gaussian',0.2,0.05,3,3]},
 
                             'dTdP5':
                                {'initialization':None,
                                 'MC_init_dis':['truncated_gaussian',0.12,0.045],
                                 'MC_prior_range':[3,3],
-                                'Multinest_prior':None},
+                                'Multinest_prior':['truncated_gaussian',0.12,0.045,3,3]},
 
                             'dTdP6':
                                {'initialization':None,
                                 'MC_init_dis':['truncated_gaussian',0.07,0.07],
                                 'MC_prior_range':[3,3],
-                                'Multinest_prior':None},
+                                'Multinest_prior':['truncated_gaussian',0.07,0.07,3,3]},
                             }}
             else:
                 dictionary={
@@ -833,7 +833,7 @@ class Retrieval_params:
                             {'initialization':None,
                                 'MC_init_dis':['uniform',2000,10000],
                                 'MC_prior_range':[2000,10000],
-                                'Multinest_prior':None}
+                                'Multinest_prior':['uniform',2000,10000]}
                 }}
                 for i in range(num_coarsePress):
                     dictionary['params']["dTdP%d" % (i+1)] = {
@@ -2981,11 +2981,18 @@ def get_gasdetails(gaslist,w1,w2,xpath='../Linelists',xlist='gaslistR10K.dat'):
     totgas = 0
     gasdata = []
     with open(xlist) as fa:
-        for line_aa in fa.readlines():
-            if len(line_aa) == 0:
-                break
-            totgas = totgas +1 
+        # for line_aa in fa.readlines():
+        #     if len(line_aa) == 0:
+        #         break
+        #     totgas = totgas +1 
+        #     line_aa = line_aa.strip()
+        #     gasdata.append(line_aa.split())
+        
+        for line_aa in fa:
             line_aa = line_aa.strip()
+            if not line_aa:
+                continue
+            totgas += 1
             gasdata.append(line_aa.split())
 
     list1 = []

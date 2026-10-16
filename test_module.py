@@ -130,6 +130,15 @@ def lnlike(theta,re_params):
     do_scales=args_instance.do_scales
     do_conv=args_instance.do_conv
 
+    if re_params.samplemode.lower() == 'multinest' and proftype == 4:
+        # The cube transform handles independent priors; the temperature
+        # constraint couples the gradients and must reject in the likelihood.
+        intemp = np.array([getattr(params_instance, key)
+                           for key in re_params.dictionary['pt']['params']])
+        if not Priors.pt4_profile_is_valid(
+                params_instance.Tbottom, args_instance.coarsePress, press, intemp):
+            return -np.inf
+
     # ---- Generate the forward model spectrum ----
     # for MCMC runs we don't want diagnostics
     gnostics = 0
@@ -450,9 +459,14 @@ def modelspec(theta,re_params,args_instance,gnostics):
                 bff[gas,i] = tfit(temp[i])
 
         if perturb_hminus:
-            bff[2, :] = gas_nonuniform.gas_PT_perturbation(
-                press, bff[2, :], params_instance.logP_ref_hmins,
-                params_instance.dp_hmins, params_instance.abun_var_hmins)
+            if hminus_config.get('zero_perturbation', False):
+                # At zero amplitude, centre and width have no effect; retain smoothing.
+                bff[2, :] = gas_nonuniform.gas_PT_perturbation(
+                    press, bff[2, :], 0.0, 0.0, 0.0)
+            else:
+                bff[2, :] = gas_nonuniform.gas_PT_perturbation(
+                    press, bff[2, :], params_instance.logP_ref_hmins,
+                    params_instance.dp_hmins, params_instance.abun_var_hmins)
 
     bff = np.asfortranarray(bff, dtype='float64')
     press = np.asfortranarray(press,dtype='float32')

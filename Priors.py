@@ -219,6 +219,17 @@ def query_priors(return_dict=False):
 
 
 
+def pt4_profile_is_valid(Tbottom, coarsePress, press, intemp):
+    """Apply the same PT4 temperature constraint in both samplers."""
+    if not 2000. < Tbottom < 10000.:
+        return False
+    # Check the smoothed profile used by the forward model. Its 100 K floor
+    # makes the lower check redundant. PT4 has no 4000 K cap, so the 6000 K
+    # upper check still rejects profiles. Smoothing also changes Tbottom.
+    T = TPmod.set_prof(4, coarsePress, press, intemp)
+    return (min(T) > 1.0) and (max(T) < 6000.)
+
+
 class Priors:
     """
     A class to construct, transform, and evaluate retrieval priors for atmospheric
@@ -523,6 +534,8 @@ class Priors:
             prior_spec = self.resolved_prior_dict.get(name)
 
             if prior_spec is None:
+                if pt == 4:
+                    raise ValueError(f"PT4 parameter {name} requires an explicit Multinest_prior")
                 phi[idx] = cube[idx]
 
             else:
@@ -739,11 +752,9 @@ class Priors:
         elif self.args_instance.proftype==4:
 
             prior_T_params = (2000. < self.params_instance.Tbottom < 10000.)
-
-            prior_T_overall =False
-            if prior_T_params==True:
-                T = TPmod.set_prof(self.args_instance.proftype, self.args_instance.coarsePress,self.args_instance.press, self.intemp)
-                prior_T_overall = (min(T) > 1.0) and (max(T) < 6000.)
+            prior_T_overall = pt4_profile_is_valid(
+                self.params_instance.Tbottom, self.args_instance.coarsePress,
+                self.args_instance.press, self.intemp)
             
 
         elif self.args_instance.proftype==7:
@@ -854,14 +865,15 @@ class Priors:
                 prior_gas = prior_gas and (np.all(gas_profile > -25.0) and np.all(gas_profile < 0.0))
 
             if self.re_params.dictionary.get('hminus', {}).get('enabled', False):
-                log_p_ref = self.params_instance.logP_ref_hmins
-                dp = self.params_instance.dp_hmins
-                top = log_p_ref - 0.5 * dp
-                base = log_p_ref + 0.5 * dp
-                prior_gas = prior_gas and (
-                    np.log10(self.args_instance.press[0]) <= top
-                    and base <= np.log10(self.args_instance.press[-1])
-                    and dp > 0)
+                if not self.re_params.dictionary['hminus'].get('zero_perturbation', False):
+                    log_p_ref = self.params_instance.logP_ref_hmins
+                    dp = self.params_instance.dp_hmins
+                    top = log_p_ref - 0.5 * dp
+                    base = log_p_ref + 0.5 * dp
+                    prior_gas = prior_gas and (
+                        np.log10(self.args_instance.press[0]) <= top
+                        and base <= np.log10(self.args_instance.press[-1])
+                        and dp > 0)
                 metallicity = self.re_params.dictionary['hminus'].get('fixed_met')
                 if metallicity is None:
                     metallicity = self.params_instance.met

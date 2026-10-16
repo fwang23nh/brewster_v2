@@ -32,22 +32,61 @@ Available profiles
      - Allows the middle atmospheric zone to contain a thermal inversion.
    * - ``4``
      - Zhang-style gradient profile
-     - ``Tbottom``, ``dtdp1`` … ``dtdp6``
+     - ``Tbottom``, ``dTdP1`` … ``dTdP6``
      - Retrieves logarithmic temperature gradients at six pressures from
-       :math:`10^{-3}` to :math:`10^3` bar and integrates upward.
+       :math:`10^3` to :math:`10^{-3}` bar and integrates upward.
    * - ``7``
      - Mollière hybrid radiative–convective
      - ``Tint``, ``alpha``, ``lndelta``, ``T1``, ``T2``, ``T3``
      - Joins upper spline temperatures to an Eddington radiative structure and
        a deep dry adiabat.
-   * - ``77``
-     - Mollière hybrid with smoothing prior
-     - ``gamma`` plus the type-7 parameters
-     - Same physical profile as type 7, with the smoothing-prior machinery.
    * - ``9``
      - Fixed input profile
      - none
      - Interpolates ``ModelConfig.prof`` and does not retrieve temperatures.
+
+Type 4 conventions and priors
+----------------------------
+
+``dTdP1`` is the deepest gradient and the last ``dTdP`` parameter is the
+highest. These dimensionless parameters represent :math:`d\ln T/d\ln P` at
+logarithmically spaced knots from 1000 to 0.001 bar. Quadratic interpolation
+provides gradients on the fine grid. Only the length of ``coarsePress`` is
+used for these knots. The default is six knots and 100 fine layers, including
+when only ``num_finePress`` is supplied. Custom knot counts require user-defined
+gradient distributions and priors, with at least three knots for quadratic
+interpolation.
+
+``Tbottom`` anchors the unsmoothed profile at ``press[-1]``. The default fine
+grid extends from :math:`10^{-4}` to :math:`10^{2.4}` bar, so this anchor is
+approximately 251 bar, not the 1000-bar gradient knot. Integration proceeds
+upward using the gradient at the deeper endpoint of each interval. Above
+0.001 bar the unsmoothed profile is isothermal at the first included layer's
+temperature. A Gaussian kernel with a standard deviation of five layers then
+smooths the profile, including its endpoints: the returned bottom temperature
+can differ from ``Tbottom``. Results therefore depend on fine-grid resolution.
+
+The default MCMC gradient priors are Gaussians truncated at three standard
+deviations on each side. For ``MC_init_dis=['truncated_gaussian', mu, sigma]``,
+``MC_prior_range=[3, 3]`` specifies sigma counts, not physical bounds.
+``MC_P0_gen`` draws normal proposals and retains walkers satisfying these
+bounds and the joint prior. The corresponding MultiNest specifications are
+``['truncated_gaussian', mu, sigma, 3, 3]``. ``Tbottom`` has a uniform prior
+from 2000 to 10000 K in both modes. Custom knot counts have no default gradient
+priors; set both MCMC specifications and ``Multinest_prior`` when using both
+samplers.
+
+Both samplers retain the existing strict requirement that
+the smoothed profile be below 6000 K. All profiles are floored at 100 K, making
+the lower check of 1 K redundant. Type 4 has no 4000 K cap, so the upper check
+can reject profiles. MultiNest applies this coupled constraint in the likelihood
+before evaluating a spectrum. These checks allow inversions and do not impose an
+additional monotonicity constraint.
+
+The bottom-to-top gradient convention changes the interpretation of existing
+parameter vectors from the earlier top-to-bottom implementation. Reverse only
+the gradient portion of old vectors to preserve their generated profiles;
+apply the same reversal to custom gradient priors.
 
 Example comparison
 ------------------
