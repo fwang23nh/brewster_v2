@@ -2357,13 +2357,15 @@ def get_opacities(gaslist,w1,w2,press,xpath='../Linelists',xlist='gaslistR10K.da
     -------
     linelist : ndarray, shape (ngas, npress, ntemps, nwave)
         Interpolated opacity values on the requested pressure grid and wavelength range.
-        Values are in log10(cm^2/molecule) or similar units. NaNs are replaced by -50.0.
+        Values are in log10(cm^2/molecule). NaNs are replaced by -50.0.
 
     Notes
     -----
     - The function reads pickled opacity files. Each file must contain a tuple:
       (rawwavenum, inpress, inlinetemps, inlinelist)
     - The linelist is interpolated in log10 space for both pressure and opacity.
+    - HDF5 input follows the Cthulhu convention: log(sigma) is log10(m^2/molecule).
+      It is converted to log10(cm^2/molecule) for the forward model.
     - The function can optionally modify gas names for alkali line updates (malk).
 
     - The function now also support HDF5 pacity files.
@@ -2479,7 +2481,8 @@ def get_opacities(gaslist,w1,w2,press,xpath='../Linelists',xlist='gaslistR10K.da
         npress = press.size
         nwave = idx.size
 
-        linelist = np.zeros((ngas, npress, ntemps, nwave), order='F', dtype='float64')
+        # marv expects a single-precision, Fortran-contiguous opacity array.
+        linelist = np.zeros((ngas, npress, ntemps, nwave), order='F', dtype='float32')
 
         for gas in range(ngas):
             with h5py.File(lists[gas], 'r') as hf:
@@ -2504,7 +2507,8 @@ def get_opacities(gaslist,w1,w2,press,xpath='../Linelists',xlist='gaslistR10K.da
                 # Interpolate in log-pressure space
                 for i in range(ntemps):
                     for j in range(r1, r2 + 1):
-                        y = log_sigma[:, i, j]  # log10(sigma/m^2)
+                        # Convert m^2/molecule to cm^2/molecule for line_mixer.
+                        y = log_sigma[:, i, j] + 4.0
                         pfit = interp1d(
                             logP_gas, y,
                             kind='linear',
