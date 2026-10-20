@@ -781,6 +781,7 @@ class Retrieval_params:
                          }}
 
         elif ptype==4:
+            # dTdP1 is deepest; TPmod spaces knots over the fine-grid bounds.
             if num_coarsePress == 6:
                 dictionary={
                     'ptype':ptype,

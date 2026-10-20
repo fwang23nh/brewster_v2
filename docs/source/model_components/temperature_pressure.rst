@@ -2,7 +2,7 @@ Pressure–temperature parameterizations
 ======================================
 
 Set the parameterization with ``ptype`` in :class:`utils.Retrieval_params`.
-Profiles are evaluated by :func:`TPmod.set_prof` on ``ModelConfig.press``.
+Profiles are evaluated by :func:`TPmod.set_prof` on ``ArgsGen.press``.
 Most analytic profiles are smoothed with a five-layer Gaussian kernel and the
 current implementation limits temperatures to the opacity-table range.
 
@@ -34,7 +34,7 @@ Available profiles
      - Zhang-style gradient profile
      - ``Tbottom``, ``dTdP1`` … ``dTdP6``
      - Retrieves logarithmic temperature gradients at six pressures from
-       :math:`10^3` to :math:`10^{-3}` bar and integrates upward.
+       the model bottom to its top, evenly spaced in log pressure, and integrates upward.
    * - ``7``
      - Mollière hybrid radiative–convective
      - ``Tint``, ``alpha``, ``lndelta``, ``T1``, ``T2``, ``T3``
@@ -46,11 +46,13 @@ Available profiles
      - Interpolates ``ModelConfig.prof`` and does not retrieve temperatures.
 
 Type 4 conventions and priors
-----------------------------
+-----------------------------
 
 ``dTdP1`` is the deepest gradient and the last ``dTdP`` parameter is the
 highest. These dimensionless parameters represent :math:`d\ln T/d\ln P` at
-logarithmically spaced knots from 1000 to 0.001 bar. Quadratic interpolation
+logarithmically spaced knots from ``press[-1]`` to ``press[0]``.
+These are the bounds of ``10**logfinePress`` generated in ``ArgsGen``; all
+knots lie within the model grid, including both endpoints. Quadratic interpolation
 provides gradients on the fine grid. Only the length of ``coarsePress`` is
 used for these knots. The default is six knots and 100 fine layers, including
 when only ``num_finePress`` is supplied. Custom knot counts require user-defined
@@ -59,10 +61,11 @@ interpolation.
 
 ``Tbottom`` anchors the unsmoothed profile at ``press[-1]``. The default fine
 grid extends from :math:`10^{-4}` to :math:`10^{2.4}` bar, so this anchor is
-approximately 251 bar, not the 1000-bar gradient knot. Integration proceeds
-upward using the gradient at the deeper endpoint of each interval. Above
-0.001 bar the unsmoothed profile is isothermal at the first included layer's
-temperature. A Gaussian kernel with a standard deviation of five layers then
+approximately 251 bar and coincides with the deepest gradient knot.
+For six knots, bottom-to-top log10 pressures in bar are 2.4, 1.12, -0.16,
+-1.44, -2.72, and -4. Integration covers the full model grid using the
+gradient at the deeper endpoint of each interval; there is no fixed
+0.001-bar isothermal cutoff. A Gaussian kernel with a standard deviation of five layers then
 smooths the profile, including its endpoints: the returned bottom temperature
 can differ from ``Tbottom``. Results therefore depend on fine-grid resolution.
 
@@ -83,10 +86,14 @@ can reject profiles. MultiNest applies this coupled constraint in the likelihood
 before evaluating a spectrum. These checks allow inversions and do not impose an
 additional monotonicity constraint.
 
-The bottom-to-top gradient convention changes the interpretation of existing
-parameter vectors from the earlier top-to-bottom implementation. Reverse only
-the gradient portion of old vectors to preserve their generated profiles;
-apply the same reversal to custom gradient priors.
+Earlier versions used knots from 1000 to 0.001 bar and an isothermal region
+above 0.001 bar. Existing parameter vectors and pressure-dependent priors
+therefore have a different interpretation with the model-bound knots;
+reversing gradient order alone does not preserve those profiles. Use the
+original implementation to reproduce old retrievals, and refit or justify
+reference-gradient priors on the new knot pressures. Tutorial 8 derives both
+fitting and plotting knots from the model grid. Reference-profile coverage
+must still be checked separately from model-grid coverage.
 
 Example comparison
 ------------------

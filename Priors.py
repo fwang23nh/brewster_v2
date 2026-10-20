@@ -220,7 +220,7 @@ def query_priors(return_dict=False):
 
 
 def pt4_profile_is_valid(Tbottom, coarsePress, press, intemp):
-    """Apply the same PT4 temperature constraint in both samplers."""
+    """Check PT4 on the same model pressure grid used by both samplers."""
     if not 2000. < Tbottom < 10000.:
         return False
     # Check the smoothed profile used by the forward model. Its 100 K floor
@@ -806,15 +806,15 @@ class Priors:
             prior_T_overall=False
             if prior_T_params==True:
                 T = TPmod.set_prof(self.args_instance.proftype, self.args_instance.coarsePress,self.args_instance.press, self.intemp)
-                # To allow a temperature inversion, use the original check below
-                # and comment out the non-inversion block that follows.
-                prior_T_overall = (min(T) > 1.0) and (max(T) < 6000.)
+                # # To allow a temperature inversion, use the original check below
+                # # and comment out the non-inversion block that follows.
+                # prior_T_overall = (min(T) > 1.0) and (max(T) < 6000.)
 
                 # Non-inversion prior.
-                # Tconnect = (((3/4) * self.params_instance.Tint**4) * ((2/3) + 0.1))**(1/4)
-                # prior_T_overall = (min(T) > 1.0) and (max(T) < 6000.) \
-                #     and (self.params_instance.T1 < self.params_instance.T2 < self.params_instance.T3 < Tconnect) \
-                #     and np.all(np.diff(T) >= 0.0)
+                Tconnect = (((3/4) * self.params_instance.Tint**4) * ((2/3) + 0.1))**(1/4)
+                prior_T_overall = (min(T) > 1.0) and (max(T) < 6000.) \
+                    and (self.params_instance.T1 < self.params_instance.T2 < self.params_instance.T3 < Tconnect) \
+                    and np.all(np.diff(T) >= 0.0)
 
         elif self.args_instance.proftype==1:
             prior_T_params=(min(self.intemp) > 1.0) and (max(self.intemp) < 6000.)
