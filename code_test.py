@@ -136,7 +136,7 @@ def NoCloud_Tdwarf(xpath,xlist):
 def MieClouds_Ldwarf(xpath,xlist,cloudpath):
      
      Rfile = 'examples/example_data/code_test_R_file.txt'
-     obspec = np.loadtxt('data/test_data/Mie_cloud_1800K_model_benchmark_SPEC.dat',skiprows=0,unpack=True)
+     obspec = np.loadtxt('data/test_data/Mie_cloud_1800K_model_benchmark_SPEC.dat',skiprows=3,unpack=True)
      wavelength_range=[1,15]
      ndata=1
 
@@ -242,7 +242,7 @@ def MieClouds_Ldwarf(xpath,xlist,cloudpath):
      logP3=1.71616709,
      T3=4886.46433,
      tau_mcs_MgSiO3Cry=5.42024548,
-     logp_mcs_MgSiO3Cry=-2.76574938,
+     logp_mcs_MgSiO3Cry=-2.76574938 + 0.438059949,
      dp_mcs_MgSiO3Cry=0.438059949,
      hansan_a_mcs_MgSiO3Cry=-0.573919866,
      hansan_b_mcs_MgSiO3Cry=0.0858329576,
