@@ -71,7 +71,7 @@ subroutine marv(temp,logg,R2D2,ingasname,molmass,logVMR,pcover,&
 
   
   allocate(gasname(size(ingasname)))
-  allocate(cloudname(ncloud))
+  allocate(cloudname(nclouds))
   gasname = ingasname
   cloudname = cloud_opaname
 

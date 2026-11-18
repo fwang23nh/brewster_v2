@@ -209,6 +209,7 @@ contains
        !end do
        
        if (any(cloudmap(ipatch,:) .ne. 0)) then
+          patch(ipatch)%cloudy = 1
           do icloud = 1, nclouds
            !write(1,*) 'here main 213'   
 

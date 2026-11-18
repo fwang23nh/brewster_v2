@@ -99,6 +99,7 @@ contains
     spectrum = 0d0
     
     do ipatch = 1, npatch
+       !write(*,*) 'patch cloudy = ', patch(ipatch)%cloudy
        ! add up the taus to get extinction
        do ilayer = 1, nlayers
 
@@ -136,7 +137,6 @@ contains
         ! 6 is Rayleigh+HG
         ! 2 ia just Rayleigh
           do ilayer = 1, nlayers
-
              if (patch(ipatch)%cloudy .ne. 0) then
                 SSALB(ilayer) = patch(ipatch)%atm(ilayer)%opd_scat(iwave) / &
                      patch(ipatch)%atm(ilayer)%opd_ext(iwave)             
