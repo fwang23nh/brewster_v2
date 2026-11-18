@@ -151,7 +151,7 @@ def MieClouds_Ldwarf(xpath,xlist,cloudpath):
      do_clouds=1
      npatches=1
 
-     cloud_name=['MgSiO3.mieff','Fe.mieff']
+     cloud_name=['MgSiO3Cry.mieff','Fe2O3_WS15.mieff']
      cloud_type=['slab','deck']
      cloudpatch_index=[[1],[1]]
      particle_dis=['hansen','hansen']

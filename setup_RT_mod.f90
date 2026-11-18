@@ -99,7 +99,7 @@ contains
     spectrum = 0d0
     
     do ipatch = 1, npatch
-        write(*,*) 'patch cloudy = ', patch(ipatch)%cloudy
+       !write(*,*) 'patch cloudy = ', patch(ipatch)%cloudy
        ! add up the taus to get extinction
        do ilayer = 1, nlayers
 

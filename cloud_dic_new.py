@@ -232,8 +232,8 @@ def atlas(re_params,cloudparams,press):
                 pl1, pl2 = atlev(l2,press)
                 cloudprof[l2,j] = const *  (p2**2 - pl1**2) 
                 for k in range (l1+1,l2):
-                    l1,l2 = atlev(k,press)
-                    cloudprof[k,j] = const * (l2**2 - l1**2)
+                    lev1,lev2 = atlev(k,press)
+                    cloudprof[k,j] = const * (lev2**2 - lev1**2)
 
             # We're sampling particle radius in log space        
             if (cloud_opatype[j]  == 'mie'):
