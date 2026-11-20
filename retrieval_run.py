@@ -94,9 +94,17 @@ def brewster_reterieval_run(re_params,model_config_instance,io_config_instance):
     ntemps = args_instance.inlinetemps.size
     settings.linelist, _ = utils.shared_memory_array(rank, node_comm, (ngas,npress,ntemps,args_instance.nwave), datatype='f')
 
+    # Optional shared opacity file: set io_config_instance.opacity_file to reuse
+    # one (linelist, cia) pickle across retrievals with the same gases,
+    # wavelength range, pressure grid and linelists. Unset = original behaviour.
+    opacity_file = getattr(io_config_instance, 'opacity_file', None)
+
     if (rank == 0):
     # Now we'll get the opacity files into an array
-        settings.linelist[:,:,:,:] = utils.get_opacities(args_instance.gaslist,args_instance.w1,args_instance.w2,args_instance.press,args_instance.xpath,args_instance.xlist,args_instance.malk)
+        if opacity_file is not None and os.path.exists(opacity_file):
+            settings.linelist[:,:,:,:] = pickle.load(open(opacity_file, "rb"))[0]
+        else:
+            settings.linelist[:,:,:,:] = utils.get_opacities(args_instance.gaslist,args_instance.w1,args_instance.w2,args_instance.press,args_instance.xpath,args_instance.xlist,args_instance.malk)
 
     #send empty clouddata (clear atmosphere) to settings for model_spec calculation
     settings.cloudata=args_instance.cloudata
@@ -124,7 +132,10 @@ def brewster_reterieval_run(re_params,model_config_instance,io_config_instance):
         # Write the arguments to a pickle if needed
         if (io_config_instance.make_arg_pickle > 0):
             pickle.dump(args_instance,open(io_config_instance.outdir+io_config_instance.runname+"_runargs.pic","wb"))
-            pickle.dump((settings.linelist,settings.cia),open(io_config_instance.outdir+io_config_instance.runname+"_opacities.pic","wb"))
+            if opacity_file is None:
+                pickle.dump((settings.linelist,settings.cia),open(io_config_instance.outdir+io_config_instance.runname+"_opacities.pic","wb"))
+            elif not os.path.exists(opacity_file):
+                pickle.dump((settings.linelist,settings.cia),open(opacity_file,"wb"),protocol=4)
 
             # if hasattr(args_instance, "cloudata") and args_instance.cloudata.size > 0:
             if hasattr(settings, "cloudata") and settings.cloudata.size > 0:
