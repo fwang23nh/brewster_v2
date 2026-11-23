@@ -4,7 +4,7 @@
 """ Module of bits to define Instrument, ModelConfig, IOConfig and Retrieval_params class"""
 
 import numpy as np
-import ciamod
+from forward_model.build import ciamod
 import os
 import gc
 import sys
@@ -14,6 +14,7 @@ from scipy.interpolate import interp1d
 from scipy.interpolate import InterpolatedUnivariateSpline
 import TPmod
 from collections import namedtuple
+from pathlib import Path
 from mpi4py import MPI
 import h5py
 import settings
@@ -22,6 +23,8 @@ import re
 import emcee
 import warnings
 import h5py
+
+_DATA_DIR = Path(__file__).resolve().parent / "data"
 
 __author__ = "Fei Wang"
 __copyright__ = "Copyright 2024 - Fei Wang"
@@ -133,6 +136,11 @@ class ModelConfig:
         The samplemode to use for parameter generation ('mcmc' or 'pymultinest')
     use_disort : int, optional
         Use DISORT flag (default: 0)
+    gas_parameter_sharing : dict, optional
+        Maps p_ref or alpha to follower-to-source gas mappings, for example
+        {'p_ref': {'co': 'h2o', 'iso_12C1H4': 'h2o'}}. The source owns the
+        initialization and prior; only one parameter is sampled. Requires
+        free chemistry and non-uniform gases. Chains and cycles are rejected.
     do_fudge : int, optional
         Do fudge factor flag (default: 0)
     malk : int, optional
@@ -149,9 +157,9 @@ class ModelConfig:
     xlist : str, optional
         Line list file (default: "gaslistRox.dat")
     cia_path : str, optional
-        CIA data file (default: "data/CIA_DS_aug_2015.dat")
+        CIA data file (default: the bundled data/CIA_DS_aug_2015.dat)
     chem_eq_table_path : str, optional
-        Chemical equilibrium table (default: "data/chem_eq_tables_P3K.pic")
+        Chemical equilibrium table (default: the bundled data/chem_eq_tables_P3K.pic)
     dist : float, optional
         Distance parameter (default: None)
     pfile : str, optional
@@ -167,7 +175,7 @@ class ModelConfig:
         Update the model configuration dictionary with the current attributes.
     """
 
-    def __init__(self, samplemode, do_fudge, use_disort=0, malk=0, mch4=0, do_bff=1, fresh=0,cloudpath=None,xpath="../Linelists/", xlist=None, dist=None, pfile="data/LSR1835_eqpt.dat",do_scales=True,do_shift=True,do_conv=True,cia_path="data/CIA_DS_aug_2015.dat",chem_eq_table_path="data/chem_eq_tables_P3K.pic"):
+    def __init__(self, samplemode, do_fudge, use_disort=0, malk=0, mch4=0, do_bff=1, fresh=0,cloudpath=None,xpath="../Linelists/", xlist=None, dist=None, pfile="data/LSR1835_eqpt.dat",do_scales=True,do_shift=True,do_conv=True,cia_path=str(_DATA_DIR / "CIA_DS_aug_2015.dat"),chem_eq_table_path=str(_DATA_DIR / "chem_eq_tables_P3K.pic")):
         self.samplemode = samplemode
         self.use_disort = use_disort
         self.do_fudge = do_fudge
@@ -578,7 +586,8 @@ class Retrieval_params:
                  vsini=False,
                  fwhm=None,
                  num_coarsePress = None,
-                 num_finePress = None):
+                 num_finePress = None,
+                 gas_parameter_sharing=None):
 
         
         self.samplemode = samplemode
@@ -595,7 +604,7 @@ class Retrieval_params:
 
         if (num_finePress is not None) and (num_finePress > 1000):
             raise ValueError(f"Number of user-specified layers greater than maximum number of pressure layers specified\
-                             in sizes_mod.f90 (1000 layers). Either specify less layers or modify the .f90 file and recompile.")
+                             in forward_model/sizes_mod.f90 (1000 layers). Either specify less layers or modify the .f90 file and recompile.")
 
         # Set default num_coarsePress and num_finePress depending on chosen profile type
         if self.ptype == 4 and num_coarsePress == None and num_finePress == None:
@@ -638,6 +647,23 @@ class Retrieval_params:
         self.vsini=vsini
         
         self.dictionary = self.retrieval_para_dic_gen(chemeq, gaslist, gastype_list,fwhm,do_fudge, ptype,self.num_coarsePress,self.num_finePress,do_clouds,npatches,cloud_name,cloud_type,cloudpatch_index,particle_dis)
+        if gas_parameter_sharing:
+            if chemeq != 0:
+                raise ValueError("Gas parameter sharing requires free chemistry (chemeq=0).")
+            for parameter, sources in gas_parameter_sharing.items():
+                if parameter not in ('p_ref', 'alpha'):
+                    raise ValueError("Only p_ref and alpha can be shared between gases.")
+                for gas, source in sources.items():
+                    for member in (gas, source):
+                        if member not in self.dictionary['gas'] or parameter not in self.dictionary['gas'][member]['params']:
+                            raise ValueError(f"Gas {member!r} has no {parameter!r} parameter to share.")
+                    if gas == source or source in sources:
+                        raise ValueError("Sharing must point directly to an independent source gas; chains and cycles are not supported.")
+            self.dictionary['gas_parameter_sharing'] = {
+                parameter: dict(sources)
+                for parameter, sources in gas_parameter_sharing.items()
+            }
+
         
         
         
@@ -1522,6 +1548,16 @@ def hansen_b_customized_distribution(x):
 
             
 
+def gas_parameter_source(dic, gas, parameter):
+    """Return the owner of a gas parameter; old configurations stay independent."""
+    return dic.get('gas_parameter_sharing', {}).get(parameter, {}).get(gas, gas)
+
+
+def gas_parameter_name(dic, gas, parameter):
+    source = gas_parameter_source(dic, gas, parameter)
+    return f"{parameter}_{source}"
+
+
 def get_all_parametres(dic):
 
     """
@@ -1571,10 +1607,10 @@ def get_all_parametres(dic):
             gas.append(gaslist[i])
             gas_values.append(dic['gas'][gaslist[i]]['params']['log_abund']['initialization'])
             if gastype_values[i] in ('N', 'I'):
-                gas.append("p_ref_%s"%gaslist[i])
-                gas.append("alpha_%s"%gaslist[i])
-                gas_values.append(dic['gas'][gaslist[i]]['params']['p_ref']['initialization'])
-                gas_values.append(dic['gas'][gaslist[i]]['params']['alpha']['initialization'])    
+                gas.append(gas_parameter_name(dic, gaslist[i], "p_ref"))
+                gas.append(gas_parameter_name(dic, gaslist[i], "alpha"))
+                gas_values.append(dic['gas'][gas_parameter_source(dic, gaslist[i], 'p_ref')]['params']['p_ref']['initialization'])
+                gas_values.append(dic['gas'][gas_parameter_source(dic, gaslist[i], 'alpha')]['params']['alpha']['initialization'])
 
     # -------------------------------
     # Refinement parameters
@@ -1679,8 +1715,8 @@ def update_dictionary(dic, params_instance):
     for i in range(len(gaslist)):
         dic['gas'][gaslist[i]]['params']['log_abund']['initialization'] = getattr(params_instance, gaslist[i])
         if gastype_values[i] in ('N', 'I'):
-            dic['gas'][gaslist[i]]['params']['p_ref']['initialization'] = getattr(params_instance, "p_ref_%s"%gaslist[i])
-            dic['gas'][gaslist[i]]['params']['alpha']['initialization'] = getattr(params_instance, "alpha_%s"%gaslist[i])
+            dic['gas'][gaslist[i]]['params']['p_ref']['initialization'] = getattr(params_instance, gas_parameter_name(dic, gaslist[i], "p_ref"))
+            dic['gas'][gaslist[i]]['params']['alpha']['initialization'] = getattr(params_instance, gas_parameter_name(dic, gaslist[i], "alpha"))
 
     # -------------------------------
     # Update refinement parameters
@@ -1813,14 +1849,14 @@ def get_dis_range_priors(dic):
             multinest_priors[gas] = params['log_abund'].get('Multinest_prior')
 
             # p_ref
-            if 'p_ref' in params:
+            if 'p_ref' in params and gas_parameter_source(dic, gas, 'p_ref') == gas:
                 key = f"p_ref_{gas}"
                 mc_ranges[key] = params['p_ref'].get('MC_prior_range')
                 mc_init_dis[key] = params['p_ref'].get('MC_init_dis')
                 multinest_priors[key] = params['p_ref'].get('Multinest_prior')
 
             # alpha
-            if 'alpha' in params:
+            if 'alpha' in params and gas_parameter_source(dic, gas, 'alpha') == gas:
                 key = f"alpha_{gas}"
                 mc_ranges[key] = params['alpha'].get('MC_prior_range')
                 mc_init_dis[key] = params['alpha'].get('MC_init_dis')

@@ -22,6 +22,11 @@ module common_arrays
    subroutine init_all
      if ( .NOT. allocated (wavenum)) allocate(wavenum(nwave))
      if ( .NOT. allocated (wavelen)) allocate(wavelen(nwave))
+     ! Rebuild patch storage when switching between cloudy and clear models.
+     ! Otherwise a previous patch's coverage survives and can trigger STOP.
+     if (allocated(patch)) then
+        if (size(patch) /= npatch) deallocate(patch)
+     end if
      if ( .NOT. allocated (patch)) allocate(patch(npatch))     
      if ( .NOT. allocated (press)) allocate(press(nlayers))     
      if ( .NOT. allocated (linetemps)) allocate(linetemps(nlinetemps))     

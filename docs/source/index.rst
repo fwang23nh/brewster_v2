@@ -6,36 +6,32 @@
 Brewster v2
 ===========
 
-Brewster_v2 is a spectral inversion and retrieval code for emission spectra
-of brown dwarfs and giant planets. It combines a layered atmosphere, gas and
-cloud opacity, radiative transfer, instrumental processing, and Bayesian
-inference in one configurable workflow.
+.. image:: _static/brewster-v2-logo.png
+   :alt: Brewster v2 logo: a golden retriever holding three atmospheric worlds.
+   :width: 360px
+   :align: center
 
-New users should start with :doc:`getting_started`, then choose the atmospheric
-parameterizations described in :doc:`model_components/index`. The notebook
-tutorials show complete workflows, while the API reference documents the
-underlying Python interfaces.
-
-Start here
-----------
-
-* :doc:`getting_started` — understand the v2 configuration objects and run a
-  first model.
-* :doc:`model_components/index` — compare P–T, gas-profile, chemistry, and
-  cloud parameterizations.
-* :doc:`tutorials` — follow spectrum generation, retrieval, analysis, and
-  cloud diagnostics.
-* :doc:`api` — look up Python functions and configuration classes.
-
+Brewster v2 is a spectral inversion and retrieval framework for emission
+spectra of brown dwarfs and giant planets. It combines a layered atmosphere,
+gas and cloud opacity, radiative transfer, instrumental processing, and
+Bayesian inference in one configurable workflow.
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
+   :titlesonly:
 
    getting_started
    installation
-   model_components/index
+   quickstart
    retrieval_workflow
+   observations_instruments
+   first_retrieval
+   model_components/index
+   priors_likelihood
+   running_restarting_monitoring
    tutorials
    Cross-section_downsampling
    postprocessing
    api
+   troubleshooting
+   citation_releases_contributing

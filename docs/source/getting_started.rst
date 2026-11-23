@@ -11,12 +11,14 @@ Brewster v2 separates a retrieval into two configuration objects:
    Defines model inputs and numerical choices: data, distance, opacity paths,
    pressure and wavelength grids, convolution, and radiative transfer.
 
-Minimal configuration
----------------------
+Configuration overview
+----------------------
 
-The following cloud-free example shows the main choices. Use the complete files
-under ``examples/G570D_emcee`` and ``examples/G570D_nested`` as executable
-templates.
+The following cloud-free example introduces the configuration objects; it does
+not execute a model. For a complete spectrum-generation script, follow
+:doc:`quickstart`. The files under ``examples/G570D_emcee`` and
+``examples/G570D_nested`` illustrate retrieval drivers; adapt their imports,
+paths, and output settings before use.
 
 .. code-block:: python
 

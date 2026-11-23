@@ -1,5 +1,5 @@
-Atmospheric model components
-============================
+Atmospheric models and opacities
+================================
 
 This section describes the parameterizations currently wired into the v2
 retrieval configuration and forward-model path.

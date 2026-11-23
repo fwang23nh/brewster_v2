@@ -5,8 +5,8 @@
 
 import numpy as np
 import scipy as sp
-import forwardmodel
-import ciamod
+from forward_model.build import forwardmodel
+from forward_model.build import ciamod
 import TPmod
 import cloud
 import pickle
@@ -340,7 +340,7 @@ linelist[np.isnan(linelist)] = -50.0
 
 
 # Get the cia bits
-tmpcia, ciatemps = ciamod.read_cia("CIA_DS_aug_2015.dat",inwavenum)
+tmpcia, ciatemps = ciamod.read_cia("data/CIA_DS_aug_2015.dat",inwavenum)
 cia = np.asfortranarray(np.empty((4,ciatemps.size,nwave)),dtype='float32')
 cia[:,:,:] = tmpcia[:,:,:nwave] 
 ciatemps = np.asfortranarray(ciatemps, dtype='float32')

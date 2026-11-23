@@ -37,7 +37,9 @@ autodoc_mock_imports = [
 
 
 templates_path = ['_templates']
-exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
+# The RST guide and notebook share a document name; publish the RST guide.
+exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store',
+                    'model_components/temperature_pressure.ipynb']
 
 
 

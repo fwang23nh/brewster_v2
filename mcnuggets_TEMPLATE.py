@@ -9,7 +9,7 @@ import traceback
 import numpy as np
 from mpi4py import MPI
 import utils
-import ciamod
+from forward_model.build import ciamod
 import nugbits_TEMPLATE as nb
 import settings
 

@@ -1,5 +1,5 @@
-Retrieval post-processing
-=========================
+Post-processing
+===============
 
 After a retrieval, post-processing evaluates spectra for posterior samples over
 a wider wavelength range and derives distributions of bolometric luminosity,

@@ -23,7 +23,7 @@ A spectral inversion code for retrieval analysis of emission spectra from brown 
    |-- data/
       
  ```
-5. Build the code by running ``` ./build``` in the terminal in the Brewster directory. If you get an error or this is not a fresh build, run make clean before rebuilding the code. This will create ciamod and forwardmodel (which show up as missing imports in brewster.py and testkit.py), as well as various .o, .mod, and .so files.
+5. Run `./build` from the Brewster directory with the Python environment you use for retrievals active. The Fortran sources are in `forward_model/` and all generated files go into `forward_model/build/`. Run `make clean` before rebuilding after a compiler or Python environment change. If upgrading from a checkout built with the old layout, move any old extension binaries out of the repository root so they cannot shadow the compatibility imports.
 6. To test that everything is properly installed, run the check_brewster.py file, by typing ```python check_brewster.py``` in the terminal making sure you are in the brewster working directory.
 
 Please post any problems to the issue tracker.

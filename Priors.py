@@ -402,7 +402,10 @@ class Priors:
             self.gaspara.append(gas)
 
             if self.gastype_values[i] in ('N', 'I'):
-                self.gaspara += [f"p_ref_{gas}",f"alpha_{gas}"]
+                for parameter in ('p_ref', 'alpha'):
+                    name = utils.gas_parameter_name(self.re_params.dictionary, gas, parameter)
+                    if name not in self.gaspara:
+                        self.gaspara.append(name)
 
 
     def _build_pt_parameter_list(self):
@@ -847,8 +850,8 @@ class Priors:
                 gas_profile_index = 0
                 for i, gastype in enumerate(self.gastype_values):
                     if gastype in ("N", "I"):
-                        P_gas = getattr(self.params_instance, f"p_ref_{gas_keys[i]}")
-                        gas_alpha = getattr(self.params_instance, f"alpha_{gas_keys[i]}")
+                        P_gas = getattr(self.params_instance, utils.gas_parameter_name(self.re_params.dictionary, gas_keys[i], "p_ref"))
+                        gas_alpha = getattr(self.params_instance, utils.gas_parameter_name(self.re_params.dictionary, gas_keys[i], "alpha"))
                         t_gas = getattr(self.params_instance, gas_keys[i])
 
                         if (np.log10(self.args_instance.press[0]) <= P_gas <= np.log10(self.args_instance.press[-1])):

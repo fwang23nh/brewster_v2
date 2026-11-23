@@ -7,12 +7,12 @@ import math
 import numpy as np
 import scipy as sp
 import gc
-import ciamod
+from forward_model.build import ciamod
 import TPmod
 import os
 import sys
 import pickle
-import forwardmodel
+from forward_model.build import forwardmodel
 import cloud_dic_new
 from builtins import str
 from builtins import range
@@ -403,8 +403,8 @@ def modelspec(theta,re_params,args_instance,gnostics):
             
         for i in range(len(gastype_values)):
             if gastype_values[i] in ("N", "I"):
-                P_gas= getattr(params_instance, "p_ref_%s"%gas_keys[i])
-                gas_alpha= getattr(params_instance, "alpha_%s"%gas_keys[i])
+                P_gas= getattr(params_instance, utils.gas_parameter_name(re_params.dictionary, gas_keys[i], "p_ref"))
+                gas_alpha= getattr(params_instance, utils.gas_parameter_name(re_params.dictionary, gas_keys[i], "alpha"))
                 t_gas= getattr(params_instance, gas_keys[i])
                 if gastype_values[i] == "N":
                     profile_function = gas_nonuniform.non_uniform_gas

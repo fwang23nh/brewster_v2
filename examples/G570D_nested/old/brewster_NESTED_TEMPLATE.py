@@ -12,7 +12,7 @@ import numpy as np
 import scipy as sp
 import pymultinest as mn
 import nestkit
-import ciamod
+from forward_model.build import ciamod
 import TPmod
 import settings
 import os
@@ -174,13 +174,13 @@ if (proftype == 9):
 inlinetemps,inwavenum,linelist,gasnum,nwave = nestkit.get_opacities(gaslist,w1,w2,press,xpath,xlist,malk)
 
 # Get the cia bits
-tmpcia, ciatemps = ciamod.read_cia("CIA_DS_aug_2015.dat",inwavenum)
+tmpcia, ciatemps = ciamod.read_cia("data/CIA_DS_aug_2015.dat",inwavenum)
 cia = np.asfortranarray(np.empty((4,ciatemps.size,nwave)),dtype='float32')
 cia[:,:,:] = tmpcia[:,:,:nwave] 
 ciatemps = np.asfortranarray(ciatemps, dtype='float32')
 
 # grab BFF and Chemical grids
-bff_raw,ceTgrid,metscale,coscale,gases_myP = nestkit.sort_bff_and_CE(chemeq,"chem_eq_tables_P3K.pic",press,gaslist)
+bff_raw,ceTgrid,metscale,coscale,gases_myP = nestkit.sort_bff_and_CE(chemeq,"data/chem_eq_tables_P3K.pic",press,gaslist)
 
 
 settings.init()

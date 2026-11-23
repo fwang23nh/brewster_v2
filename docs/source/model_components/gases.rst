@@ -102,28 +102,6 @@ gradient because the slope is :math:`1/\alpha`; it is not a transition width.
 For example, with ``alpha=2``, increasing pressure by one decade on the
 varying branch increases :math:`\log_{10} f` by 0.5 dex.
 
-Reproduce the figure
-~~~~~~~~~~~~~~~~~~~~
-
-The script calls the same non-uniform profile functions as the forward
-model. Their outputs are already :math:`\log_{10}` VMR, so the horizontal
-axis is linear in those returned values. Pressure is plotted logarithmically
-and increases downward.
-
-From the Brewster repository root, run
-``PYTHONPATH=. python docs/source/_scripts/plot_gas_profiles.py`` with NumPy,
-SciPy, and Matplotlib installed. The figure is saved in ``docs/source/_static``.
-
-.. literalinclude:: /_scripts/plot_gas_profiles.py
-   :language: python
-   :lines: 3-
-
-These profile functions do not enforce the retrieval priors. When choosing
-other example parameters, check that the resulting VMRs remain physically
-admissible throughout the pressure grid; do not clip an invalid profile to
-make it look acceptable. The retrieval applies additional checks in
-:mod:`Priors`.
-
 Configuration example
 ---------------------
 

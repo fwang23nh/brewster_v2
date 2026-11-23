@@ -1,6 +1,9 @@
 Retrieval workflow
 ==================
 
+For a complete driver and a short sampling demonstration using the supplied
+Gliese 570D data, start with :doc:`first_retrieval`.
+
 1. Choose the model
 -------------------
 
@@ -10,6 +13,9 @@ in that dictionary is the ordering used by the posterior vector.
 
 2. Configure data and opacities
 -------------------------------
+
+Prepare matching observation and response tables using
+:doc:`observations_instruments`.
 
 Construct ``ModelConfig`` with the observation, distance, line-list path,
 cloud-opacity path, and instrument behaviour. This builds the pressure and
@@ -25,6 +31,9 @@ is appropriate, and every parameter vector produces finite output.
 4. Choose a sampler
 -------------------
 
+Read :doc:`priors_likelihood` before choosing or comparing sampler modes;
+their default priors and joint checks are not equivalent.
+
 ``samplemode="mcmc"`` uses the ensemble-MCMC workflow and retrieves ``logg``
 and ``r2d2`` directly. ``samplemode="multinest"`` uses nested sampling and its
 mass/radius/distance parameterization. The associated default priors are stored
@@ -33,6 +42,9 @@ two modes are identical.
 
 5. Save reproducibility products
 --------------------------------
+
+See :doc:`running_restarting_monitoring` for launch commands, checkpoint
+behaviour, continuing MCMC from saved walker positions, and progress files.
 
 A complete analysis needs the chain or posterior samples together with:
 
