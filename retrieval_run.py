@@ -9,7 +9,6 @@ import emcee
 import os
 import sys
 import pickle
-import cloud_dic
 from builtins import str
 from builtins import range
 import utils
