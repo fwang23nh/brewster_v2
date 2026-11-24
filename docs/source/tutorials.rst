@@ -48,5 +48,14 @@ Worked notebooks
    Tutorial 8: Configure a gradient P–T profile <tutorials/Brewster_v2_Tutorial_8_TP_Profile_Type_4.ipynb>
    Tutorial 9: Inspect gas opacity tables <tutorials/Brewster_v2_Tutorial_9_Gas_Opacity.ipynb>
 
+Cross-section resampling examples
+---------------------------------
+
+.. toctree::
+   :maxdepth: 1
+
+   Nearest-neighbour sampling <tutorials/Example_constant_R_downsampling_binning.ipynb>
+   Linear interpolation <tutorials/Example_constant_R_linear_interp.ipynb>
+
 For posterior distributions of bolometric luminosity, effective temperature,
 radius, and mass, see the separate :doc:`postprocessing` guide.
