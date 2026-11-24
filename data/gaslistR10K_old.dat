@@ -24,3 +24,6 @@
 24  Li        6.94100  Li_xsecs_R10K.pic
 25  h_mins    1.01     H_bf.pic
 26  Ca       40.07800  Ca_xsecs_R10K.pic
+27  Fe       55.845    Fe_xsecs_R10K.pic
+28  Al       26.98154  Al_xsecs_R10K.pic
+29  HF       20.00634  HF_xsecs_R10K.pic

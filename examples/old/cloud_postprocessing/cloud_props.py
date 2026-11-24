@@ -5,7 +5,7 @@ import numpy as np
 import scipy as sp
 import cloud
 import TPmod
-import cloudpost
+from forward_model.build import cloudpost
 import settings
 import sys
 from scipy import interpolate

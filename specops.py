@@ -1,8 +1,8 @@
 import numpy as np
 from scipy.stats import binned_statistic
-from bbconv import prism
-from bbconv import convfwhm
-from bbconv import convr
+from forward_model.build.bbconv import prism
+from forward_model.build.bbconv import convfwhm
+from forward_model.build.bbconv import convr
 import utils
 from collections import namedtuple
 from rotBroadInt import rot_int_cmj as rotBroad   

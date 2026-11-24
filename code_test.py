@@ -4,8 +4,8 @@ import scipy as sp
 import numpy as np
 import emcee
 import pickle as pickle
-import forwardmodel
-import ciamod
+from forward_model.build import forwardmodel
+from forward_model.build import ciamod
 import TPmod
 import brewtools
 from astropy.convolution import convolve, convolve_fft
@@ -137,6 +137,13 @@ def MieClouds_Ldwarf(xpath,xlist,cloudpath):
      
      Rfile = 'examples/example_data/code_test_R_file.txt'
      obspec = np.loadtxt('data/test_data/Mie_cloud_1800K_model_benchmark_SPEC.dat',skiprows=3,unpack=True)
+     rfile = np.loadtxt(Rfile)
+     # The legacy spectrum extends past the R-file coverage at the short end.
+     # Match the observed channels so convolution and scale flags use the same grid.
+     rfile_wavelengths = rfile[:, 1]
+     obspec = obspec[:, np.isin(obspec[0], rfile_wavelengths)]
+     if not np.array_equal(obspec[0], rfile_wavelengths):
+          raise ValueError("L dwarf benchmark wavelengths do not match the R-file grid")
      wavelength_range=[1,15]
      ndata=1
 
@@ -161,10 +168,6 @@ def MieClouds_Ldwarf(xpath,xlist,cloudpath):
      do_fudge = 1
      samplemode='mcmc'
      instrument_instance = utils.Instrument(wavelength_range=wavelength_range, R_file=Rfile,obspec=obspec)
-
-     rfile = np.loadtxt(Rfile)
-     instrument_instance.scales = rfile[:, 3]
-     instrument_instance.logf_flag = rfile[:,2]
 
      # re_params = utils.Retrieval_params(samplemode=samplemode, chemeq=chemeq, gaslist=gaslist,
      # gastype_list=gastype_list,do_fudge=do_fudge, ptype=ptype, do_clouds=do_clouds,
@@ -274,6 +277,7 @@ def MieClouds_Ldwarf(xpath,xlist,cloudpath):
      print('mean value of modelspectrum / L benchmark = '+str(np.mean(difference_spectrum)))
      print('std deviation of modelspectrum / L benchmark = '+str(np.std(difference_spectrum)))
      percent_change = np.mean(abs(outspec - obspec[1,:])/obspec[1,:])
+     print(f"Mean absolute fractional difference = {percent_change:.3%}")
 
      if (percent_change < 0.01):
           print("less than 1percent difference with L dwarf regime benchmark")

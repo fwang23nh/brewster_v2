@@ -1,4 +1,5 @@
-#$preamble
+# Historical Intel build for checkouts with Fortran sources at the root.
+# For the current layout use ./build from the repository root.
 # A simple hand-made makefile for a package including applications
 # built from Fortran 90 sources, taking into account the usual
 # dependency cases.

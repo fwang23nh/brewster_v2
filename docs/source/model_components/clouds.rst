@@ -105,7 +105,7 @@ Wavelength comparison
    Extinction relative to its value at 1 micron, independent of whether the
    vertical geometry is a slab or deck.
 
-For the generic opacity models, ``clouds_mod.f90`` applies
+For the generic opacity models, ``forward_model/clouds_mod.f90`` applies
 
 .. math::
 
@@ -132,9 +132,8 @@ NumPy, SciPy, Astropy, and Matplotlib installed. The script uses the actual
 ``atlas`` profiles and the wavelength scaling implemented in Fortran; it
 does not run radiative transfer or load Mie opacity tables.
 
-.. literalinclude:: /_scripts/plot_cloud_profiles.py
-   :language: python
-   :lines: 3-
+Download the :download:`figure-generation script
+</_scripts/plot_cloud_profiles.py>` to inspect or adapt the plotting code.
 
 Particle distributions
 ----------------------

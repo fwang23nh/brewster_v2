@@ -164,14 +164,9 @@ abundance weighting, instrumental convolution, or display rebinning.
    a comparison of the supplied files, not proof of identical line-data
    provenance or a comparison of convolved emergent spectra.
 
-.. toctree::
-   :hidden:
-
-   ../tutorials/Brewster_v2_Gas_Opacity
-
-Read the :doc:`worked notebook <../tutorials/Brewster_v2_Gas_Opacity>` online,
+Read the :doc:`worked notebook <../tutorials/Brewster_v2_Tutorial_9_Gas_Opacity>` online,
 or download the :download:`gas opacity plotting notebook
-<../tutorials/Brewster_v2_Gas_Opacity.ipynb>` to reproduce or modify the plots.
+<../tutorials/Brewster_v2_Tutorial_9_Gas_Opacity.ipynb>` to reproduce or modify the plots.
 Set ``project_root`` to your Brewster checkout and ``opacity_directory`` to
 your downloaded Linelists folder. The default relative path assumes the
 notebook kernel starts in ``docs/source/tutorials/``. The notebook requires

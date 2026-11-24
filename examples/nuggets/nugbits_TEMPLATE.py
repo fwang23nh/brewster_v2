@@ -9,7 +9,7 @@ from builtins import range
 import numpy as np
 import scipy as sp
 import testkit
-import ciamod
+from forward_model.build import ciamod
 import TPmod
 import settings
 import os

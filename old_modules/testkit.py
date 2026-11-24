@@ -8,7 +8,7 @@ import gc
 import numpy as np
 import scipy as sp
 import pickle
-import forwardmodel
+from forward_model.build import forwardmodel
 import cloud
 import TPmod
 import settings

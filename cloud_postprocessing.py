@@ -224,7 +224,7 @@ def get_cloud_species_masses(theta, re_params, args_instance) -> CloudSpeciesMas
     """Calculate per-layer condensed species masses for each cloud component.
 
     The calculation mirrors the cloud optical-depth normalization in
-    ``clouds_mod.f90``: each layer's retrieved ``dtau1`` at 1 micron fixes the
+    ``forward_model/clouds_mod.f90``: each layer's retrieved ``dtau1`` at 1 micron fixes the
     particle column distribution, which is then converted to a material mass
     column using species density and molar mass.
     """
