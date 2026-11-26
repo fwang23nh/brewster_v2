@@ -3016,36 +3016,74 @@ def shared_memory_array(rank, comm, shape,datatype='d'):
 
 
 
-def fortran_gasnames(gaslist):
+# Names treated as the main CH4 isotopologue (case-insensitive, optional
+# "iso_" prefix as in the gas lists, e.g. "iso_12C1H4").
+CH4_NAMES = ("ch4", "12ch4", "12c1h4")
+# Element symbols starting with C, removed before looking for C and H in a
+# name, so metal hydrides such as CrH and CaH are not taken for hydrocarbons.
+_NON_CARBON = ("cr", "ca", "cs", "cl", "cu")
+
+
+def _base_gasname(name):
+    low = str(name).strip().lower()
+    return low[4:] if low.startswith("iso_") else low
+
+
+def is_ch4_name(name):
+    """True for the main CH4 isotopologue: ch4, 12ch4, 12C1H4 (any case)."""
+    return _base_gasname(name) in CH4_NAMES
+
+
+def _looks_like_hydrocarbon(name):
+    low = _base_gasname(name)
+    for el in _NON_CARBON:
+        low = low.replace(el, "")
+    return "c" in low and "h" in low
+
+
+def fortran_gasnames(gaslist, warn=True):
     """Gas names as a blank-padded array of 15-character strings for marv.
 
-    The forward model recognises CH4 (for Rayleigh scattering and H2-CH4
-    CIA) by comparing trim(name) with "ch4". Fortran's trim only removes
-    blanks, so the names must be padded with blanks. The previous version
-    built a (ngas, 10) character array with np.empty: the bytes after each
-    name were uninitialised memory, and f2py does not pass a 2-D character
-    array as one name per row anyway, so CH4 was never recognised.
+    The forward model adds CH4 Rayleigh scattering and H2-CH4 CIA only for
+    the gas whose trim(name) is "ch4". Fortran's trim only removes blanks,
+    so the names must be padded with blanks. (The previous version built a
+    (ngas, 10) character array with np.empty: the bytes after each name
+    were uninitialised memory, and f2py does not pass a 2-D character array
+    as one name per row anyway, so CH4 was never recognised.)
 
-    Any gas whose name contains "ch4" or "12c1h4" (case-insensitive, e.g.
-    "CH4", "ch4_hitemp", "iso_12C1H4") is passed to the Fortran as "ch4".
-    The names are only used for this check; opacities are matched to gases
-    by position, not by name. If several gases match, the Fortran uses the
-    last one, so a warning is issued.
+    The main CH4 isotopologue, named ch4, 12ch4 or 12C1H4 (case-insensitive,
+    optionally with an "iso_" prefix), is passed to the Fortran as "ch4".
+    Other names are passed unchanged; they are not used for anything else,
+    since opacities are matched to gases by position.
+
+    Warnings (issued when the run is set up):
+    * no CH4 found, but some names contain C and H (minor isotopologues such
+      as iso_12ch3D or 13ch4, or other hydrocarbons): CH4 Rayleigh and CIA
+      will not be included;
+    * more than one CH4 match: the Fortran uses the last one.
     """
     names = []
     ch4 = []
     for g in gaslist:
-        low = str(g).lower()
-        if "ch4" in low or "12c1h4" in low:
+        if is_ch4_name(g):
             ch4.append(str(g))
             names.append("ch4")
         else:
             names.append(str(g))
-    if len(ch4) > 1:
+    if warn:
         import warnings
-        warnings.warn(f"Several gases look like CH4 ({', '.join(ch4)}); the "
-                      f"forward model uses the last one ({ch4[-1]}) for CH4 "
-                      "Rayleigh scattering and H2-CH4 CIA.")
+        if not ch4:
+            similar = [str(g) for g in gaslist if _looks_like_hydrocarbon(g)]
+            if similar:
+                warnings.warn(
+                    "CH4 not identified in gas list (expected ch4, 12ch4 or "
+                    "12C1H4), so CH4 Rayleigh scattering and H2-CH4 CIA "
+                    "opacities won't be included. Gases containing C and H: "
+                    + ", ".join(similar) + ".")
+        elif len(ch4) > 1:
+            warnings.warn(f"Several gases match CH4 ({', '.join(ch4)}); the "
+                          f"forward model uses the last one ({ch4[-1]}) for "
+                          "CH4 Rayleigh scattering and H2-CH4 CIA.")
     return np.array([n.ljust(15) for n in names], dtype='S15')
 
 
