@@ -317,6 +317,12 @@ contains
                 !this needs abundance of H- ions
                 !sbf = 0.
                 tauhmbf = sbf * patch(1)%atm(ilayer)%fHmin * colden                     
+             else
+                ! no bound-free beyond the photodetachment threshold.
+                ! (Previously tauhmbf was never reset here, so each hot layer
+                ! after the first carried the previous layer's short-wavelength
+                ! bf optical depth into all wavelengths > 1.642 um.)
+                tauhmbf = 0.d0
              endif
              !Then we get the H- continuum ff opacity
              call opa_hmff(wavenum(iwave),patch(1)%atm(ilayer)%temp,sff_hm)

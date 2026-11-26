@@ -30,6 +30,11 @@ contains
     double precision :: a, b, ndz, drr, arg3, argscat, argext, argcosqs
     double precision :: logcon, qpir2, frac
     real, allocatable,dimension(:) :: cld1arr 
+    ! Mie-grid -> working-grid rebinning indices and weights. These depend
+    ! only on the wavelength grids, so compute them once per call rather than
+    ! once per layer.
+    integer, allocatable, dimension(:) :: rb_w1, rb_w2
+    double precision, allocatable, dimension(:) :: rb_fact
     ! this will take the clouds and in turn calculate their opacities the layers
     ! based on name, density, mean radius and width of log normal distribution
     ! or using Hansen distribution: effective radius, radius spread and density
@@ -82,6 +87,23 @@ contains
     enddo
 
     miewaven = 1.0 / miewave
+
+    allocate(rb_w1(nwave), rb_w2(nwave), rb_fact(nwave))
+    do iwave = 1, nwave
+       wdiff = abs(miewaven - wavenum(iwave))
+       oldw1 = minloc(wdiff,1)
+       if (miewaven(oldw1) .lt. wavenum(iwave)) then
+          oldw2 = oldw1 + 1
+       else
+          oldw2 = oldw1
+          oldw1 = oldw2 - 1
+       end if
+       ! gg should be interpolated in linear space - it is always small
+       rb_w1(iwave) = oldw1
+       rb_w2(iwave) = oldw2
+       rb_fact(iwave) = (wavenum(iwave) - miewaven(oldw1)) / &
+            (miewaven(oldw2) - miewaven(oldw1))
+    end do
 
     ! let's get the location for wave = 1um in miewavelen for later
     loc = minloc(abs(miewave - 1e-4))
@@ -321,23 +343,9 @@ contains
        ! rebin to working resolution (nwave) grid and write to
        
        do iwave= 1 , nwave
-          !write(1,*) 'here iwave = ',iwave,' clouds 297'
-          wdiff = abs(miewaven - wavenum(iwave))
-                    
-          oldw1 = minloc(wdiff,1)
-          
-          if (miewaven(oldw1) .lt. wavenum(iwave)) then
-             oldw2 = oldw1 + 1
-          else
-             oldw2 = oldw1
-             oldw1 = oldw2 - 1
-          end if
-          !intfact = (log10(wavenum(iwave)) - log10(miewaven(oldw1))) / &
-          !     (log10(miewaven(oldw2)) - log10(miewaven(oldw1)))
-
-          ! gg should be interpolated in linear space - it is always small
-          lintfact =  (wavenum(iwave) - miewaven(oldw1)) / &
-               (miewaven(oldw2) - miewaven(oldw1))
+          oldw1 = rb_w1(iwave)
+          oldw2 = rb_w2(iwave)
+          lintfact = rb_fact(iwave)
           
           column(ilayer)%opd_ext(iwave) = column(ilayer)%opd_ext(iwave) + &
                (((opd_ext(ilayer,oldw2) - opd_ext(ilayer,oldw1)) * lintfact) &
@@ -400,6 +408,7 @@ contains
     deallocate(radius,dr,rup)
     deallocate(scat_cloud,ext_cloud,cqs_cloud)
     deallocate(opd_ext,opd_scat,cos_qs)
+    deallocate(rb_w1,rb_w2,rb_fact)
  
 end subroutine cloudcalcs
 
