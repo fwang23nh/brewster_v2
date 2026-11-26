@@ -3025,8 +3025,28 @@ def fortran_gasnames(gaslist):
     built a (ngas, 10) character array with np.empty: the bytes after each
     name were uninitialised memory, and f2py does not pass a 2-D character
     array as one name per row anyway, so CH4 was never recognised.
+
+    Any gas whose name contains "ch4" or "12c1h4" (case-insensitive, e.g.
+    "CH4", "ch4_hitemp", "iso_12C1H4") is passed to the Fortran as "ch4".
+    The names are only used for this check; opacities are matched to gases
+    by position, not by name. If several gases match, the Fortran uses the
+    last one, so a warning is issued.
     """
-    return np.array([str(g).ljust(15) for g in gaslist], dtype='S15')
+    names = []
+    ch4 = []
+    for g in gaslist:
+        low = str(g).lower()
+        if "ch4" in low or "12c1h4" in low:
+            ch4.append(str(g))
+            names.append("ch4")
+        else:
+            names.append(str(g))
+    if len(ch4) > 1:
+        import warnings
+        warnings.warn(f"Several gases look like CH4 ({', '.join(ch4)}); the "
+                      f"forward model uses the last one ({ch4[-1]}) for CH4 "
+                      "Rayleigh scattering and H2-CH4 CIA.")
+    return np.array([n.ljust(15) for n in names], dtype='S15')
 
 
 def get_gasdetails(gaslist,w1,w2,xpath='../Linelists',xlist='gaslistR10K.dat'):
