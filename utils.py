@@ -2643,12 +2643,8 @@ def get_k_opacities(gaslist,w1,w2,press,xpath='../K_tables',xlist='gaslist_ck.da
                                         bounds_error=False, fill_value=-50.0)
                         linelist[g, gg, :, i, j] = np.asfortranarray(pfit(np.log10(press))) #[gas, gg point, P, T, masked wave]
     
-    # convert gaslist into fortran array of ascii strings for fortran code 
-    gasnames = np.empty((len(gaslist), 10), dtype='c')
-    for i, g in enumerate(gaslist):
-        gasnames[i, 0:len(g)] = list(g)
-
-    gasnames = np.asfortranarray(gasnames,dtype='c')
+    # gas names for the Fortran code (blank padded; see fortran_gasnames)
+    gasnames = fortran_gasnames(gaslist)
     gpoints = np.asfortranarray(gpoints, dtype='float32')
     weights = np.asfortranarray(weights, dtype='float32')
     
@@ -3020,6 +3016,19 @@ def shared_memory_array(rank, comm, shape,datatype='d'):
 
 
 
+def fortran_gasnames(gaslist):
+    """Gas names as a blank-padded array of 15-character strings for marv.
+
+    The forward model recognises CH4 (for Rayleigh scattering and H2-CH4
+    CIA) by comparing trim(name) with "ch4". Fortran's trim only removes
+    blanks, so the names must be padded with blanks. The previous version
+    built a (ngas, 10) character array with np.empty: the bytes after each
+    name were uninitialised memory, and f2py does not pass a 2-D character
+    array as one name per row anyway, so CH4 was never recognised.
+    """
+    return np.array([str(g).ljust(15) for g in gaslist], dtype='S15')
+
+
 def get_gasdetails(gaslist,w1,w2,xpath='../Linelists',xlist='gaslistR10K.dat'):
 
     ngas = len(gaslist)
@@ -3054,12 +3063,8 @@ def get_gasdetails(gaslist,w1,w2,xpath='../Linelists',xlist='gaslistR10K.dat'):
     lists = [xpath + i[3] for i in list1[0:ngas]]
     gasmass = np.asfortranarray(np.array([i[2] for i in list1[0:ngas]],dtype='float32'))
     
-    # convert gaslist into fortran array of ascii strings for fortran code 
-    gasnames = np.empty((len(gaslist), 10), dtype='c')
-    for i in range(0,len(gaslist)):
-        gasnames[i,0:len(gaslist[i])] = gaslist[i]
-
-    gasnames = np.asfortranarray(gasnames,dtype='c')
+    # gas names for the Fortran code (blank padded; see fortran_gasnames)
+    gasnames = fortran_gasnames(gaslist)
 
 
     if gasdata[0][3].endswith(".pic"):
@@ -3119,8 +3124,8 @@ class ArgsGen:
         Chemical equilibrium flag.
     dist : float
         Distance to the object.
-    gasnames: c
-        List of gasnames in fortran compatible character arrays
+    gasnames: np.ndarray of 'S15'
+        Gas names, blank padded for the Fortran (see fortran_gasnames)
     gasmass: float
         List of molecular masses for gases
     do_clouds : bool
