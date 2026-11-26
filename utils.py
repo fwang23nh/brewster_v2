@@ -15,7 +15,6 @@ from scipy.interpolate import InterpolatedUnivariateSpline
 import TPmod
 from collections import namedtuple
 from pathlib import Path
-from mpi4py import MPI
 import h5py
 import settings
 from collections import defaultdict
@@ -2901,6 +2900,8 @@ def shared_memory_array(rank, comm, shape,datatype='d'):
         'd' -> float64
         'f' -> float32
     """
+
+    from mpi4py import MPI
 
     if datatype == 'd':
         mpi_type = MPI.DOUBLE
