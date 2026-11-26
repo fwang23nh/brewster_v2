@@ -2912,9 +2912,12 @@ def shared_memory_array(rank, comm, shape,datatype='d'):
     else:
         raise ValueError("datatype must be 'd' (float64) or 'f' (float32)")
     
-    # Create a shared array of size given by product of each dimension
+    # Create a shared array of size given by product of each dimension.
+    # Size the window by the requested type (4 bytes for float32), not
+    # always 8: using MPI.DOUBLE here allocated twice the memory needed
+    # for float32 arrays such as the line list and CIA tables.
     size = np.prod(shape)
-    itemsize = MPI.DOUBLE.Get_size() 
+    itemsize = mpi_type.Get_size()
 
     if (rank == 0): 
         nbytes = size * itemsize   # Array memory allocated for first process
@@ -2930,7 +2933,7 @@ def shared_memory_array(rank, comm, shape,datatype='d'):
  
     # Create a numpy array whose data points to the shared memory
     buf, itemsize = win.Shared_query(0) 
-    assert itemsize == MPI.DOUBLE.Get_size() 
+    assert itemsize == mpi_type.Get_size() == np.dtype(np_type).itemsize
     array =  np.ndarray(buffer=buf, dtype=np_type, shape=shape,order='F')
 
     return array, win
