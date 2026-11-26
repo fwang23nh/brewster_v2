@@ -14,9 +14,9 @@ from scipy.io.idl import readsav
 from scipy import interpolate
 from scipy.interpolate import interp1d
 from scipy.interpolate import InterpolatedUnivariateSpline
-from bensconv import prism_non_uniform
-from bensconv import conv_uniform_R
-from bensconv import conv_uniform_FWHM
+from specops import prism_non_uniform
+from specops import conv_uniform_R
+from specops import conv_uniform_FWHM
 from collections import namedtuple
 import utils
 import settings

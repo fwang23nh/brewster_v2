@@ -13,9 +13,9 @@ from scipy.interpolate import InterpolatedUnivariateSpline
 from scipy.interpolate import interp1d
 from astropy.convolution import convolve, convolve_fft
 from astropy.convolution import Gaussian1DKernel
-from bensconv import prism_non_uniform
-from bensconv import conv_uniform_R
-from bensconv import conv_uniform_FWHM
+from specops import prism_non_uniform
+from specops import conv_uniform_R
+from specops import conv_uniform_FWHM
 
 
 __author__ = "Ben Burningham"

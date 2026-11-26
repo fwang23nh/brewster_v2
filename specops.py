@@ -3,7 +3,6 @@ from scipy.stats import binned_statistic
 from forward_model.build.bbconv import prism
 from forward_model.build.bbconv import convfwhm
 from forward_model.build.bbconv import convr
-import utils
 from collections import namedtuple
 from rotBroadInt import rot_int_cmj as rotBroad   
 
@@ -54,6 +53,8 @@ def proc_spec(inputspec,theta,re_params, args_instance, do_scales=True,do_shift=
     outspec : ndarray, shape (Nobs,)
         Processed model spectrum on the observed grid.
     """
+
+    import utils
 
     all_params,all_params_values =utils.get_all_parametres(re_params.dictionary)
     params_master = namedtuple('params',all_params)
@@ -131,16 +132,17 @@ def proc_spec(inputspec,theta,re_params, args_instance, do_scales=True,do_shift=
                     # Four-column R files contain spectroscopic resolving powers.
                     spec_i = conv_non_uniform_R(modspec[1, :], modspec[0, :], R_i, wl_i)
                 else:
-                    conv_value = args_instance.conv_mode[or_indices] # pulling out smaller slices first
-                    spec_i = np.zeros_like(wl_i) # empty array
-
-                    for j in range(len(wl_i)):    # probs a more efficient way to do it but this goes thru every point instead of grouping them together
-                        if conv_value[j] == 0:
-                          spec_i[j] = conv_non_uniform_R(modspec[1, :], modspec[0, :], R_i[j:j+1], wl_i[j:j+1])[0] # run the spectroscopy convolution, grabbing just the R and wl for that value, it has to be in the form of an array to be happy, sticks it into spec_i
-                        elif conv_value[j] == 1:
-                          spec_i[j] = conv_binning_values(modspec[1, :], modspec[0, :], R_i[j:j+1], wl_i[j:j+1])[0] # same here but for photometry
-
-                #spec_i = conv_binning_values(modspec[1, :], modspec[0, :], args_instance.R[or_indices], obs_wl_i[or_indices])
+                    conv_value = args_instance.conv_mode[or_indices]
+                    spec_i = np.zeros_like(wl_i)
+                    spectroscopy = conv_value == 0
+                    if np.any(spectroscopy):
+                        spec_i[spectroscopy] = conv_non_uniform_R(
+                            modspec[1, :], modspec[0, :], R_i[spectroscopy], wl_i[spectroscopy]
+                        )
+                    for j in np.flatnonzero(conv_value == 1):
+                        spec_i[j] = conv_binning_values(
+                            modspec[1, :], modspec[0, :], R_i[j:j+1], wl_i[j:j+1]
+                        )[0]
 
                 if do_scales==True and scale_flag_val > 0:
                     # IF THERE ARE SCALE PARAMETERS
@@ -220,48 +222,56 @@ def conv_binning_values(model_flux, model_wl, BW, obs_wl):
     # Calculate Mean Flux for each channel
     convolved_flux, _, _ = binned_statistic(model_wl, model_flux, statistic='mean', bins=bin_edges)
 
-    return convolved_flux    
+    return convolved_flux
+
+
+def _gaussian_average(model_flux, model_wl, center, sigma):
+    weights = np.exp(-((model_wl - center) ** 2) / (2 * sigma ** 2))
+    total = np.sum(weights)
+    weights /= total
+    return np.sum(model_flux * weights), total
+
 
 def conv_non_uniform_R(model_flux, model_wl, R, obs_wl):
-    """
-    Convolve a model spectrum with a wavelength-dependent resolving power 
-    onto the observed wavelength grid 
-
-    Parameters:
-    - model_flux: 1D array of model flux values.
-    - model_wl: 1D array of model wl values.
-    - obs_wl: 1D array of observed wl values.
-    - R: 1D array of resolving power values (for the obs_wl grid.)
-
-    Returns:
-    - convolved_flux: 1D array of convolved flux values on the obs_wl grid.
-    """
-    # create the array for the convolved flux
+    """Convolve a model spectrum onto observed wavelengths at variable resolving power."""
+    model_flux = np.asarray(model_flux)
+    model_wl = np.asarray(model_wl)
+    R = np.asarray(R)
+    obs_wl = np.asarray(obs_wl)
     convolved_flux = np.zeros_like(obs_wl)
+    window_bounds = None
 
-    for i, wl_center in enumerate(obs_wl): 
-        
-        # compute FWHM and sigma for each wl
-        # print('wl_center', wl_center)
-        # print('R[i]', R[i])
-        
-        fwhm = wl_center / R[i]
-        # print('fwhm', fwhm)
-        sigma = fwhm / 2.355
+    # A slightly wider window than the 8-sigma profiling prototype gives
+    # additional headroom for spectra with deep features and for sparse grids.
+    sigma_limit = 10.0
+    if (model_wl.ndim == 1 and model_wl.size and model_flux.shape == model_wl.shape
+            and obs_wl.ndim == 1 and np.issubdtype(obs_wl.dtype, np.floating)
+            and R.shape == obs_wl.shape
+            and np.all(np.isfinite(model_wl)) and np.all(model_wl[1:] >= model_wl[:-1])
+            and np.all(np.isfinite(model_flux))
+            and np.all(np.isfinite(obs_wl)) and np.all(obs_wl > 0)
+            and np.all(np.isfinite(R)) and np.all(R > 0)):
+        sigmas = (obs_wl / R) / 2.355
+        lower = np.searchsorted(model_wl, obs_wl - sigma_limit * sigmas, side="left")
+        upper = np.searchsorted(model_wl, obs_wl + sigma_limit * sigmas, side="right")
+        window_bounds = lower, upper
+        peak_flux = np.max(np.abs(model_flux.astype(np.result_type(model_flux, float), copy=False)))
+        tail_weight = np.exp(-0.5 * sigma_limit ** 2)
 
+    for i, center in enumerate(obs_wl):
+        sigma = (center / R[i]) / 2.355
+        if window_bounds is not None:
+            first, last = window_bounds[0][i], window_bounds[1][i]
+            if 0 < last - first < model_wl.size:
+                window = slice(first, last)
+                flux, weight = _gaussian_average(model_flux[window], model_wl[window], center, sigma)
+                # Bound the change from discarded samples, including the change
+                # in normalization. Fall back on sparse grids or when far-away
+                # high flux or cancellation can make the tails important.
+                omitted = (model_wl.size - (last - first)) * tail_weight
+                if (peak_flux + abs(flux)) * omitted <= 1e-12 * abs(flux) * weight:
+                    convolved_flux[i] = flux
+                    continue
+        convolved_flux[i], _ = _gaussian_average(model_flux, model_wl, center, sigma)
 
-        # compute the Gaussian kernel for the current wl
-       
-        gaussian_kernel = np.exp(-((model_wl-wl_center) ** 2) / (2 * sigma **2))
-        #print('gaussian_kernel before normalisation', gaussian_kernel)
-
-        # normalisation
-        gaussian_kernel /= np.sum(gaussian_kernel)
-        # print('gaussian_kernel after normalisation', gaussian_kernel)
-
-
-
-        # apply the kernel to the flux
-        convolved_flux[i] = np.sum(model_flux * gaussian_kernel)
-    
     return convolved_flux

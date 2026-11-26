@@ -7,10 +7,10 @@ from rotBroadInt import rot_int_cmj as rotBroad
 from collections import namedtuple
 import numpy as np
 import scipy as sp
-from bensconv import prism_non_uniform
-from bensconv import conv_uniform_R
-from bensconv import conv_uniform_FWHM
-from bensconv import conv_non_uniform_R
+from specops import prism_non_uniform
+from specops import conv_uniform_R
+from specops import conv_uniform_FWHM
+from specops import conv_non_uniform_R
     
 
 
