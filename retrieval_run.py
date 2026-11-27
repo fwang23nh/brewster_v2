@@ -9,7 +9,6 @@ import emcee
 import os
 import sys
 import pickle
-import cloud_dic
 from builtins import str
 from builtins import range
 import utils
@@ -117,7 +116,7 @@ def brewster_reterieval_run(re_params,model_config_instance,io_config_instance):
     world_comm.Barrier()
 
 
-    if rank == 0:
+    if world_comm.Get_rank() == 0:
         if not os.path.exists(f"{io_config_instance.outdir}"):
             os.makedirs(f"{io_config_instance.outdir}", exist_ok=True)
 
@@ -137,10 +136,9 @@ def brewster_reterieval_run(re_params,model_config_instance,io_config_instance):
                     'io_config': io_config_instance
                 }, file)
 
-            if(io_config_instance.make_arg_pickle == 1):
-                sys.exit()
-                
     world_comm.Barrier()
+    if io_config_instance.make_arg_pickle == 1:
+        sys.exit()
 
         
     # ------------------------------------------------------------------
@@ -311,11 +309,15 @@ def brewster_reterieval_run(re_params,model_config_instance,io_config_instance):
         mnest_args['sampling_efficiency']= model_config_instance.sampling_efficiency
         mnest_args['const_efficiency_mode']= model_config_instance.const_efficiency_mode
         mnest_args['evidence_tolerance']= model_config_instance.evidence_tolerance
+        mnest_args['resume'] = model_config_instance.resume
         
         # ``pymultinest.run`` writes results to disk and normally returns None.
         # Read those files through Analyzer before reporting the evidence and
         # posterior parameter summaries.
         mn.run(**mnest_args)
+
+        if world_comm.Get_rank() != 0:
+            return
 
         analyzer = mn.Analyzer(
             n_params=model_config_instance.nparam,
