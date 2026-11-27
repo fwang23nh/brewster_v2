@@ -9,7 +9,7 @@ import numpy as np
 import scipy as sp
 import pickle
 from forward_model.build import forwardmodel
-import cloud
+from old_modules import cloud
 import TPmod
 import settings
 import sys

@@ -8,7 +8,7 @@ import scipy as sp
 from forward_model.build import forwardmodel
 from forward_model.build import ciamod
 import TPmod
-import cloud
+from old_modules import cloud
 import pickle
 from scipy.io.idl import readsav
 from scipy import interpolate
