@@ -19,6 +19,7 @@ from builtins import range
 from scipy import interpolate
 from scipy.interpolate import interp1d
 from scipy.interpolate import InterpolatedUnivariateSpline
+import interp_tools
 from astropy.convolution import convolve, convolve_fft
 from astropy.convolution import Gaussian1DKernel
 from specops import prism_non_uniform
@@ -361,14 +362,14 @@ def modelspec(theta,re_params,args_instance,gnostics):
         # Chemical equilibrium: profile already defined on T–P grid
         ng = invmr.shape[2]
         ngas = ng - 3
-        logVMR = np.zeros([ngas,nlayers],dtype='d')
-        for p in range(0,nlayers):
-            for g in range(0,ng):
-                tfit = InterpolatedUnivariateSpline(args_instance.ceTgrid,invmr[:,p,g])
-                if (g < 3):
-                    bff[g,p] = tfit(temp[p])
-                else:
-                    logVMR[g-3,p]= tfit(temp[p])
+        # cubic spline in T for every layer and gas at once, evaluated at each
+        # layer's temperature (was one InterpolatedUnivariateSpline per pair)
+        nT = args_instance.ceTgrid.size
+        at_T = interp_tools.cubic_columns(
+            args_instance.ceTgrid, invmr.reshape(nT, nlayers * ng),
+            np.repeat(np.asarray(temp, dtype=float), ng)).reshape(nlayers, ng)
+        bff[:, :] = at_T[:, :3].T
+        logVMR = np.ascontiguousarray(at_T[:, 3:].T, dtype='d')
         
 
     else:
@@ -444,19 +445,16 @@ def modelspec(theta,re_params,args_instance,gnostics):
 
             # Interpolate log10 ion abundances from the CE pressure grid onto
             # the model pressure grid only after selecting met and fixed C/O.
-            bff_grid = np.empty((args_instance.ceTgrid.size, nlayers, 3))
-            for gas in range(3):
-                for i in range(args_instance.ceTgrid.size):
-                    pfit = InterpolatedUnivariateSpline(
-                        args_instance.Pgrid,
-                        np.log10(ions_at_met_co[i, :, gas]), k=1)
-                    bff_grid[i, :, gas] = pfit(np.log10(press))
+            # linear in Pgrid (as the k=1 splines were), all T and ions at once
+            log_ions = np.log10(ions_at_met_co)              # (nT, nP, 3)
+            bff_grid = interp_tools.linear_columns(
+                args_instance.Pgrid, np.moveaxis(log_ions, 1, 0)[:, :, None, :],
+                np.log10(press)[None, :, None])               # (nT, nlayers, 3)
 
-        for gas in range(0,3):
-            for i in range(0,nlayers):
-                tfit = InterpolatedUnivariateSpline(
-                    args_instance.ceTgrid, bff_grid[:, i, gas], k=1)
-                bff[gas,i] = tfit(temp[i])
+        # linear in T (as the k=1 splines were), every layer and ion at once
+        bff[:, :] = interp_tools.linear_columns(
+            args_instance.ceTgrid, bff_grid[:, :nlayers, :],
+            np.asarray(temp, dtype=float)[:, None]).T
 
         if perturb_hminus:
             if hminus_config.get('zero_perturbation', False):
